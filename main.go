@@ -6,9 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
+	"time"
 )
 
 var handles map[string]string
@@ -28,6 +31,9 @@ func main() {
 		log.Fatalf("could not parse %s: %v", configPath, err)
 	}
 	log.Printf("loaded %d handle(s) from %s", len(handles), configPath)
+
+	// 5 submissions per IP per hour.
+	limiter := newRateLimiter(5, time.Hour)
 
 	mux := http.NewServeMux()
 
@@ -59,10 +65,19 @@ func main() {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+
+		if !limiter.allow(clientIP(r)) {
+			http.Redirect(w, r, "/?error=rate-limited", http.StatusSeeOther)
+			return
+		}
+
 		if githubToken == "" {
 			http.Redirect(w, r, "/?error=not-configured", http.StatusSeeOther)
 			return
 		}
+
+		// Cap body size to prevent large payload abuse.
+		r.Body = http.MaxBytesReader(w, r.Body, 4096)
 		if err := r.ParseForm(); err != nil {
 			http.Redirect(w, r, "/?error=server-error", http.StatusSeeOther)
 			return
@@ -75,7 +90,7 @@ func main() {
 			http.Redirect(w, r, "/?error=invalid-handle", http.StatusSeeOther)
 			return
 		}
-		if !strings.HasPrefix(did, "did:plc:") && !strings.HasPrefix(did, "did:web:") {
+		if !isValidDID(did) {
 			http.Redirect(w, r, "/?error=invalid-did", http.StatusSeeOther)
 			return
 		}
@@ -110,6 +125,8 @@ func main() {
 				flash = `<div class="notice error">Invalid handle. Use only lowercase letters, numbers, and hyphens.</div>`
 			case "invalid-did":
 				flash = `<div class="notice error">Invalid DID — it must start with <code>did:plc:</code> or <code>did:web:</code>.</div>`
+			case "rate-limited":
+				flash = `<div class="notice error">Too many requests. Please try again later.</div>`
 			case "not-configured":
 				flash = `<div class="notice error">Handle requests are not available right now.</div>`
 			default:
@@ -125,6 +142,7 @@ func main() {
 	log.Fatal(http.ListenAndServe(":"+port, mux))
 }
 
+// isValidHandle accepts lowercase letters, digits, and interior hyphens, max 30 chars.
 func isValidHandle(s string) bool {
 	if len(s) == 0 || len(s) > 30 {
 		return false
@@ -135,6 +153,98 @@ func isValidHandle(s string) bool {
 		}
 	}
 	return s[0] != '-' && s[len(s)-1] != '-'
+}
+
+// isValidDID accepts did:plc: and did:web: DIDs with only printable non-space ASCII.
+func isValidDID(s string) bool {
+	if len(s) == 0 || len(s) > 512 {
+		return false
+	}
+	if !strings.HasPrefix(s, "did:plc:") && !strings.HasPrefix(s, "did:web:") {
+		return false
+	}
+	// Reject anything outside printable non-space ASCII to prevent injection.
+	for _, c := range s {
+		if c < 33 || c > 126 {
+			return false
+		}
+	}
+	return true
+}
+
+// clientIP returns the real client IP, honouring the Cloudflare header when present.
+func clientIP(r *http.Request) string {
+	if ip := strings.TrimSpace(r.Header.Get("CF-Connecting-IP")); ip != "" {
+		return ip
+	}
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return ip
+}
+
+// rateLimiter is an in-memory sliding-window rate limiter keyed by string (IP).
+type rateLimiter struct {
+	mu      sync.Mutex
+	entries map[string][]time.Time
+	limit   int
+	window  time.Duration
+}
+
+func newRateLimiter(limit int, window time.Duration) *rateLimiter {
+	rl := &rateLimiter{
+		entries: make(map[string][]time.Time),
+		limit:   limit,
+		window:  window,
+	}
+	go rl.cleanup()
+	return rl
+}
+
+func (rl *rateLimiter) allow(key string) bool {
+	now := time.Now()
+	cutoff := now.Add(-rl.window)
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	times := rl.entries[key]
+	n := 0
+	for _, t := range times {
+		if t.After(cutoff) {
+			times[n] = t
+			n++
+		}
+	}
+	times = times[:n]
+	if n >= rl.limit {
+		rl.entries[key] = times
+		return false
+	}
+	rl.entries[key] = append(times, now)
+	return true
+}
+
+// cleanup removes expired entries every 10 minutes to bound memory use.
+func (rl *rateLimiter) cleanup() {
+	for range time.Tick(10 * time.Minute) {
+		cutoff := time.Now().Add(-rl.window)
+		rl.mu.Lock()
+		for key, times := range rl.entries {
+			n := 0
+			for _, t := range times {
+				if t.After(cutoff) {
+					times[n] = t
+					n++
+				}
+			}
+			if n == 0 {
+				delete(rl.entries, key)
+			} else {
+				rl.entries[key] = times[:n]
+			}
+		}
+		rl.mu.Unlock()
+	}
 }
 
 type ghFileContent struct {
@@ -171,7 +281,7 @@ func ghRequest(token, method, url string, body interface{}) (*http.Response, err
 func createHandlePR(token, repo, handle, did, baseDomain string) error {
 	apiBase := "https://api.github.com/repos/" + repo
 
-	// Get current handles.json content and blob SHA
+	// Get current handles.json content and blob SHA.
 	resp, err := ghRequest(token, "GET", apiBase+"/contents/handles.json", nil)
 	if err != nil {
 		return fmt.Errorf("get file: %w", err)
@@ -185,7 +295,7 @@ func createHandlePR(token, repo, handle, did, baseDomain string) error {
 		return fmt.Errorf("decode file: %w", err)
 	}
 
-	// Decode content and add the new handle
+	// Decode content and add the new handle.
 	raw, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(fc.Content, "\n", ""))
 	if err != nil {
 		return fmt.Errorf("decode base64: %w", err)
@@ -204,7 +314,7 @@ func createHandlePR(token, repo, handle, did, baseDomain string) error {
 	}
 	updated = append(updated, '\n')
 
-	// Get the SHA of the main branch HEAD
+	// Get the SHA of the main branch HEAD.
 	resp2, err := ghRequest(token, "GET", apiBase+"/git/refs/heads/main", nil)
 	if err != nil {
 		return fmt.Errorf("get main ref: %w", err)
@@ -218,7 +328,7 @@ func createHandlePR(token, repo, handle, did, baseDomain string) error {
 		return fmt.Errorf("decode main ref: %w", err)
 	}
 
-	// Create a new branch off main
+	// Create a new branch off main.
 	branch := "handle-request/" + handle
 	resp3, err := ghRequest(token, "POST", apiBase+"/git/refs", map[string]string{
 		"ref": "refs/heads/" + branch,
@@ -232,7 +342,7 @@ func createHandlePR(token, repo, handle, did, baseDomain string) error {
 		return fmt.Errorf("create branch: status %d", resp3.StatusCode)
 	}
 
-	// Commit the updated handles.json to the new branch
+	// Commit the updated handles.json to the new branch.
 	resp4, err := ghRequest(token, "PUT", apiBase+"/contents/handles.json", map[string]interface{}{
 		"message": "Add handle: " + handle,
 		"content": base64.StdEncoding.EncodeToString(updated),
@@ -247,7 +357,7 @@ func createHandlePR(token, repo, handle, did, baseDomain string) error {
 		return fmt.Errorf("update file: status %d", resp4.StatusCode)
 	}
 
-	// Open the pull request
+	// Open the pull request.
 	prBody := fmt.Sprintf("Requested handle `@%s.%s`\n\nDID: `%s`\n\n---\n_Auto-generated by the handle request form._", handle, baseDomain, did)
 	resp5, err := ghRequest(token, "POST", apiBase+"/pulls", map[string]interface{}{
 		"title": "Add handle: " + handle,
