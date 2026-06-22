@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -9,14 +11,14 @@ import (
 	"strings"
 )
 
-// handles maps subdomain username -> AT Protocol DID.
-// Loaded from handles.json at startup; update via PR and redeploy.
 var handles map[string]string
 
 func main() {
 	port := envOr("PORT", "8080")
 	baseDomain := envOr("BASE_DOMAIN", "bluejays.space")
 	configPath := envOr("HANDLES_FILE", "handles.json")
+	githubToken := os.Getenv("GITHUB_TOKEN")
+	githubRepo := envOr("GITHUB_REPO", "karanshukla/bluejays-space")
 
 	b, err := os.ReadFile(configPath)
 	if err != nil {
@@ -52,17 +54,216 @@ func main() {
 		fmt.Fprint(w, did)
 	})
 
+	mux.HandleFunc("/request-handle", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if githubToken == "" {
+			http.Redirect(w, r, "/?error=not-configured", http.StatusSeeOther)
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			http.Redirect(w, r, "/?error=server-error", http.StatusSeeOther)
+			return
+		}
+
+		handle := strings.ToLower(strings.TrimSpace(r.FormValue("handle")))
+		did := strings.TrimSpace(r.FormValue("did"))
+
+		if !isValidHandle(handle) {
+			http.Redirect(w, r, "/?error=invalid-handle", http.StatusSeeOther)
+			return
+		}
+		if !strings.HasPrefix(did, "did:plc:") && !strings.HasPrefix(did, "did:web:") {
+			http.Redirect(w, r, "/?error=invalid-did", http.StatusSeeOther)
+			return
+		}
+
+		if err := createHandlePR(githubToken, githubRepo, handle, did, baseDomain); err != nil {
+			if strings.Contains(err.Error(), "already taken") {
+				http.Redirect(w, r, "/?error=handle-taken", http.StatusSeeOther)
+				return
+			}
+			log.Printf("failed to create PR for handle %s: %v", handle, err)
+			http.Redirect(w, r, "/?error=server-error", http.StatusSeeOther)
+			return
+		}
+
+		http.Redirect(w, r, "/?requested="+handle, http.StatusSeeOther)
+	})
+
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
 			return
 		}
+
+		var flash string
+		if req := r.URL.Query().Get("requested"); req != "" && isValidHandle(req) {
+			flash = fmt.Sprintf(`<div class="notice success">Request for <strong>@%s.%s</strong> submitted — we'll review it shortly.</div>`, req, baseDomain)
+		} else if errCode := r.URL.Query().Get("error"); errCode != "" {
+			switch errCode {
+			case "handle-taken":
+				flash = `<div class="notice error">That handle is already taken. Please choose a different one.</div>`
+			case "invalid-handle":
+				flash = `<div class="notice error">Invalid handle. Use only lowercase letters, numbers, and hyphens.</div>`
+			case "invalid-did":
+				flash = `<div class="notice error">Invalid DID — it must start with <code>did:plc:</code> or <code>did:web:</code>.</div>`
+			case "not-configured":
+				flash = `<div class="notice error">Handle requests are not available right now.</div>`
+			default:
+				flash = `<div class="notice error">Something went wrong. Please try again.</div>`
+			}
+		}
+
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprintf(w, homePage, baseDomain)
+		fmt.Fprintf(w, homePage, baseDomain, flash)
 	})
 
 	log.Printf("listening on :%s for %s", port, baseDomain)
 	log.Fatal(http.ListenAndServe(":"+port, mux))
+}
+
+func isValidHandle(s string) bool {
+	if len(s) == 0 || len(s) > 30 {
+		return false
+	}
+	for _, c := range s {
+		if !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-') {
+			return false
+		}
+	}
+	return s[0] != '-' && s[len(s)-1] != '-'
+}
+
+type ghFileContent struct {
+	Content string `json:"content"`
+	SHA     string `json:"sha"`
+}
+
+type ghRef struct {
+	Object struct {
+		SHA string `json:"sha"`
+	} `json:"object"`
+}
+
+func ghRequest(token, method, url string, body interface{}) (*http.Response, error) {
+	var b []byte
+	if body != nil {
+		var err error
+		b, err = json.Marshal(body)
+		if err != nil {
+			return nil, err
+		}
+	}
+	req, err := http.NewRequest(method, url, bytes.NewReader(b))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	return http.DefaultClient.Do(req)
+}
+
+func createHandlePR(token, repo, handle, did, baseDomain string) error {
+	apiBase := "https://api.github.com/repos/" + repo
+
+	// Get current handles.json content and blob SHA
+	resp, err := ghRequest(token, "GET", apiBase+"/contents/handles.json", nil)
+	if err != nil {
+		return fmt.Errorf("get file: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("get file: status %d", resp.StatusCode)
+	}
+	var fc ghFileContent
+	if err := json.NewDecoder(resp.Body).Decode(&fc); err != nil {
+		return fmt.Errorf("decode file: %w", err)
+	}
+
+	// Decode content and add the new handle
+	raw, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(fc.Content, "\n", ""))
+	if err != nil {
+		return fmt.Errorf("decode base64: %w", err)
+	}
+	var existing map[string]string
+	if err := json.Unmarshal(raw, &existing); err != nil {
+		return fmt.Errorf("unmarshal: %w", err)
+	}
+	if _, ok := existing[handle]; ok {
+		return fmt.Errorf("handle %q is already taken", handle)
+	}
+	existing[handle] = did
+	updated, err := json.MarshalIndent(existing, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal: %w", err)
+	}
+	updated = append(updated, '\n')
+
+	// Get the SHA of the main branch HEAD
+	resp2, err := ghRequest(token, "GET", apiBase+"/git/refs/heads/main", nil)
+	if err != nil {
+		return fmt.Errorf("get main ref: %w", err)
+	}
+	defer resp2.Body.Close()
+	if resp2.StatusCode != 200 {
+		return fmt.Errorf("get main ref: status %d", resp2.StatusCode)
+	}
+	var mainRef ghRef
+	if err := json.NewDecoder(resp2.Body).Decode(&mainRef); err != nil {
+		return fmt.Errorf("decode main ref: %w", err)
+	}
+
+	// Create a new branch off main
+	branch := "handle-request/" + handle
+	resp3, err := ghRequest(token, "POST", apiBase+"/git/refs", map[string]string{
+		"ref": "refs/heads/" + branch,
+		"sha": mainRef.Object.SHA,
+	})
+	if err != nil {
+		return fmt.Errorf("create branch: %w", err)
+	}
+	resp3.Body.Close()
+	if resp3.StatusCode != 201 {
+		return fmt.Errorf("create branch: status %d", resp3.StatusCode)
+	}
+
+	// Commit the updated handles.json to the new branch
+	resp4, err := ghRequest(token, "PUT", apiBase+"/contents/handles.json", map[string]interface{}{
+		"message": "Add handle: " + handle,
+		"content": base64.StdEncoding.EncodeToString(updated),
+		"sha":     fc.SHA,
+		"branch":  branch,
+	})
+	if err != nil {
+		return fmt.Errorf("update file: %w", err)
+	}
+	resp4.Body.Close()
+	if resp4.StatusCode != 200 {
+		return fmt.Errorf("update file: status %d", resp4.StatusCode)
+	}
+
+	// Open the pull request
+	prBody := fmt.Sprintf("Requested handle `@%s.%s`\n\nDID: `%s`\n\n---\n_Auto-generated by the handle request form._", handle, baseDomain, did)
+	resp5, err := ghRequest(token, "POST", apiBase+"/pulls", map[string]interface{}{
+		"title": "Add handle: " + handle,
+		"body":  prBody,
+		"head":  branch,
+		"base":  "main",
+	})
+	if err != nil {
+		return fmt.Errorf("create PR: %w", err)
+	}
+	resp5.Body.Close()
+	if resp5.StatusCode != 201 {
+		return fmt.Errorf("create PR: status %d", resp5.StatusCode)
+	}
+
+	return nil
 }
 
 func envOr(key, fallback string) string {
@@ -77,71 +278,174 @@ const homePage = `<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>%[1]s — Bluesky Handles</title>
+<title>%[1]s</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: system-ui, -apple-system, sans-serif;
-    background: #0a0a0f;
-    color: #e8e8f0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #f5f5f5;
+    color: #1a1a1a;
     min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
+    padding: 48px 24px;
+    font-size: 15px;
+    line-height: 1.5;
   }
+  .container { max-width: 540px; margin: 0 auto; }
+  .site-header { margin-bottom: 28px; }
+  .site-header h1 { font-size: 1.125rem; font-weight: 600; }
+  .site-header p { color: #666; font-size: 0.875rem; margin-top: 4px; }
   .card {
-    background: #13131a;
-    border: 1px solid #1e1e2e;
-    border-radius: 16px;
-    padding: 48px;
-    max-width: 520px;
-    width: 100%%;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 22px 24px;
+    margin-bottom: 12px;
   }
-  h1 { font-size: 1.5rem; font-weight: 700; color: #fff; margin-bottom: 8px; }
-  p { color: #7070a0; font-size: 0.95rem; line-height: 1.6; margin-bottom: 16px; }
-  .accent { color: #4a4aff; }
-  hr { border: none; border-top: 1px solid #1e1e2e; margin: 28px 0; }
-  ol { padding-left: 0; list-style: none; counter-reset: steps; }
+  .card-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #999;
+    margin-bottom: 14px;
+  }
+  .card p {
+    font-size: 0.875rem;
+    color: #555;
+    margin-bottom: 16px;
+  }
+  .form-field { margin-bottom: 14px; }
+  label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-bottom: 5px;
+    color: #1a1a1a;
+  }
+  .hint { font-weight: 400; color: #999; font-size: 0.8125rem; }
+  .input-group { display: flex; }
+  .input-prefix {
+    padding: 8px 10px;
+    background: #f5f5f5;
+    border: 1px solid #d4d4d4;
+    border-right: none;
+    border-radius: 6px 0 0 6px;
+    font-size: 0.9375rem;
+    color: #777;
+    white-space: nowrap;
+    line-height: 1.45;
+  }
+  input[type=text] {
+    width: 100%%;
+    padding: 8px 10px;
+    border: 1px solid #d4d4d4;
+    border-radius: 6px;
+    font-size: 0.9375rem;
+    font-family: inherit;
+    background: #fff;
+    outline: none;
+    color: #1a1a1a;
+    line-height: 1.45;
+  }
+  .input-group input[type=text] { border-radius: 0 6px 6px 0; }
+  input[type=text]:focus {
+    border-color: #0070f3;
+    box-shadow: 0 0 0 3px rgba(0, 112, 243, 0.1);
+  }
+  button {
+    margin-top: 6px;
+    width: 100%%;
+    padding: 9px 16px;
+    background: #1a1a1a;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  button:hover { background: #333; }
+  ol { list-style: none; counter-reset: steps; }
   li {
     counter-increment: steps;
     display: flex;
-    gap: 14px;
+    gap: 11px;
     align-items: flex-start;
-    margin-bottom: 14px;
-    font-size: 0.9rem;
-    color: #b0b0d0;
+    font-size: 0.875rem;
+    color: #444;
     line-height: 1.5;
+    margin-bottom: 10px;
   }
+  li:last-child { margin-bottom: 0; }
   li::before {
     content: counter(steps);
-    background: #1e1e2e;
-    color: #7070a0;
-    width: 22px;
-    height: 22px;
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    background: #f0f0f0;
     border-radius: 50%%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     font-weight: 700;
-    flex-shrink: 0;
-    margin-top: 1px;
+    color: #666;
+    margin-top: 2px;
   }
-  code { background: #1e1e2e; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; color: #c8c8f0; }
+  code {
+    font-family: "SF Mono", ui-monospace, "Fira Code", monospace;
+    font-size: 0.82em;
+    background: #f0f0f0;
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: #1a1a1a;
+  }
+  .notice {
+    padding: 11px 14px;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    margin-bottom: 12px;
+  }
+  .notice.success { background: #f0fdf4; border: 1px solid #86efac; color: #15803d; }
+  .notice.error   { background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; }
 </style>
 </head>
 <body>
-<div class="card">
-  <h1>%[1]s</h1>
-  <p>Custom Bluesky handles on <span class="accent">%[1]s</span> — invite only.</p>
-  <hr>
-  <p>Once you've been added, verify your handle in Bluesky:</p>
-  <ol>
-    <li>Go to <strong>Settings → Change handle → I have my own domain</strong>.</li>
-    <li>Enter your handle: <code>you.%[1]s</code></li>
-    <li>Click <strong>Verify DNS Record</strong> — it should pass immediately.</li>
-  </ol>
+<div class="container">
+  <div class="site-header">
+    <h1>%[1]s</h1>
+    <p>Custom Bluesky handles for the community.</p>
+  </div>
+  %[2]s
+  <div class="card">
+    <div class="card-title">Request a Handle</div>
+    <p>Fill in the form below. Once the pull request is reviewed and merged, your handle will be active.</p>
+    <form method="POST" action="/request-handle">
+      <div class="form-field">
+        <label for="handle">Handle <span class="hint">— lowercase letters, numbers, hyphens</span></label>
+        <div class="input-group">
+          <span class="input-prefix">@</span>
+          <input type="text" id="handle" name="handle" placeholder="yourname"
+                 required autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+      <div class="form-field">
+        <label for="did">Your DID <span class="hint">— Settings → Change handle → I have my own domain</span></label>
+        <input type="text" id="did" name="did" placeholder="did:plc:..."
+               required autocomplete="off" spellcheck="false">
+      </div>
+      <button type="submit">Submit Request</button>
+    </form>
+  </div>
+  <div class="card">
+    <div class="card-title">After Approval</div>
+    <ol>
+      <li>Go to <strong>Settings → Change handle → I have my own domain</strong>.</li>
+      <li>Enter your handle: <code>you.%[1]s</code></li>
+      <li>Click <strong>Verify DNS Record</strong> — it should pass immediately.</li>
+    </ol>
+  </div>
 </div>
 </body>
 </html>
