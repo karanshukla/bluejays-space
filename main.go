@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -13,6 +15,13 @@ import (
 	"sync"
 	"time"
 )
+
+type jobResult struct {
+	PRURL   string
+	ErrMsg  string
+	Done    bool
+	created time.Time
+}
 
 var handles map[string]string
 
@@ -32,8 +41,24 @@ func main() {
 	}
 	log.Printf("loaded %d handle(s) from %s", len(handles), configPath)
 
-	// 5 submissions per IP per hour.
 	limiter := newRateLimiter(5, time.Hour)
+
+	var jobsMu sync.Mutex
+	jobs := make(map[string]jobResult)
+
+	// Prune stale jobs every 5 minutes.
+	go func() {
+		for range time.Tick(5 * time.Minute) {
+			cutoff := time.Now().Add(-10 * time.Minute)
+			jobsMu.Lock()
+			for id, j := range jobs {
+				if j.created.Before(cutoff) {
+					delete(jobs, id)
+				}
+			}
+			jobsMu.Unlock()
+		}
+	}()
 
 	mux := http.NewServeMux()
 
@@ -60,17 +85,38 @@ func main() {
 		fmt.Fprint(w, did)
 	})
 
+	// Async job status — polled by the spinner page.
+	mux.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
+		id := r.URL.Query().Get("job")
+		jobsMu.Lock()
+		j, ok := jobs[id]
+		jobsMu.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		if !ok {
+			// Expired or invalid — stop polling with a generic message.
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"done":  true,
+				"error": "Status unavailable. Check GitHub for your pull request.",
+			})
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"done":   j.Done,
+			"pr_url": j.PRURL,
+			"error":  j.ErrMsg,
+		})
+	})
+
 	mux.HandleFunc("/request-handle", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-
 		if !limiter.allow(clientIP(r)) {
 			http.Redirect(w, r, "/?error=rate-limited", http.StatusSeeOther)
 			return
 		}
-
 		if githubToken == "" {
 			http.Redirect(w, r, "/?error=not-configured", http.StatusSeeOther)
 			return
@@ -94,18 +140,34 @@ func main() {
 			http.Redirect(w, r, "/?error=invalid-did", http.StatusSeeOther)
 			return
 		}
-
-		if err := createHandlePR(githubToken, githubRepo, handle, did, baseDomain); err != nil {
-			if strings.Contains(err.Error(), "already taken") {
-				http.Redirect(w, r, "/?error=handle-taken", http.StatusSeeOther)
-				return
-			}
-			log.Printf("failed to create PR for handle %s: %v", handle, err)
-			http.Redirect(w, r, "/?error=server-error", http.StatusSeeOther)
+		// Fast-path check against the in-memory map before touching GitHub.
+		if _, taken := handles[handle]; taken {
+			http.Redirect(w, r, "/?error=handle-taken", http.StatusSeeOther)
 			return
 		}
 
-		http.Redirect(w, r, "/?requested="+handle, http.StatusSeeOther)
+		jobID := newJobID()
+		jobsMu.Lock()
+		jobs[jobID] = jobResult{created: time.Now()}
+		jobsMu.Unlock()
+
+		go func() {
+			prURL, err := createHandlePR(githubToken, githubRepo, handle, did, baseDomain)
+			result := jobResult{Done: true, PRURL: prURL, created: time.Now()}
+			if err != nil {
+				log.Printf("PR creation failed for %s: %v", handle, err)
+				if strings.Contains(err.Error(), "already taken") {
+					result.ErrMsg = "That handle is already taken. Please choose a different one."
+				} else {
+					result.ErrMsg = "Something went wrong creating the pull request. Please try again."
+				}
+			}
+			jobsMu.Lock()
+			jobs[jobID] = result
+			jobsMu.Unlock()
+		}()
+
+		http.Redirect(w, r, "/?job="+jobID+"&handle="+handle, http.StatusSeeOther)
 	})
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -115,8 +177,34 @@ func main() {
 		}
 
 		var flash string
-		if req := r.URL.Query().Get("requested"); req != "" && isValidHandle(req) {
-			flash = fmt.Sprintf(`<div class="notice success">Request for <strong>@%s.%s</strong> submitted — we'll review it shortly.</div>`, req, baseDomain)
+		if jobID := r.URL.Query().Get("job"); jobID != "" {
+			handle := r.URL.Query().Get("handle")
+			if !isValidHandle(handle) {
+				handle = "your-handle"
+			}
+			// Allow only hex chars in jobID before embedding in JS.
+			safeID := filterHex(jobID)
+			flash = fmt.Sprintf(
+				`<div class="notice processing" id="js-notice"><span class="spinner"></span> Opening pull request for <strong>@%s.%s</strong>&hellip;</div>`+
+					`<script>(function(){`+
+					`var t=setInterval(function(){`+
+					`fetch('/status?job=%s')`+
+					`.then(function(r){return r.json()})`+
+					`.then(function(d){`+
+					`if(!d.done)return;`+
+					`clearInterval(t);`+
+					`var n=document.getElementById('js-notice');`+
+					`if(d.error){n.className='notice error';n.textContent=d.error}`+
+					`else{n.className='notice success';n.innerHTML=`+
+					`'Request for <strong>@%s.%s<\/strong> submitted. '`+
+					`+'<a href="'+d.pr_url+'" style="color:inherit;text-decoration:underline">View pull request →<\/a>'}`+
+					`})`+
+					`.catch(function(){clearInterval(t)})`+
+					`},1000)`+
+					`})()`+
+					`<\/script>`,
+				handle, baseDomain, safeID, handle, baseDomain,
+			)
 		} else if errCode := r.URL.Query().Get("error"); errCode != "" {
 			switch errCode {
 			case "handle-taken":
@@ -140,6 +228,23 @@ func main() {
 
 	log.Printf("listening on :%s for %s", port, baseDomain)
 	log.Fatal(http.ListenAndServe(":"+port, mux))
+}
+
+func newJobID() string {
+	b := make([]byte, 8)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// filterHex strips any non-hex characters — used before embedding a job ID in JS.
+func filterHex(s string) string {
+	var out strings.Builder
+	for _, c := range s {
+		if (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') {
+			out.WriteRune(c)
+		}
+	}
+	return out.String()
 }
 
 // isValidHandle accepts lowercase letters, digits, and interior hyphens, max 30 chars.
@@ -278,54 +383,54 @@ func ghRequest(token, method, url string, body interface{}) (*http.Response, err
 	return http.DefaultClient.Do(req)
 }
 
-func createHandlePR(token, repo, handle, did, baseDomain string) error {
+func createHandlePR(token, repo, handle, did, baseDomain string) (string, error) {
 	apiBase := "https://api.github.com/repos/" + repo
 
 	// Get current handles.json content and blob SHA.
 	resp, err := ghRequest(token, "GET", apiBase+"/contents/handles.json", nil)
 	if err != nil {
-		return fmt.Errorf("get file: %w", err)
+		return "", fmt.Errorf("get file: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return fmt.Errorf("get file: status %d", resp.StatusCode)
+		return "", fmt.Errorf("get file: status %d", resp.StatusCode)
 	}
 	var fc ghFileContent
 	if err := json.NewDecoder(resp.Body).Decode(&fc); err != nil {
-		return fmt.Errorf("decode file: %w", err)
+		return "", fmt.Errorf("decode file: %w", err)
 	}
 
 	// Decode content and add the new handle.
 	raw, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(fc.Content, "\n", ""))
 	if err != nil {
-		return fmt.Errorf("decode base64: %w", err)
+		return "", fmt.Errorf("decode base64: %w", err)
 	}
 	var existing map[string]string
 	if err := json.Unmarshal(raw, &existing); err != nil {
-		return fmt.Errorf("unmarshal: %w", err)
+		return "", fmt.Errorf("unmarshal: %w", err)
 	}
 	if _, ok := existing[handle]; ok {
-		return fmt.Errorf("handle %q is already taken", handle)
+		return "", fmt.Errorf("handle %q is already taken", handle)
 	}
 	existing[handle] = did
 	updated, err := json.MarshalIndent(existing, "", "  ")
 	if err != nil {
-		return fmt.Errorf("marshal: %w", err)
+		return "", fmt.Errorf("marshal: %w", err)
 	}
 	updated = append(updated, '\n')
 
 	// Get the SHA of the main branch HEAD.
 	resp2, err := ghRequest(token, "GET", apiBase+"/git/refs/heads/main", nil)
 	if err != nil {
-		return fmt.Errorf("get main ref: %w", err)
+		return "", fmt.Errorf("get main ref: %w", err)
 	}
 	defer resp2.Body.Close()
 	if resp2.StatusCode != 200 {
-		return fmt.Errorf("get main ref: status %d", resp2.StatusCode)
+		return "", fmt.Errorf("get main ref: status %d", resp2.StatusCode)
 	}
 	var mainRef ghRef
 	if err := json.NewDecoder(resp2.Body).Decode(&mainRef); err != nil {
-		return fmt.Errorf("decode main ref: %w", err)
+		return "", fmt.Errorf("decode main ref: %w", err)
 	}
 
 	// Create a new branch off main.
@@ -335,11 +440,11 @@ func createHandlePR(token, repo, handle, did, baseDomain string) error {
 		"sha": mainRef.Object.SHA,
 	})
 	if err != nil {
-		return fmt.Errorf("create branch: %w", err)
+		return "", fmt.Errorf("create branch: %w", err)
 	}
 	resp3.Body.Close()
 	if resp3.StatusCode != 201 {
-		return fmt.Errorf("create branch: status %d", resp3.StatusCode)
+		return "", fmt.Errorf("create branch: status %d", resp3.StatusCode)
 	}
 
 	// Commit the updated handles.json to the new branch.
@@ -350,14 +455,14 @@ func createHandlePR(token, repo, handle, did, baseDomain string) error {
 		"branch":  branch,
 	})
 	if err != nil {
-		return fmt.Errorf("update file: %w", err)
+		return "", fmt.Errorf("update file: %w", err)
 	}
 	resp4.Body.Close()
 	if resp4.StatusCode != 200 {
-		return fmt.Errorf("update file: status %d", resp4.StatusCode)
+		return "", fmt.Errorf("update file: status %d", resp4.StatusCode)
 	}
 
-	// Open the pull request.
+	// Open the pull request and return its URL.
 	prBody := fmt.Sprintf("Requested handle `@%s.%s`\n\nDID: `%s`\n\n---\n_Auto-generated by the handle request form._", handle, baseDomain, did)
 	resp5, err := ghRequest(token, "POST", apiBase+"/pulls", map[string]interface{}{
 		"title": "Add handle: " + handle,
@@ -366,14 +471,19 @@ func createHandlePR(token, repo, handle, did, baseDomain string) error {
 		"base":  "main",
 	})
 	if err != nil {
-		return fmt.Errorf("create PR: %w", err)
+		return "", fmt.Errorf("create PR: %w", err)
 	}
-	resp5.Body.Close()
+	defer resp5.Body.Close()
 	if resp5.StatusCode != 201 {
-		return fmt.Errorf("create PR: status %d", resp5.StatusCode)
+		return "", fmt.Errorf("create PR: status %d", resp5.StatusCode)
 	}
-
-	return nil
+	var pr struct {
+		HTMLURL string `json:"html_url"`
+	}
+	if err := json.NewDecoder(resp5.Body).Decode(&pr); err != nil {
+		return "", fmt.Errorf("decode PR: %w", err)
+	}
+	return pr.HTMLURL, nil
 }
 
 func envOr(key, fallback string) string {
@@ -517,8 +627,21 @@ const homePage = `<!DOCTYPE html>
     font-size: 0.875rem;
     margin-bottom: 12px;
   }
-  .notice.success { background: #f0fdf4; border: 1px solid #86efac; color: #15803d; }
-  .notice.error   { background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; }
+  .notice.success    { background: #f0fdf4; border: 1px solid #86efac; color: #15803d; }
+  .notice.error      { background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; }
+  .notice.processing { background: #eff6ff; border: 1px solid #93c5fd; color: #1d4ed8; }
+  .spinner {
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%%;
+    animation: spin 0.6s linear infinite;
+    vertical-align: middle;
+    margin-right: 5px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
