@@ -32,13 +32,12 @@ func main() {
 	githubToken := os.Getenv("GITHUB_TOKEN")
 	githubRepo := envOr("GITHUB_REPO", "karanshukla/bluejays-space")
 
-	b, err := os.ReadFile(configPath)
+	var err error
+	handles, err = loadHandles(configPath)
 	if err != nil {
-		log.Fatalf("could not read %s: %v", configPath, err)
+		log.Fatalf("could not load %s: %v", configPath, err)
 	}
-	if err := json.Unmarshal(b, &handles); err != nil {
-		log.Fatalf("could not parse %s: %v", configPath, err)
-	}
+	warnDuplicateDIDs(handles, log.Printf)
 	log.Printf("loaded %d handle(s) from %s", len(handles), configPath)
 
 	limiter := newRateLimiter(5, time.Hour)
@@ -140,10 +139,16 @@ func main() {
 			http.Redirect(w, r, "/?error=invalid-did", http.StatusSeeOther)
 			return
 		}
-		// Fast-path check against the in-memory map before touching GitHub.
+		// Fast-path checks against the in-memory map before touching GitHub.
 		if _, taken := handles[handle]; taken {
 			http.Redirect(w, r, "/?error=handle-taken", http.StatusSeeOther)
 			return
+		}
+		for _, d := range handles {
+			if d == did {
+				http.Redirect(w, r, "/?error=did-taken", http.StatusSeeOther)
+				return
+			}
 		}
 
 		jobID := newJobID()
@@ -156,9 +161,12 @@ func main() {
 			result := jobResult{Done: true, PRURL: prURL, created: time.Now()}
 			if err != nil {
 				log.Printf("PR creation failed for %s: %v", handle, err)
-				if strings.Contains(err.Error(), "already taken") {
+				switch {
+				case strings.Contains(err.Error(), "already taken"):
 					result.ErrMsg = "That handle is already taken. Please choose a different one."
-				} else {
+				case strings.Contains(err.Error(), "already registered"):
+					result.ErrMsg = "That DID is already registered to another handle."
+				default:
 					result.ErrMsg = "Something went wrong creating the pull request. Please try again."
 				}
 			}
@@ -209,6 +217,8 @@ func main() {
 			switch errCode {
 			case "handle-taken":
 				flash = `<div class="notice error">That handle is already taken. Please choose a different one.</div>`
+			case "did-taken":
+				flash = `<div class="notice error">That DID is already registered to another handle.</div>`
 			case "invalid-handle":
 				flash = `<div class="notice error">Invalid handle. Use only lowercase letters, numbers, and hyphens.</div>`
 			case "invalid-did":
@@ -411,6 +421,11 @@ func createHandlePR(token, repo, handle, did, baseDomain string) (string, error)
 	}
 	if _, ok := existing[handle]; ok {
 		return "", fmt.Errorf("handle %q is already taken", handle)
+	}
+	for _, d := range existing {
+		if d == did {
+			return "", fmt.Errorf("DID is already registered to another handle")
+		}
 	}
 	existing[handle] = did
 	updated, err := json.MarshalIndent(existing, "", "  ")
