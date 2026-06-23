@@ -45,6 +45,21 @@ That's the minimum needed. A classic PAT works too but has broader scope than ne
 2. Set `BASE_DOMAIN=bluejays.space` and `GITHUB_TOKEN=<your token>`.
 3. Add a custom domain `*.bluejays.space` in Railway and point it at the service.
 
+### Volume mount (optional)
+
+If you want `handles.json` to persist independently of image rebuilds, mount a Railway volume:
+
+1. In Railway, add a volume to the service and set the mount path to `/data`.
+2. Set the env var `HANDLES_FILE=/data/handles.json`.
+3. On first boot the server will create an empty `/data/handles.json` automatically — no manual seeding needed.
+
+```
+Mount path:        /data
+HANDLES_FILE:      /data/handles.json
+```
+
+> **Note:** with this setup, merging a handle PR updates the Git repo but does not automatically write to the volume. You can either copy the file to the volume manually, or skip the volume and rely on Railway's automatic redeploy on merge (which bakes the updated `handles.json` into the image).
+
 ### Why a wildcard DNS record?
 
 Each handle is a different subdomain (`alice.bluejays.space`, `bob.bluejays.space`, ...). A single wildcard record routes all of them automatically — no DNS change needed per person.

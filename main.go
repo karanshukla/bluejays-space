@@ -33,7 +33,14 @@ func main() {
 	githubRepo := envOr("GITHUB_REPO", "karanshukla/bluejays-space")
 
 	b, err := os.ReadFile(configPath)
-	if err != nil {
+	if os.IsNotExist(err) {
+		// Fresh volume mount or first run — start empty and create the file.
+		log.Printf("%s not found, starting with empty handles map", configPath)
+		b = []byte("{}\n")
+		if werr := os.WriteFile(configPath, b, 0644); werr != nil {
+			log.Printf("warning: could not write initial %s: %v", configPath, werr)
+		}
+	} else if err != nil {
 		log.Fatalf("could not read %s: %v", configPath, err)
 	}
 	if err := json.Unmarshal(b, &handles); err != nil {
@@ -196,13 +203,13 @@ func main() {
 					`var n=document.getElementById('js-notice');`+
 					`if(d.error){n.className='notice error';n.textContent=d.error}`+
 					`else{n.className='notice success';n.innerHTML=`+
-					`'Request for <strong>@%s.%s<\/strong> submitted. '`+
-					`+'<a href="'+d.pr_url+'" style="color:inherit;text-decoration:underline">View pull request →<\/a>'}`+
+					`'Request for <strong>@%s.%s</strong> submitted. '`+
+					`+'<a href="'+d.pr_url+'" style="color:inherit;text-decoration:underline">View pull request →</a>'}`+
 					`})`+
 					`.catch(function(){clearInterval(t)})`+
 					`},1000)`+
 					`})()`+
-					`<\/script>`,
+					`</script>`,
 				handle, baseDomain, safeID, handle, baseDomain,
 			)
 		} else if errCode := r.URL.Query().Get("error"); errCode != "" {
