@@ -84,7 +84,7 @@ func main() {
 		fmt.Fprint(w, did)
 	})
 
-	// Async job status — polled by the spinner page.
+	// Async job status - polled by the spinner page.
 	mux.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
 		id := r.URL.Query().Get("job")
 		jobsMu.Lock()
@@ -93,7 +93,7 @@ func main() {
 
 		w.Header().Set("Content-Type", "application/json")
 		if !ok {
-			// Expired or invalid — stop polling with a generic message.
+			// Expired or invalid - stop polling with a generic message.
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"done":  true,
 				"error": "Status unavailable. Check GitHub for your pull request.",
@@ -213,7 +213,7 @@ func main() {
 			case "invalid-handle":
 				flash = `<div class="notice error">Invalid handle. Use only lowercase letters, numbers, and hyphens.</div>`
 			case "invalid-did":
-				flash = `<div class="notice error">Invalid DID — it must start with <code>did:plc:</code> or <code>did:web:</code>.</div>`
+				flash = `<div class="notice error">Invalid DID - it must start with <code>did:plc:</code> or <code>did:web:</code>.</div>`
 			case "rate-limited":
 				flash = `<div class="notice error">Too many requests. Please try again later.</div>`
 			case "not-configured":
@@ -244,7 +244,7 @@ func newJobID() string {
 	return hex.EncodeToString(b)
 }
 
-// filterHex strips any non-hex characters — used before embedding a job ID in JS.
+// filterHex strips any non-hex characters - used before embedding a job ID in JS.
 func filterHex(s string) string {
 	var out strings.Builder
 	for _, c := range s {
@@ -689,15 +689,15 @@ const homePage = `<!DOCTYPE html>
 <div class="container">
   <div class="site-header">
     <h1>%[1]s</h1>
-    <p>Custom Bluesky handles for the community.</p>
+    <p>Custom Bluesky handles for Toronto Blue Jays fans!</p>
   </div>
   %[2]s
   <div class="card">
     <div class="card-title">Request a Handle</div>
-    <p>Fill in the form below. Once the pull request is reviewed and merged, your handle will be active.</p>
+    <p>Fill in the form below. Once the Github pull request is reviewed and merged, your handle will be active on the server.</p>
     <form method="POST" action="/request-handle">
       <div class="form-field">
-        <label for="handle">Handle <span class="hint">— lowercase letters, numbers, hyphens</span></label>
+        <label for="handle">New Handle <span class="hint">- lowercase letters, numbers, hyphens</span></label>
         <div class="input-group">
           <span class="input-prefix">@</span>
           <input type="text" id="handle" name="handle" placeholder="yourname"
@@ -706,7 +706,7 @@ const homePage = `<!DOCTYPE html>
         </div>
       </div>
       <div class="form-field">
-        <label for="did">Your DID <span class="hint">— Settings → Change handle → I have my own domain</span></label>
+        <label for="did">Your DID <span class="hint">- Settings → Change handle → I have my own domain</span></label>
         <input type="text" id="did" name="did" placeholder="did:plc:..."
                required autocomplete="off" spellcheck="false">
       </div>
@@ -716,9 +716,9 @@ const homePage = `<!DOCTYPE html>
   <div class="card">
     <div class="card-title">After Approval</div>
     <ol>
-      <li>Go to <strong>Settings → Change handle → I have my own domain</strong>.</li>
-      <li>Enter your handle: <code>you.%[1]s</code></li>
-      <li>Click <strong>Verify DNS Record</strong> — it should pass immediately.</li>
+      <li>Go to <strong>Settings → Account → Handle → I have my own domain (TXT option)</strong>.</li>
+      <li>Enter your new handle: <code>your.%[1]s</code></li>
+      <li>Click <strong>Verify DNS Record</strong> - it should pass immediately.</li>
     </ol>
   </div>
 </div>
