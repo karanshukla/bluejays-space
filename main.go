@@ -227,8 +227,15 @@ func main() {
 		fmt.Fprintf(w, homePage, baseDomain, flash)
 	})
 
+	srv := &http.Server{
+		Addr:         ":" + port,
+		Handler:      securityHeaders(mux),
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
 	log.Printf("listening on :%s for %s", port, baseDomain)
-	log.Fatal(http.ListenAndServe(":"+port, mux))
+	log.Fatal(srv.ListenAndServe())
 }
 
 func newJobID() string {
