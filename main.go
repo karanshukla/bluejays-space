@@ -597,7 +597,18 @@ const homePage = `<!DOCTYPE html>
     color: #1a1a1a;
     line-height: 1.45;
   }
-  .input-group input[type=text] { border-radius: 0 6px 6px 0; }
+  .input-group input[type=text] { border-radius: 0; }
+  .input-suffix {
+    padding: 8px 10px;
+    background: #f5f5f5;
+    border: 1px solid #d4d4d4;
+    border-left: none;
+    border-radius: 0 6px 6px 0;
+    font-size: 0.9375rem;
+    color: #777;
+    white-space: nowrap;
+    line-height: 1.45;
+  }
   input[type=text]:focus {
     border-color: #0070f3;
     box-shadow: 0 0 0 3px rgba(0, 112, 243, 0.1);
@@ -691,6 +702,7 @@ const homePage = `<!DOCTYPE html>
           <span class="input-prefix">@</span>
           <input type="text" id="handle" name="handle" placeholder="yourname"
                  required autocomplete="off" spellcheck="false">
+          <span class="input-suffix">.%[1]s</span>
         </div>
       </div>
       <div class="form-field">
