@@ -17,11 +17,12 @@ func securityHeaders(next http.Handler) http.Handler {
 		// Disable browser features the site doesn't use.
 		h.Set("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
 		// CSP: no external resources; inline scripts/styles needed for the homepage.
-		// connect-src 'self' covers the /status polling fetch.
+		// img-src 'self' covers /static/* assets; connect-src 'self' covers the /status polling fetch.
 		h.Set("Content-Security-Policy",
 			"default-src 'none'; "+
 				"script-src 'unsafe-inline'; "+
 				"style-src 'unsafe-inline'; "+
+				"img-src 'self'; "+
 				"connect-src 'self'; "+
 				"form-action 'self'; "+
 				"frame-ancestors 'none'; "+
