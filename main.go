@@ -196,13 +196,13 @@ func main() {
 					`var n=document.getElementById('js-notice');`+
 					`if(d.error){n.className='notice error';n.textContent=d.error}`+
 					`else{n.className='notice success';n.innerHTML=`+
-					`'Request for <strong>@%s.%s<\/strong> submitted. '`+
-					`+'<a href="'+d.pr_url+'" style="color:inherit;text-decoration:underline">View pull request →<\/a>'}`+
+					`'Request for <strong>@%s.%s</strong> submitted. '`+
+					`+'<a href="'+d.pr_url+'" style="color:inherit;text-decoration:underline">View pull request →</a>'}`+
 					`})`+
 					`.catch(function(){clearInterval(t)})`+
 					`},1000)`+
 					`})()`+
-					`<\/script>`,
+					`</script>`,
 				handle, baseDomain, safeID, handle, baseDomain,
 			)
 		} else if errCode := r.URL.Query().Get("error"); errCode != "" {

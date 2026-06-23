@@ -45,6 +45,7 @@ That's the minimum needed. A classic PAT works too but has broader scope than ne
 2. Set `BASE_DOMAIN=bluejays.space` and `GITHUB_TOKEN=<your token>`.
 3. Add a custom domain `*.bluejays.space` in Railway and point it at the service.
 
+
 ### Why a wildcard DNS record?
 
 Each handle is a different subdomain (`alice.bluejays.space`, `bob.bluejays.space`, ...). A single wildcard record routes all of them automatically — no DNS change needed per person.
