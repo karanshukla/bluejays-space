@@ -3,10 +3,12 @@ package main
 import (
 	"bytes"
 	"crypto/rand"
+	"embed"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"log"
 	"net"
 	"net/http"
@@ -15,6 +17,13 @@ import (
 	"sync"
 	"time"
 )
+
+//go:embed templates/index.html
+var templateFS embed.FS
+
+//go:embed static
+var staticFS embed.FS
+
 
 type jobResult struct {
 	PRURL   string
@@ -171,6 +180,8 @@ func main() {
 		http.Redirect(w, r, "/?job="+jobID+"&handle="+handle, http.StatusSeeOther)
 	})
 
+	mux.Handle("/static/", http.FileServer(http.FS(staticFS)))
+
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
@@ -223,8 +234,16 @@ func main() {
 			}
 		}
 
+		tmpl, err := template.ParseFS(templateFS, "templates/index.html")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprintf(w, homePage, baseDomain, flash)
+		tmpl.Execute(w, struct {
+			D     string
+			Flash template.HTML
+		}{baseDomain, template.HTML(flash)})
 	})
 
 	srv := &http.Server{
@@ -523,205 +542,3 @@ func envOr(key, fallback string) string {
 	return fallback
 }
 
-const homePage = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>%[1]s</title>
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: #f5f5f5;
-    color: #1a1a1a;
-    min-height: 100vh;
-    padding: 48px 24px;
-    font-size: 15px;
-    line-height: 1.5;
-  }
-  .container { max-width: 540px; margin: 0 auto; }
-  .site-header { margin-bottom: 28px; }
-  .site-header h1 { font-size: 1.125rem; font-weight: 600; }
-  .site-header p { color: #666; font-size: 0.875rem; margin-top: 4px; }
-  .card {
-    background: #fff;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    padding: 22px 24px;
-    margin-bottom: 12px;
-  }
-  .card-title {
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #999;
-    margin-bottom: 14px;
-  }
-  .card p {
-    font-size: 0.875rem;
-    color: #555;
-    margin-bottom: 16px;
-  }
-  .form-field { margin-bottom: 14px; }
-  label {
-    display: block;
-    font-size: 0.875rem;
-    font-weight: 500;
-    margin-bottom: 5px;
-    color: #1a1a1a;
-  }
-  .hint { font-weight: 400; color: #999; font-size: 0.8125rem; }
-  .input-group { display: flex; }
-  .input-prefix {
-    padding: 8px 10px;
-    background: #f5f5f5;
-    border: 1px solid #d4d4d4;
-    border-right: none;
-    border-radius: 6px 0 0 6px;
-    font-size: 0.9375rem;
-    color: #777;
-    white-space: nowrap;
-    line-height: 1.45;
-  }
-  input[type=text] {
-    width: 100%%;
-    padding: 8px 10px;
-    border: 1px solid #d4d4d4;
-    border-radius: 6px;
-    font-size: 0.9375rem;
-    font-family: inherit;
-    background: #fff;
-    outline: none;
-    color: #1a1a1a;
-    line-height: 1.45;
-  }
-  .input-group input[type=text] { border-radius: 0; }
-  .input-suffix {
-    padding: 8px 10px;
-    background: #f5f5f5;
-    border: 1px solid #d4d4d4;
-    border-left: none;
-    border-radius: 0 6px 6px 0;
-    font-size: 0.9375rem;
-    color: #777;
-    white-space: nowrap;
-    line-height: 1.45;
-  }
-  input[type=text]:focus {
-    border-color: #0070f3;
-    box-shadow: 0 0 0 3px rgba(0, 112, 243, 0.1);
-  }
-  button {
-    margin-top: 6px;
-    width: 100%%;
-    padding: 9px 16px;
-    background: #1a1a1a;
-    color: #fff;
-    border: none;
-    border-radius: 6px;
-    font-size: 0.9375rem;
-    font-weight: 500;
-    font-family: inherit;
-    cursor: pointer;
-  }
-  button:hover { background: #333; }
-  ol { list-style: none; counter-reset: steps; }
-  li {
-    counter-increment: steps;
-    display: flex;
-    gap: 11px;
-    align-items: flex-start;
-    font-size: 0.875rem;
-    color: #444;
-    line-height: 1.5;
-    margin-bottom: 10px;
-  }
-  li:last-child { margin-bottom: 0; }
-  li::before {
-    content: counter(steps);
-    flex-shrink: 0;
-    width: 20px;
-    height: 20px;
-    background: #f0f0f0;
-    border-radius: 50%%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.7rem;
-    font-weight: 700;
-    color: #666;
-    margin-top: 2px;
-  }
-  code {
-    font-family: "SF Mono", ui-monospace, "Fira Code", monospace;
-    font-size: 0.82em;
-    background: #f0f0f0;
-    padding: 1px 5px;
-    border-radius: 3px;
-    color: #1a1a1a;
-  }
-  .notice {
-    padding: 11px 14px;
-    border-radius: 6px;
-    font-size: 0.875rem;
-    margin-bottom: 12px;
-  }
-  .notice.success    { background: #f0fdf4; border: 1px solid #86efac; color: #15803d; }
-  .notice.error      { background: #fef2f2; border: 1px solid #fca5a5; color: #b91c1c; }
-  .notice.processing { background: #eff6ff; border: 1px solid #93c5fd; color: #1d4ed8; }
-  .spinner {
-    display: inline-block;
-    width: 11px;
-    height: 11px;
-    border: 2px solid currentColor;
-    border-top-color: transparent;
-    border-radius: 50%%;
-    animation: spin 0.6s linear infinite;
-    vertical-align: middle;
-    margin-right: 5px;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-</style>
-</head>
-<body>
-<div class="container">
-  <div class="site-header">
-    <h1>%[1]s</h1>
-    <p>Custom Bluesky handles for Toronto Blue Jays fans!</p>
-  </div>
-  %[2]s
-  <div class="card">
-    <div class="card-title">Request a Handle</div>
-    <p>Fill in the form below. Once the Github pull request is reviewed and merged, your handle will be active on the server.</p>
-    <form method="POST" action="/request-handle">
-      <div class="form-field">
-        <label for="handle">New Handle <span class="hint">- lowercase letters, numbers, hyphens</span></label>
-        <div class="input-group">
-          <span class="input-prefix">@</span>
-          <input type="text" id="handle" name="handle" placeholder="yourname"
-                 required autocomplete="off" spellcheck="false">
-          <span class="input-suffix">.%[1]s</span>
-        </div>
-      </div>
-      <div class="form-field">
-        <label for="did">Your DID <span class="hint">- Settings → Change handle → I have my own domain</span></label>
-        <input type="text" id="did" name="did" placeholder="did:plc:..."
-               required autocomplete="off" spellcheck="false">
-      </div>
-      <button type="submit">Submit Request</button>
-    </form>
-  </div>
-  <div class="card">
-    <div class="card-title">After Approval</div>
-    <ol>
-      <li>Go to <strong>Settings → Account → Handle → I have my own domain (TXT option)</strong>.</li>
-      <li>Enter your new handle: <code>your.%[1]s</code></li>
-      <li>Click <strong>Verify DNS Record</strong> - it should pass immediately.</li>
-    </ol>
-  </div>
-</div>
-</body>
-</html>
-`

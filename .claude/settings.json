@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(go build *)"
+      "Bash(go build *)",
+      "PowerShell($f = \"f:\\\\Development\\\\bluejays-space\\\\beisbol.jpg\"; [math]::Round\\(\\(Get-Item $f\\).Length / 1KB, 1\\))"
     ]
   }
 }
