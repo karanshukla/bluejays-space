@@ -414,7 +414,7 @@ func createHandlePR(token, repo, handle, did, baseDomain string) (string, error)
 	apiBase := "https://api.github.com/repos/" + repo
 
 	// Get current handles.json content and blob SHA.
-	resp, err := ghRequest(token, "GET", apiBase+"/contents/handles.json", nil)
+	resp, err := ghRequest(token, "GET", apiBase+"/contents/handles/handles.json", nil)
 	if err != nil {
 		return "", fmt.Errorf("get file: %w", err)
 	}
@@ -485,7 +485,7 @@ func createHandlePR(token, repo, handle, did, baseDomain string) (string, error)
 	}
 
 	// Commit the updated handles.json to the new branch.
-	resp4, err := ghRequest(token, "PUT", apiBase+"/contents/handles.json", map[string]interface{}{
+	resp4, err := ghRequest(token, "PUT", apiBase+"/contents/handles/handles.json", map[string]interface{}{
 		"message": func() string {
 			if oldHandle != "" {
 				return "Rename handle: " + oldHandle + " → " + handle
