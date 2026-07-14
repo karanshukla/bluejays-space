@@ -229,6 +229,14 @@ export async function generateHeadline({ register, candidatePosts, faxPosts }) {
       `mcp tool calls: ${toolUseBlocks.map((b) => b.name).join(', ') || '(none)'}` +
       (toolErrors.length ? `, ${toolErrors.length} tool error(s)` : '')
   );
+  for (const errBlock of toolErrors) {
+    const toolName = toolUseBlocks.find((b) => b.id === errBlock.tool_use_id)?.name ?? 'unknown';
+    const text = (errBlock.content ?? [])
+      .filter((c) => c.type === 'text')
+      .map((c) => c.text)
+      .join(' ');
+    console.warn(`[claude] register ${register}: tool error from ${toolName}: ${text}`);
+  }
 
   const draft = parseHeadlineResponse(response.content);
   // The model should echo the register, but trust the requested one if it drifts.
