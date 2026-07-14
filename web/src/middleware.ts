@@ -20,8 +20,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return next();
   }
 
-  // Dev bypass: no Cloudflare in front during local docker compose, and the
-  // runtime Dockerfile sets NODE_ENV=production only in the prod image.
+  // Dev bypass: isAuthEnforced() keys off the CF_ACCESS_* env vars being
+  // configured, not NODE_ENV (the local dev flow runs `astro build`, which sets
+  // NODE_ENV=production, so NODE_ENV is an unreliable dev signal). When the CF
+  // vars are unset (local dev) there's no team JWKS to verify against, so we skip.
   if (!isAuthEnforced()) {
     return next();
   }

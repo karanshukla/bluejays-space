@@ -29,13 +29,17 @@ export interface JWKS {
 }
 
 /**
- * Whether the middleware should enforce Cloudflare Access at all.
- * In dev (NODE_ENV !== 'production') there's no Cloudflare in front, so we skip.
- * In production we always enforce — even if CF_ACCESS_TEAM/AUD are unset, in
- * which case verification fails closed (see verifyCfAccessJwt).
+ * Whether the middleware should enforce Cloudflare Access.
+ *
+ * Enforcement keys off the Cloudflare config being present (CF_ACCESS_TEAM and
+ * CF_ACCESS_AUD both set), NOT NODE_ENV: the local dev flow runs `astro build`
+ * before `astro preview`, and the build sets NODE_ENV=production, so NODE_ENV is
+ * an unreliable dev signal. When the CF env vars are unset (local dev) there is
+ * no team JWKS to verify against anyway, so enforcement can't work and would
+ * just lock out the developer.
  */
 export function isAuthEnforced(): boolean {
-  return process.env.NODE_ENV === 'production';
+  return Boolean(process.env.CF_ACCESS_TEAM && process.env.CF_ACCESS_AUD);
 }
 
 function teamDomain(): string {

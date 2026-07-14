@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 
 import { verifyJwtWithLocalKeys, isAuthEnforced, type JWKS } from './cfAccess.js';
@@ -102,25 +102,43 @@ describe('verifyJwtWithLocalKeys', () => {
 });
 
 describe('isAuthEnforced', () => {
-  it('returns true in production', () => {
-    const original = process.env.NODE_ENV;
-    try {
-      process.env.NODE_ENV = 'production';
-      expect(isAuthEnforced()).toBe(true);
-    } finally {
-      process.env.NODE_ENV = original;
-    }
+  // Save/restore both env vars since enforcement keys off them, not NODE_ENV.
+  const env = () => ({
+    node: process.env.NODE_ENV,
+    team: process.env.CF_ACCESS_TEAM,
+    aud: process.env.CF_ACCESS_AUD,
+  });
+  let original: ReturnType<typeof env>;
+
+  beforeEach(() => {
+    original = env();
+    delete process.env.CF_ACCESS_TEAM;
+    delete process.env.CF_ACCESS_AUD;
+  });
+  afterEach(() => {
+    process.env.NODE_ENV = original.node;
+    process.env.CF_ACCESS_TEAM = original.team;
+    process.env.CF_ACCESS_AUD = original.aud;
   });
 
-  it('returns false outside production (dev bypass)', () => {
-    const original = process.env.NODE_ENV;
-    try {
-      process.env.NODE_ENV = 'development';
-      expect(isAuthEnforced()).toBe(false);
-      delete process.env.NODE_ENV;
-      expect(isAuthEnforced()).toBe(false);
-    } finally {
-      process.env.NODE_ENV = original;
-    }
+  it('returns false with no CF config, regardless of NODE_ENV (dev bypass)', () => {
+    process.env.NODE_ENV = 'production';
+    expect(isAuthEnforced()).toBe(false);
+    process.env.NODE_ENV = 'development';
+    expect(isAuthEnforced()).toBe(false);
+  });
+
+  it('returns true only when both CF_ACCESS_TEAM and CF_ACCESS_AUD are set', () => {
+    process.env.CF_ACCESS_TEAM = 'bluejays';
+    process.env.CF_ACCESS_AUD = 'aud-tag-1234';
+    expect(isAuthEnforced()).toBe(true);
+  });
+
+  it('returns false if only one of the CF vars is set', () => {
+    process.env.CF_ACCESS_TEAM = 'bluejays';
+    expect(isAuthEnforced()).toBe(false);
+    delete process.env.CF_ACCESS_TEAM;
+    process.env.CF_ACCESS_AUD = 'aud-tag-1234';
+    expect(isAuthEnforced()).toBe(false);
   });
 });
