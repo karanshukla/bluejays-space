@@ -50,7 +50,7 @@ jobs:
         working-directory: handles
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: handles/go.mod
           cache: false # no go.sum — stdlib-only module, nothing to cache
