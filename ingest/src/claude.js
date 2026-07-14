@@ -199,6 +199,11 @@ export async function generateHeadline({ register, candidatePosts, faxPosts }) {
 
   const body = { ...baseRequest(model, systemPrompt, userMessage), temperature };
 
+  console.log(
+    `[claude] register ${register}: calling ${model} (mlb-mcp: ${process.env.MLB_MCP_URL ? 'enabled' : 'disabled'})`
+  );
+  const startedAt = Date.now();
+
   let response;
   try {
     response = await call(body);
@@ -210,9 +215,20 @@ export async function generateHeadline({ register, candidatePosts, faxPosts }) {
       );
       response = await call(baseRequest(model, systemPrompt, userMessage));
     } else {
+      console.error(`[claude] register ${register}: call failed after ${Date.now() - startedAt}ms`);
       throw err;
     }
   }
+
+  const elapsedMs = Date.now() - startedAt;
+  const toolUseBlocks = response.content.filter((b) => b.type === 'mcp_tool_use');
+  const toolResultBlocks = response.content.filter((b) => b.type === 'mcp_tool_result');
+  const toolErrors = toolResultBlocks.filter((b) => b.is_error);
+  console.log(
+    `[claude] register ${register}: responded in ${elapsedMs}ms, stop_reason=${response.stop_reason}, ` +
+      `mcp tool calls: ${toolUseBlocks.map((b) => b.name).join(', ') || '(none)'}` +
+      (toolErrors.length ? `, ${toolErrors.length} tool error(s)` : '')
+  );
 
   const draft = parseHeadlineResponse(response.content);
   // The model should echo the register, but trust the requested one if it drifts.
