@@ -6,7 +6,44 @@ on:
   pull_request:
 
 jobs:
-  test:
+  web:
+    name: web (lint, typecheck, test, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  ingest:
+    name: ingest (lint, test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ingest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: ingest/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+
+  handles:
+    name: handles (vet, test, build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -15,6 +52,45 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
-      - run: go test -v ./...
+          go-version-file: handles/go.mod
+          cache: false # no go.sum — stdlib-only module, nothing to cache
+      - name: gofmt check
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "The following files are not gofmt'd:"
+            echo "$unformatted"
+            exit 1
+          fi
+      - run: go vet ./...
+      - run: go test -race -v ./...
       - run: go build ./...
+
+  format:
+    name: format check (root)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+
+  docker-build:
+    name: docker build (web, ingest, handles)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [web, ingest, handles]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build ${{ matrix.service }} image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.service }}
+          push: false
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}

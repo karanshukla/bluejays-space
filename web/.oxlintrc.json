@@ -1,0 +1,19 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn"],
+  "env": {
+    "builtin": true,
+    "es2024": true,
+    "node": true
+  },
+  "ignorePatterns": ["dist/**", ".astro/**", "**/*.astro"],
+  "rules": {
+    "no-debugger": "error",
+    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "no-console": "off",
+    "typescript/no-explicit-any": "warn",
+    "typescript/no-unused-vars": "off",
+    "typescript/ban-ts-comment": "error",
+    "typescript/no-non-null-asserted-optional-chain": "error"
+  }
+}

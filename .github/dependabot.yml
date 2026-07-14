@@ -1,0 +1,70 @@
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# web/ and ingest/ each keep their own independent package-lock.json (no npm
+# workspaces) so each service's Docker build stays isolated — point Dependabot
+# at each directory separately, not at the repo root.
+
+version: 2
+updates:
+  - package-ecosystem: 'npm'
+    directory: '/web'
+    schedule:
+      interval: 'weekly'
+    commit-message:
+      prefix: 'chore(web/deps)'
+      prefix-development: 'chore(web/deps-dev)'
+    groups:
+      astro:
+        patterns:
+          - 'astro'
+          - '@astrojs/*'
+      aws-sdk:
+        patterns:
+          - '@aws-sdk/*'
+
+  - package-ecosystem: 'npm'
+    directory: '/ingest'
+    schedule:
+      interval: 'weekly'
+    commit-message:
+      prefix: 'chore(ingest/deps)'
+      prefix-development: 'chore(ingest/deps-dev)'
+    groups:
+      aws-sdk:
+        patterns:
+          - '@aws-sdk/*'
+
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+    commit-message:
+      prefix: 'chore(deps)'
+      prefix-development: 'chore(deps-dev)'
+
+  - package-ecosystem: 'gomod'
+    directory: '/handles'
+    schedule:
+      interval: 'weekly'
+    commit-message:
+      prefix: 'chore(handles/deps)'
+
+  - package-ecosystem: 'docker'
+    directory: '/web'
+    schedule:
+      interval: 'weekly'
+
+  - package-ecosystem: 'docker'
+    directory: '/ingest'
+    schedule:
+      interval: 'weekly'
+
+  - package-ecosystem: 'docker'
+    directory: '/handles'
+    schedule:
+      interval: 'weekly'
+
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'

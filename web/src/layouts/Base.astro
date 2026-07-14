@@ -5,6 +5,7 @@ interface Props {
 }
 const { title } = Astro.props;
 ---
+
 <!doctype html>
 <html lang="en">
   <head>
@@ -13,9 +14,20 @@ const { title } = Astro.props;
     <title>{title}</title>
   </head>
   <body class="min-h-screen bg-neutral-50 text-neutral-900 antialiased">
+    <header class="flex justify-end px-6 py-4">
+      <a
+        href="https://handles.bluejays.space"
+        class="text-sm font-medium text-blue-700 hover:underline"
+      >
+        Claim a free @handle.bluejays.space &rarr;
+      </a>
+    </header>
     <slot />
     <footer class="mt-16 px-6 py-8 text-center text-xs text-neutral-500">
-      <p><strong>bluejays.space</strong> is a parody/satire site. Not affiliated with MLB or the Toronto Blue Jays.</p>
+      <p>
+        <strong>bluejays.space</strong> is a parody/satire site. Not affiliated with MLB or the Toronto
+        Blue Jays.
+      </p>
     </footer>
   </body>
 </html>

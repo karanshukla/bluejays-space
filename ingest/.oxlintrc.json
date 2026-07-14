@@ -1,0 +1,15 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["unicorn"],
+  "env": {
+    "builtin": true,
+    "es2024": true,
+    "node": true
+  },
+  "ignorePatterns": ["assets/**"],
+  "rules": {
+    "no-debugger": "error",
+    "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "no-console": "off"
+  }
+}

@@ -28,11 +28,14 @@ go.work.sum
 # env file
 .env
 
-# Node (web, ingest)
+# Node (root tooling, web, ingest)
+/node_modules
 /web/node_modules
 /ingest/node_modules
 /web/dist
 /web/.astro
+/web/coverage
+/ingest/coverage
 
 # Agent workspaces
 .zcode/
