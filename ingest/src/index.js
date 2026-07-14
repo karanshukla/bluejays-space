@@ -36,6 +36,7 @@ export function configSummary() {
     REDDIT_CLIENT_ID: present('REDDIT_CLIENT_ID'),
     BSKY_IDENTIFIER: present('BSKY_IDENTIFIER'),
     MLB_MCP_URL: present('MLB_MCP_URL'),
+    MLB_MCP_AUTH_TOKEN: present('MLB_MCP_AUTH_TOKEN'),
   };
 }
 
