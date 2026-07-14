@@ -9,6 +9,14 @@ const headlines = await getPublishedHeadlines();
 
 <Base title="bluejays.space">
   <main class="mx-auto max-w-xl px-6 py-16">
+    <div class="mb-8 flex justify-end">
+      <a
+        href="/admin"
+        class="text-sm font-medium text-neutral-400 hover:text-neutral-700 hover:underline"
+      >
+        Admin
+      </a>
+    </div>
     <h1 class="text-center text-3xl font-bold tracking-tight">bluejays.space</h1>
     <p class="mt-2 text-center text-neutral-600">The Scrapbook</p>
 
@@ -22,29 +30,38 @@ const headlines = await getPublishedHeadlines();
 
     <ul class="mt-10 space-y-6">
       {
-        headlines.map((h) => (
-          <li class="overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-sm">
-            {h.photo_ref && (
-              <img src={`/api/images/${h.photo_ref}`} alt="" class="h-48 w-full object-cover" />
-            )}
-            <div class="p-5">
-              <p class="text-lg font-semibold leading-snug">{h.headline}</p>
-              {h.stat_block && <p class="mt-2 text-sm text-neutral-600">{h.stat_block}</p>}
-              {h.source_note && (
-                <p class="mt-3 text-xs text-neutral-400">
-                  Inspired by:{' '}
-                  {h.source_post_url ? (
-                    <a href={h.source_post_url} class="underline">
-                      {h.source_note}
-                    </a>
-                  ) : (
-                    h.source_note
-                  )}
-                </p>
+        headlines.map((h) => {
+          // Real alt text for the public feed: a player name when player_ids is
+          // populated, otherwise decorative (empty) per docs/ui-plan.md.
+          const photoAlt = h.player_ids?.[0] ? `${h.player_ids[0]}` : '';
+          return (
+            <li class="overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-sm">
+              {h.photo_ref && (
+                <img
+                  src={`/api/images/${h.photo_ref}`}
+                  alt={photoAlt}
+                  class="h-48 w-full object-cover"
+                />
               )}
-            </div>
-          </li>
-        ))
+              <div class="p-5">
+                <p class="text-lg font-semibold leading-snug">{h.headline}</p>
+                {h.stat_block && <p class="mt-2 text-sm text-neutral-600">{h.stat_block}</p>}
+                {h.source_note && (
+                  <p class="mt-3 text-xs text-neutral-400">
+                    Inspired by:{' '}
+                    {h.source_post_url ? (
+                      <a href={h.source_post_url} class="underline">
+                        {h.source_note}
+                      </a>
+                    ) : (
+                      h.source_note
+                    )}
+                  </p>
+                )}
+              </div>
+            </li>
+          );
+        })
       }
     </ul>
   </main>

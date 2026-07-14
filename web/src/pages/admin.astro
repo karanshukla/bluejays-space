@@ -1,8 +1,13 @@
 ---
-// /admin — draft review UI. In production this path is gated by Cloudflare
-// Access (no custom auth code here). Plain server-rendered forms for now;
-// spec calls for a Svelte/React inline-edit island later if the UX needs it.
+// /admin — draft review UI. Gated by Cloudflare Access JWT verification in
+// middleware (see src/middleware.ts), not just Cloudflare's edge path-scoping —
+// the app verifies the JWT so Railway's direct fallback domain can't bypass it.
+//
+// Each draft renders as a Svelte island (DraftCard) for optimistic inline edit
+// + publish. The list shell stays server-rendered Astro; the API routes are
+// unchanged (form-POST bodies, called via fetch now).
 import Base from '../layouts/Base.astro';
+import DraftCard from '../components/DraftCard.svelte';
 import { getDraftHeadlines } from '../lib/db';
 
 export const prerender = false;
@@ -27,114 +32,7 @@ const drafts = await getDraftHeadlines();
     }
 
     <ul class="mt-8 space-y-8">
-      {
-        drafts.map((draft) => (
-          <li class="rounded-lg border border-neutral-200 p-5">
-            <div class="mb-3 flex items-center gap-2">
-              <span
-                class={`rounded px-2 py-0.5 text-xs font-semibold ${draft.register === 2 ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}
-              >
-                Register {draft.register}
-              </span>
-              {draft.register === 2 && draft.source_note && (
-                <span class="rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">
-                  fact-anchored — verify before publish
-                </span>
-              )}
-              <span class="text-xs text-neutral-400">
-                #{draft.id} · {new Date(draft.created_at).toLocaleString()}
-              </span>
-            </div>
-
-            <form method="POST" action={`/api/headlines/${draft.id}/update`} class="space-y-3">
-              <label class="block text-sm font-medium text-neutral-700">
-                Headline
-                <textarea
-                  name="headline"
-                  required
-                  rows="2"
-                  class="mt-1 w-full rounded border border-neutral-300 p-2 text-base"
-                >
-                  {draft.headline}
-                </textarea>
-              </label>
-
-              <label class="block text-sm font-medium text-neutral-700">
-                Register
-                <select name="register" class="mt-1 w-full rounded border border-neutral-300 p-2">
-                  <option value="1" selected={draft.register === 1}>
-                    1 — real-event riff
-                  </option>
-                  <option value="2" selected={draft.register === 2}>
-                    2 — fabricated scenario
-                  </option>
-                </select>
-              </label>
-
-              <label class="block text-sm font-medium text-neutral-700">
-                Stat block
-                <input
-                  name="stat_block"
-                  value={draft.stat_block ?? ''}
-                  class="mt-1 w-full rounded border border-neutral-300 p-2"
-                />
-              </label>
-
-              <label class="block text-sm font-medium text-neutral-700">
-                Photo ref
-                <input
-                  name="photo_ref"
-                  value={draft.photo_ref ?? ''}
-                  class="mt-1 w-full rounded border border-neutral-300 p-2"
-                />
-              </label>
-              {draft.photo_ref && (
-                <img
-                  src={`/api/images/${draft.photo_ref}`}
-                  alt=""
-                  class="h-32 w-auto rounded border border-neutral-200 object-cover"
-                />
-              )}
-
-              <label class="block text-sm font-medium text-neutral-700">
-                Source post URL <span class="font-normal text-neutral-400">(register 1 only)</span>
-                <input
-                  name="source_post_url"
-                  value={draft.source_post_url ?? ''}
-                  class="mt-1 w-full rounded border border-neutral-300 p-2"
-                />
-              </label>
-
-              <label class="block text-sm font-medium text-neutral-700">
-                Source note <span class="font-normal text-neutral-400">(register 1 only)</span>
-                <input
-                  name="source_note"
-                  value={draft.source_note ?? ''}
-                  class="mt-1 w-full rounded border border-neutral-300 p-2"
-                />
-              </label>
-
-              <div class="flex gap-3 pt-1">
-                <button
-                  type="submit"
-                  class="rounded bg-neutral-900 px-4 py-2 text-sm font-semibold text-white"
-                >
-                  Save changes
-                </button>
-              </div>
-            </form>
-
-            <form method="POST" action={`/api/headlines/${draft.id}/publish`} class="mt-3">
-              <button
-                type="submit"
-                class="rounded bg-emerald-700 px-4 py-2 text-sm font-semibold text-white"
-              >
-                Publish
-              </button>
-            </form>
-          </li>
-        ))
-      }
+      {drafts.map((draft) => <DraftCard client:load draft={draft} />)}
     </ul>
   </main>
 </Base>
