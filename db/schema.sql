@@ -35,3 +35,15 @@ CREATE TABLE IF NOT EXISTS headlines (
 CREATE INDEX IF NOT EXISTS headlines_published_idx
     ON headlines (published_at DESC)
     WHERE status = 'published';
+
+-- Ingest dedup: records which Reddit/Bluesky posts have already been fed to
+-- the generator so re-runs don't re-surface the same candidate material.
+-- `external_id` is the platform's stable id — Reddit fullname (t3_...) or
+-- Bluesky post uri. Created idempotently by ingest at runtime so existing dev
+-- volumes pick it up without a `docker compose down -v` reset.
+CREATE TABLE IF NOT EXISTS seen_posts (
+    source       text NOT NULL,        -- 'reddit' | 'bluesky'
+    external_id  text NOT NULL,
+    seen_at      timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (source, external_id)
+);

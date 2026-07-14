@@ -40,3 +40,23 @@ export async function uploadImage(key, body, contentType) {
   );
   return key;
 }
+
+// Downloads a source image (Reddit/Bluesky CDN URL — never hotlinked on the
+// live site) and stores it under `key` so `photo_ref` points at our own copy.
+// Returns the key, or null if the fetch fails or the content isn't an image.
+// No new dep: `fetch` is global in Node 18+.
+export async function downloadAndStoreImage(url, key) {
+  const res = await fetch(url);
+  if (!res.ok) {
+    console.warn(`[storage] image fetch failed: ${url} -> ${res.status}`);
+    return null;
+  }
+  const contentType = res.headers.get('content-type') || 'image/jpeg';
+  if (!contentType.startsWith('image/')) {
+    console.warn(`[storage] not an image (${contentType}): ${url}`);
+    return null;
+  }
+  const bytes = Buffer.from(await res.arrayBuffer());
+  await uploadImage(key, bytes, contentType);
+  return key;
+}
