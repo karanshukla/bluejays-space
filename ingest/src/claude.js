@@ -1,8 +1,8 @@
 // Claude headline generation — the real generation step.
 //
 // One call per register per run, via @anthropic-ai/sdk. Structured output is
-// requested via `output_config.format.json_schema` (GA — no beta header) so the
-// response parses straight into a draft row shape. Temperature is split by
+// requested via `output_config.format` (GA — no beta header) so the response
+// parses straight into a draft row shape. Temperature is split by
 // register (1 = low, 2 = maxed). The mlb-api-mcp server is conditionally
 // attached via the MCP connector (beta) when MLB_MCP_URL is set — giving the
 // generator live stat/roster lookup, which the spec's register-2 real-fact-
@@ -17,6 +17,10 @@
 //     400. Since GENERATION_MODEL is swappable via env var without a code
 //     change, the call retries without temperature on a 400 mentioning it.
 //   - Structured output JSON is returned in a `text` content block — parse it.
+//   - output_config.format is flat: `{ type: 'json_schema', schema }` —
+//     confirmed against a live 400 ("Unexpected key 'json_schema'..."); an
+//     earlier pass wrapped `schema` (plus name/strict) inside a nested
+//     `json_schema` key, which the API rejects.
 
 import Anthropic from '@anthropic-ai/sdk';
 
@@ -132,7 +136,7 @@ function baseRequest(model, systemPrompt, userMessage) {
     output_config: {
       format: {
         type: 'json_schema',
-        json_schema: { name: 'headline', strict: true, schema: headlineSchema },
+        schema: headlineSchema,
       },
     },
     system: systemPrompt,
