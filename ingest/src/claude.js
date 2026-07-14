@@ -9,9 +9,10 @@
 // anchored subtype needs to verify connecting facts rather than recall them.
 //
 // See docs/ingestion-pipeline.md for the concrete gotchas this encodes:
-//   - MCP connector: betas:['mcp-client-2025-11-20'], tools uses `server_name`
-//     (NOT `mcp_server_name` — the planning doc is stale; verified against
-//     platform.claude.com/docs/en/agents-and-tools/mcp-connector).
+//   - MCP connector: betas:['mcp-client-2025-11-20'], tools uses `mcp_server_name`
+//     — confirmed against a live 400 from the API ("mcp_toolset.mcp_server_name:
+//     Field required"); an earlier pass had this as `server_name`, which the API
+//     rejects.
 //   - Temperature: Haiku 4.5 (default) accepts it; Opus 4.7+ rejects it with a
 //     400. Since GENERATION_MODEL is swappable via env var without a code
 //     change, the call retries without temperature on a 400 mentioning it.
@@ -162,7 +163,7 @@ export async function generateHeadline({ register, candidatePosts, faxPosts }) {
           ...body,
           betas: [MCP_BETA],
           mcp_servers: [{ type: 'url', url: process.env.MLB_MCP_URL, name: MCP_SERVER_NAME }],
-          tools: [{ type: 'mcp_toolset', server_name: MCP_SERVER_NAME }],
+          tools: [{ type: 'mcp_toolset', mcp_server_name: MCP_SERVER_NAME }],
         })
       : anthropic.messages.create(body);
 
