@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
-import { updateHeadline } from '../../../../lib/db';
-import { asNullableText } from '../../../../lib/formHelpers';
+import { updateHeadline } from '../../../../../lib/db';
+import { asNullableText } from '../../../../../lib/formHelpers';
 
 export const prerender = false;
 

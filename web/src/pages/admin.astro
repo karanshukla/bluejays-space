@@ -4,8 +4,10 @@
 // the app verifies the JWT so Railway's direct fallback domain can't bypass it.
 //
 // Each draft renders as a Svelte island (DraftCard) for optimistic inline edit
-// + publish. The list shell stays server-rendered Astro; the API routes are
-// unchanged (form-POST bodies, called via fetch now).
+// + publish. The list shell stays server-rendered Astro; the mutating routes
+// (/admin/api/headlines/[id]/{update,publish}) live under /admin/* so a single
+// Cloudflare Access app scoped to /admin* covers everything, and the in-app
+// middleware matcher covers everything with one regex.
 import Base from '../layouts/Base.astro';
 import DraftCard from '../components/DraftCard.svelte';
 import { getDraftHeadlines } from '../lib/db';

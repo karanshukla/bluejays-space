@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { publishHeadline } from '../../../../lib/db';
+import { publishHeadline } from '../../../../../lib/db';
 
 export const prerender = false;
 
