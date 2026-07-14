@@ -1,0 +1,74 @@
+# Local development for the bluejays.space stack.
+#   docker compose up -d            -> db + web (hot-reload dev)
+#   docker compose run --rm ingest  -> one-shot generation run (manual profile)
+#   docker compose down -v          -> tear down + drop the Postgres volume
+#
+# The handles/ Go service has its own Dockerfile and is deployed separately;
+# run it standalone with:  docker build -t handles handles/ && docker run -p 8080:8080 handles
+#
+# Each service also ships a production Dockerfile that Railway builds from;
+# this compose is for local dev only.
+
+name: bluejays-space
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bluejays}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bluejays}
+      POSTGRES_DB: ${POSTGRES_DB:-bluejays}
+    ports:
+      - "5432:5432"
+    volumes:
+      # Auto-loads on first volume init only.
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bluejays} -d ${POSTGRES_DB:-bluejays}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build: ./web
+    ports:
+      - "4321:4321"
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-bluejays}:${POSTGRES_PASSWORD:-bluejays}@db:5432/${POSTGRES_DB:-bluejays}
+    depends_on:
+      db:
+        condition: service_healthy
+    user: root                # dev only: vite writes to /app/node_modules/.vite
+    healthcheck:
+      disable: true           # prod image's strict healthcheck isn't useful in dev
+    volumes:
+      # Hot-reload: bind-mount source over the copied image tree.
+      - ./web:/app
+      # Keep the container's installed node_modules, don't shadow with host's.
+      - /app/node_modules
+    # Build once then serve the built server. `astro dev` (hot-reload) can hang
+    # in some Docker/WSL setups due to an Astro 7 / Rolldown optimizer issue;
+    # `astro preview` runs the same standalone Node server the prod image ships,
+    # so dev and prod stay consistent. For hot-reload, swap to:
+    #   npx astro dev --host 0.0.0.0
+    entrypoint: ["/bin/sh", "/app/docker-entrypoint-dev.sh"]
+    command: sh -c "npx astro build && npx astro preview --host 0.0.0.0"
+
+  ingest:
+    build: ./ingest
+    # Not started by `compose up` — run explicitly via the manual profile.
+    profiles: ["manual"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-bluejays}:${POSTGRES_PASSWORD:-bluejays}@db:5432/${POSTGRES_DB:-bluejays}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GENERATION_MODEL: ${GENERATION_MODEL:-claude-haiku-4-5}
+      REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID:-}
+      REDDIT_CLIENT_SECRET: ${REDDIT_CLIENT_SECRET:-}
+      BLUESKY_APP_PASSWORD: ${BLUESKY_APP_PASSWORD:-}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
