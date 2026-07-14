@@ -1,4 +1,4 @@
-FROM golang:1.24-alpine AS builder
+FROM golang:1.26-alpine AS builder
 WORKDIR /app
 COPY go.mod ./
 COPY *.go ./
@@ -6,7 +6,7 @@ COPY templates/ ./templates/
 COPY static/ ./static/
 RUN go build -o server .
 
-FROM alpine:3.21
+FROM alpine:3.24
 RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY --from=builder /app/server .

@@ -7,14 +7,14 @@
 # build uses no explicit target, so it gets the final `runtime` stage below,
 # which does its own clean `--omit=dev` install rather than inheriting
 # devDependencies from the builder.
-FROM node:22-alpine AS builder
+FROM node:26-alpine AS builder
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM node:22-alpine AS runtime
+FROM node:26-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
