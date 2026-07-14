@@ -39,7 +39,8 @@ go.work.sum
 
 # Agent workspaces
 .zcode/
-
+.claude/
 # Editor/IDE
 # .idea/
 # .vscode/
+
