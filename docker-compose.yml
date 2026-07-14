@@ -1,7 +1,10 @@
 # Local development for the bluejays.space stack.
-#   docker compose up -d            -> db + web + handles (hot-reload dev)
+#   docker compose up -d            -> db + web (hot-reload dev)
 #   docker compose run --rm ingest  -> one-shot generation run (manual profile)
 #   docker compose down -v          -> tear down + drop the Postgres volume
+#
+# The handles/ Go service has its own Dockerfile and is deployed separately;
+# run it standalone with:  docker build -t handles handles/ && docker run -p 8080:8080 handles
 #
 # Each service also ships a production Dockerfile that Railway builds from;
 # this compose is for local dev only.
@@ -44,21 +47,13 @@ services:
       - ./web:/app
       # Keep the container's installed node_modules, don't shadow with host's.
       - /app/node_modules
-    # Install platform-correct deps into the anonymous volume, then hot-reload.
-    # Run via sh to avoid exec-bit issues on Windows bind mounts.
+    # Build once then serve the built server. `astro dev` (hot-reload) can hang
+    # in some Docker/WSL setups due to an Astro 7 / Rolldown optimizer issue;
+    # `astro preview` runs the same standalone Node server the prod image ships,
+    # so dev and prod stay consistent. For hot-reload, swap to:
+    #   npx astro dev --host 0.0.0.0
     entrypoint: ["/bin/sh", "/app/docker-entrypoint-dev.sh"]
-    command: npx astro dev --host 0.0.0.0 --force
-
-  handles:
-    build: ./handles
-    ports:
-      - "8080:8080"
-    environment:
-      PORT: "8080"
-      BASE_DOMAIN: ${BASE_DOMAIN:-bluejays.space}
-      HANDLES_FILE: ${HANDLES_FILE:-handles.json}
-      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
-      GITHUB_REPO: ${GITHUB_REPO:-karanshukla/bluejays-space}
+    command: sh -c "npx astro build && npx astro preview --host 0.0.0.0"
 
   ingest:
     build: ./ingest
