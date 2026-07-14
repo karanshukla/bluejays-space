@@ -1,0 +1,79 @@
+# Local development for the bluejays.space stack.
+#   docker compose up -d            -> db + web + handles (hot-reload dev)
+#   docker compose run --rm ingest  -> one-shot generation run (manual profile)
+#   docker compose down -v          -> tear down + drop the Postgres volume
+#
+# Each service also ships a production Dockerfile that Railway builds from;
+# this compose is for local dev only.
+
+name: bluejays-space
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bluejays}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bluejays}
+      POSTGRES_DB: ${POSTGRES_DB:-bluejays}
+    ports:
+      - "5432:5432"
+    volumes:
+      # Auto-loads on first volume init only.
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bluejays} -d ${POSTGRES_DB:-bluejays}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build: ./web
+    ports:
+      - "4321:4321"
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-bluejays}:${POSTGRES_PASSWORD:-bluejays}@db:5432/${POSTGRES_DB:-bluejays}
+    depends_on:
+      db:
+        condition: service_healthy
+    user: root                # dev only: vite writes to /app/node_modules/.vite
+    healthcheck:
+      disable: true           # prod image's strict healthcheck isn't useful in dev
+    volumes:
+      # Hot-reload: bind-mount source over the copied image tree.
+      - ./web:/app
+      # Keep the container's installed node_modules, don't shadow with host's.
+      - /app/node_modules
+    # Install platform-correct deps into the anonymous volume, then hot-reload.
+    # Run via sh to avoid exec-bit issues on Windows bind mounts.
+    entrypoint: ["/bin/sh", "/app/docker-entrypoint-dev.sh"]
+    command: npx astro dev --host 0.0.0.0 --force
+
+  handles:
+    build: ./handles
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      BASE_DOMAIN: ${BASE_DOMAIN:-bluejays.space}
+      HANDLES_FILE: ${HANDLES_FILE:-handles.json}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_REPO: ${GITHUB_REPO:-karanshukla/bluejays-space}
+
+  ingest:
+    build: ./ingest
+    # Not started by `compose up` — run explicitly via the manual profile.
+    profiles: ["manual"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-bluejays}:${POSTGRES_PASSWORD:-bluejays}@db:5432/${POSTGRES_DB:-bluejays}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GENERATION_MODEL: ${GENERATION_MODEL:-claude-haiku-4-5}
+      REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID:-}
+      REDDIT_CLIENT_SECRET: ${REDDIT_CLIENT_SECRET:-}
+      BLUESKY_APP_PASSWORD: ${BLUESKY_APP_PASSWORD:-}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
