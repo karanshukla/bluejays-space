@@ -10,3 +10,4 @@ web/.astro
 package-lock.json
 .claude/**
 .remember/**
+.env.example

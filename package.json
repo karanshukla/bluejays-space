@@ -4,14 +4,15 @@
   "private": true,
   "description": "Repo-wide dev tooling (formatting, git hooks) for the bluejays-space monorepo. Not a workspaces root — web/ and ingest/ keep independent lockfiles so each service's Docker build stays isolated.",
   "scripts": {
-    "format": "prettier --write \"**/*.{js,ts,astro,json,css,yml,yaml}\"",
-    "format:check": "prettier --check \"**/*.{js,ts,astro,json,css,yml,yaml}\"",
+    "format": "prettier --write \"**/*.{js,ts,astro,svelte,json,css,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{js,ts,astro,svelte,json,css,yml,yaml}\"",
     "prepare": "husky || true"
   },
   "devDependencies": {
     "husky": "^9.1.7",
     "lint-staged": "^17.0.8",
     "prettier": "^3.9.3",
-    "prettier-plugin-astro": "^0.14.1"
+    "prettier-plugin-astro": "^0.14.1",
+    "prettier-plugin-svelte": "^3.5.2"
   }
 }

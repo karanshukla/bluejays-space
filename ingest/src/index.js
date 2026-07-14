@@ -1,18 +1,28 @@
-// bluejays-ingest — headline generation job (stub).
+// bluejays-ingest — headline generation job.
 //
 // Runs once and exits, matching Railway cron semantics. In dev it's triggered
 // manually:  docker compose run --rm ingest
 //
-// The real generation flow (fetch Reddit/Bluesky/MLB/FAX Sports -> draft with
-// Claude -> write draft rows to Postgres) lands in a later task. This stub
-// wires up the DB write path so the admin review UI has real rows to work
-// with: it inserts one placeholder draft per register on every run.
+// Two paths:
+//  * Stub path (ANTHROPIC_API_KEY unset): inserts two placeholder drafts so the
+//    admin review UI has rows to work with. Preserved for credential-free dev.
+//  * Real path (ANTHROPIC_API_KEY set): fetches Reddit/Bluesky candidate posts
+//    + FAX Sports style reference, generates one headline per register via
+//    Claude, downloads any reused source image into MinIO, inserts draft rows,
+//    and marks the fetched posts as seen so re-runs don't resurface them.
+//
+// See docs/ingestion-pipeline.md for the concrete decisions this encodes.
 
 import pg from 'pg';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { ensureBucket, uploadImage } from './storage.js';
+import { ensureBucket, uploadImage, downloadAndStoreImage } from './storage.js';
+import { fetchFaxPosts } from './fax.js';
+import { fetchRedditPosts } from './reddit.js';
+import { fetchBlueskyPosts } from './bluesky.js';
+import { generateHeadline } from './claude.js';
+import { ensureSeenPostsTable, getSeenIds, markSeen, filterUnseen } from './dedup.js';
 
 const { Pool } = pg;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -24,16 +34,17 @@ export function configSummary() {
     ANTHROPIC_API_KEY: present('ANTHROPIC_API_KEY'),
     GENERATION_MODEL: process.env.GENERATION_MODEL || 'claude-haiku-4-5',
     REDDIT_CLIENT_ID: present('REDDIT_CLIENT_ID'),
-    BLUESKY_APP_PASSWORD: present('BLUESKY_APP_PASSWORD'),
+    BSKY_IDENTIFIER: present('BSKY_IDENTIFIER'),
+    MLB_MCP_URL: present('MLB_MCP_URL'),
   };
 }
 
-// Placeholder drafts standing in for the real generation step. Register 1
-// stays low-temperature/grounded, register 2 is the fabricated-scenario bit —
-// see the project spec for the full register definitions. photo_ref for the
-// first draft is filled in at runtime once the demo image upload completes
-// (see uploadDemoImage below) — it's not a real player photo, just proof
-// the object-storage path works end to end.
+// Placeholder drafts standing in for the real generation step. Used by the stub
+// path (no ANTHROPIC_API_KEY). Register 1 stays low-temperature/grounded,
+// register 2 is the fabricated-scenario bit — see the project spec for the full
+// register definitions. photo_ref for the first draft is filled in at runtime
+// once the demo image upload completes (see uploadDemoImage below) — it's not a
+// real player photo, just proof the object-storage path works end to end.
 export function stubDrafts(demoPhotoRef) {
   return [
     {
@@ -90,6 +101,85 @@ async function uploadDemoImage() {
   return key;
 }
 
+// --- Real generation path ---
+
+// If a register-1 draft credits a source post that had an image, download that
+// image into MinIO and set photo_ref to the stored key (never hotlink the
+// source CDN — see SPEC.md Image Storage). Reddit image URLs are on the post;
+// Bluesky image URLs are nested under images[].
+function sourceImageUrl(post) {
+  if (!post) return null;
+  if (post.imageUrl) return post.imageUrl;
+  if (Array.isArray(post.images) && post.images[0]?.fullsize) {
+    return post.images[0].fullsize;
+  }
+  return null;
+}
+
+// Build a short, unique-ish storage key for a downloaded source image.
+function imageKeyFor(post, ext = 'jpg') {
+  const stamp = Date.now();
+  const slug = (post.external_id || 'post').replace(/[^a-z0-9_-]/gi, '').slice(0, 40);
+  return `${post.source}/${slug || 'post'}-${stamp}.${ext}`;
+}
+
+async function runRealGeneration(pool) {
+  // Style reference — FAX Sports posts. Never surfaced on the live site.
+  const faxPosts = await fetchFaxPosts();
+
+  // Candidate material — Reddit + Bluesky, filtered against seen_posts.
+  const [redditPosts, blueskyPosts] = await Promise.all([fetchRedditPosts(), fetchBlueskyPosts()]);
+  const redditSeen = await getSeenIds(pool, 'reddit');
+  const blueskySeen = await getSeenIds(pool, 'bluesky');
+  const newReddit = filterUnseen(redditPosts, redditSeen);
+  const newBluesky = filterUnseen(blueskyPosts, blueskySeen);
+  const candidatePosts = [...newReddit, ...newBluesky];
+  console.log(
+    `[ingest] candidates: ${newReddit.length} reddit, ${newBluesky.length} bluesky (${redditPosts.length - newReddit.length}/${blueskyPosts.length - newBluesky.length} already seen)`
+  );
+
+  if (candidatePosts.length === 0) {
+    console.log('[ingest] no new candidate posts; generating register-2 only');
+  }
+
+  const drafts = [];
+  // Register 1: riff on a real post. Skip if no candidates this run.
+  if (candidatePosts.length > 0) {
+    const draft = await generateHeadline({
+      register: 1,
+      candidatePosts,
+      faxPosts,
+    });
+    // Attach a stored copy of the source image if the draft credited one.
+    const credited = candidatePosts.find((p) => p.permalink === draft.source_post_url);
+    const imgUrl = sourceImageUrl(credited) || sourceImageUrl(candidatePosts[0]);
+    if (imgUrl) {
+      const key = await downloadAndStoreImage(imgUrl, imageKeyFor(credited || candidatePosts[0]));
+      if (key) draft.photo_ref = key;
+    }
+    drafts.push(draft);
+  }
+
+  // Register 2: fabricated scenario — no candidate posts needed.
+  drafts.push(
+    await generateHeadline({
+      register: 2,
+      candidatePosts: [],
+      faxPosts,
+    })
+  );
+
+  await insertDrafts(pool, drafts);
+  console.log(`[ingest] inserted ${drafts.length} draft row(s)`);
+
+  // Mark everything we surfaced this run as seen — even if generation skipped
+  // some — so they don't come back next run.
+  await markSeen(pool, 'reddit', newReddit.map((p) => p.external_id).filter(Boolean));
+  await markSeen(pool, 'bluesky', newBluesky.map((p) => p.external_id).filter(Boolean));
+}
+
+// --- Entrypoint ---
+
 async function main() {
   console.log('[ingest] starting generation run');
   console.log('[ingest] config:', configSummary());
@@ -102,11 +192,18 @@ async function main() {
 
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
-    console.log('[ingest] stub: fetch + generate would run here; inserting placeholder drafts');
-    const demoPhotoRef = await uploadDemoImage();
-    const drafts = stubDrafts(demoPhotoRef);
-    await insertDrafts(pool, drafts);
-    console.log(`[ingest] inserted ${drafts.length} draft row(s)`);
+    await ensureSeenPostsTable(pool);
+
+    if (!process.env.ANTHROPIC_API_KEY) {
+      console.log('[ingest] ANTHROPIC_API_KEY not set — running stub path');
+      const demoPhotoRef = await uploadDemoImage();
+      const drafts = stubDrafts(demoPhotoRef);
+      await insertDrafts(pool, drafts);
+      console.log(`[ingest] inserted ${drafts.length} stub draft row(s)`);
+      return;
+    }
+
+    await runRealGeneration(pool);
   } finally {
     await pool.end();
   }

@@ -1,5 +1,10 @@
 ---
 import '../styles/global.css';
+// Fraunces: self-hosted display serif for headlines. Imported as JS modules so
+// Vite bundles the WOFF2 files into the build (no Google Fonts CDN). Two weights
+// only to keep the bundle lean.
+import '@fontsource/fraunces/600.css';
+import '@fontsource/fraunces/400.css';
 interface Props {
   title: string;
 }

@@ -1,1 +1,11 @@
 @import 'tailwindcss';
+
+@theme {
+  /*
+   * Headlines use Fraunces (imported as a JS module in Base.astro so Vite
+   * bundles the self-hosted WOFF2 files), everything else stays on a clean
+   * system sans stack. No Google Fonts CDN — keeps the "zero/minimal JS, no
+   * external calls" posture on public pages per SPEC.md.
+   */
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+}
