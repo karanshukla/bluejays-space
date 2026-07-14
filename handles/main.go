@@ -24,7 +24,6 @@ var templateFS embed.FS
 //go:embed static
 var staticFS embed.FS
 
-
 type jobResult struct {
 	PRURL   string
 	ErrMsg  string
@@ -153,7 +152,6 @@ func main() {
 			http.Redirect(w, r, "/?error=handle-taken", http.StatusSeeOther)
 			return
 		}
-
 
 		jobID := newJobID()
 		jobsMu.Lock()
@@ -541,4 +539,3 @@ func envOr(key, fallback string) string {
 	}
 	return fallback
 }
-
