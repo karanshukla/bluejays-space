@@ -107,6 +107,7 @@ services:
       BSKY_IDENTIFIER: ${BSKY_IDENTIFIER:-}
       BLUESKY_APP_PASSWORD: ${BLUESKY_APP_PASSWORD:-}
       MLB_MCP_URL: ${MLB_MCP_URL:-}
+      MLB_MCP_AUTH_TOKEN: ${MLB_MCP_AUTH_TOKEN:-}
       S3_ENDPOINT: http://minio:9000
       S3_REGION: us-east-1
       S3_BUCKET: ${S3_BUCKET:-bluejays-images}

@@ -21,6 +21,12 @@
 //     confirmed against a live 400 ("Unexpected key 'json_schema'..."); an
 //     earlier pass wrapped `schema` (plus name/strict) inside a nested
 //     `json_schema` key, which the API rejects.
+//   - MLB_MCP_AUTH_TOKEN (optional): if the mlb-api-mcp deployment sits behind
+//     a shared-secret check (e.g. a Cloudflare rule gating the public
+//     endpoint), set this and it's sent as `mcp_servers[].authorization_token`
+//     — a single static bearer token. This field does NOT support OAuth or
+//     Cloudflare Access's two-header Service Token scheme; only a plain
+//     shared-secret bearer token works here.
 
 import Anthropic from '@anthropic-ai/sdk';
 
@@ -166,7 +172,16 @@ export async function generateHeadline({ register, candidatePosts, faxPosts }) {
       ? anthropic.beta.messages.create({
           ...body,
           betas: [MCP_BETA],
-          mcp_servers: [{ type: 'url', url: process.env.MLB_MCP_URL, name: MCP_SERVER_NAME }],
+          mcp_servers: [
+            {
+              type: 'url',
+              url: process.env.MLB_MCP_URL,
+              name: MCP_SERVER_NAME,
+              ...(process.env.MLB_MCP_AUTH_TOKEN
+                ? { authorization_token: process.env.MLB_MCP_AUTH_TOKEN }
+                : {}),
+            },
+          ],
           tools: [{ type: 'mcp_toolset', mcp_server_name: MCP_SERVER_NAME }],
         })
       : anthropic.messages.create(body);
