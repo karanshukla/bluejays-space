@@ -130,8 +130,19 @@ export function parseHeadlineResponse(content) {
   };
 }
 
+// The first real run against the live MLB MCP connector took ~10 minutes —
+// almost exactly the SDK's default 10-minute timeout (which retries on
+// timeout by default, per its own docs, risking an even longer/flakier next
+// attempt rather than a clean failure). Baseball MCP sleeps when idle
+// (Railway "sleep when inactive"), so a cold-started MCP round-trip inside
+// the tool-use loop is the likely cause. Widen the timeout so a legitimately
+// slow-but-working run isn't cut off, since this only runs once/day via cron
+// (see cron_schedule on the Railway service) — there's no overlap risk from
+// letting a single run take longer.
+const REQUEST_TIMEOUT_MS = 20 * 60 * 1000;
+
 function client() {
-  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: REQUEST_TIMEOUT_MS });
 }
 
 // Build the base request body (model, max tokens, structured output, messages).
