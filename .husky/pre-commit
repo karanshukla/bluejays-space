@@ -1,0 +1,23 @@
+#!/bin/sh
+
+# Auto-fix staged files with Prettier + oxlint, per service (each has its own
+# .oxlintrc.json). Falls through harmlessly if a service has no staged files.
+(cd web && npx lint-staged --allow-empty)
+(cd ingest && npx lint-staged --allow-empty)
+
+# TypeScript/Astro type check — catches errors auto-fix can't resolve.
+echo "Typecheck: web..."
+npm run --prefix web typecheck
+
+# Go: format + vet the handles service.
+if command -v gofmt >/dev/null 2>&1; then
+  unformatted=$(gofmt -l handles)
+  if [ -n "$unformatted" ]; then
+    echo "gofmt: reformatting $unformatted"
+    gofmt -w handles
+    git add $unformatted
+  fi
+fi
+if command -v go >/dev/null 2>&1; then
+  (cd handles && go vet ./...)
+fi

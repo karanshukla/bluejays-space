@@ -1,7 +1,13 @@
 # Local development for the bluejays.space stack.
-#   docker compose up -d            -> db + web (hot-reload dev)
+#   docker compose up -d            -> db + minio + web (hot-reload dev)
 #   docker compose run --rm ingest  -> one-shot generation run (manual profile)
-#   docker compose down -v          -> tear down + drop the Postgres volume
+#   docker compose down -v          -> tear down + drop the Postgres/MinIO volumes
+#
+# minio is a self-hosted S3-compatible object store standing in for Cloudflare
+# R2 — same API, no external account needed. Console: http://localhost:9001
+# (login with MINIO_ROOT_USER/MINIO_ROOT_PASSWORD, both default to dev-only
+# values below). The bucket itself is created at runtime by ingest/web, not
+# provisioned here.
 #
 # The handles/ Go service has its own Dockerfile and is deployed separately;
 # run it standalone with:  docker build -t handles handles/ && docker run -p 8080:8080 handles
@@ -12,6 +18,23 @@
 name: bluejays-space
 
 services:
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-bluejays}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-bluejays-dev-only}
+    ports:
+      - '9000:9000' # S3 API
+      - '9001:9001' # web console
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   db:
     image: postgres:16-alpine
     environment:
@@ -19,29 +42,41 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bluejays}
       POSTGRES_DB: ${POSTGRES_DB:-bluejays}
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       # Auto-loads on first volume init only.
       - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bluejays} -d ${POSTGRES_DB:-bluejays}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-bluejays} -d ${POSTGRES_DB:-bluejays}']
       interval: 5s
       timeout: 3s
       retries: 10
 
   web:
-    build: ./web
+    build:
+      context: ./web
+      # Dev needs devDependencies (tailwind, @astrojs/check) present to run
+      # `astro build`/`astro preview` against bind-mounted source — the final
+      # `runtime` stage (used by Railway) strips them via --omit=dev.
+      target: builder
     ports:
-      - "4321:4321"
+      - '4321:4321'
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-bluejays}:${POSTGRES_PASSWORD:-bluejays}@db:5432/${POSTGRES_DB:-bluejays}
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: ${S3_BUCKET:-bluejays-images}
+      S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-bluejays}
+      S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-bluejays-dev-only}
     depends_on:
       db:
         condition: service_healthy
-    user: root                # dev only: vite writes to /app/node_modules/.vite
+      minio:
+        condition: service_healthy
+    user: root # dev only: vite writes to /app/node_modules/.vite
     healthcheck:
-      disable: true           # prod image's strict healthcheck isn't useful in dev
+      disable: true # prod image's strict healthcheck isn't useful in dev
     volumes:
       # Hot-reload: bind-mount source over the copied image tree.
       - ./web:/app
@@ -52,13 +87,13 @@ services:
     # `astro preview` runs the same standalone Node server the prod image ships,
     # so dev and prod stay consistent. For hot-reload, swap to:
     #   npx astro dev --host 0.0.0.0
-    entrypoint: ["/bin/sh", "/app/docker-entrypoint-dev.sh"]
+    entrypoint: ['/bin/sh', '/app/docker-entrypoint-dev.sh']
     command: sh -c "npx astro build && npx astro preview --host 0.0.0.0"
 
   ingest:
     build: ./ingest
     # Not started by `compose up` — run explicitly via the manual profile.
-    profiles: ["manual"]
+    profiles: ['manual']
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-bluejays}:${POSTGRES_PASSWORD:-bluejays}@db:5432/${POSTGRES_DB:-bluejays}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
@@ -66,9 +101,17 @@ services:
       REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID:-}
       REDDIT_CLIENT_SECRET: ${REDDIT_CLIENT_SECRET:-}
       BLUESKY_APP_PASSWORD: ${BLUESKY_APP_PASSWORD:-}
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: us-east-1
+      S3_BUCKET: ${S3_BUCKET:-bluejays-images}
+      S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-bluejays}
+      S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-bluejays-dev-only}
     depends_on:
       db:
+        condition: service_healthy
+      minio:
         condition: service_healthy
 
 volumes:
   pgdata:
+  miniodata:
