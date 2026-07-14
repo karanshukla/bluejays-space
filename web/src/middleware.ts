@@ -1,7 +1,11 @@
 // Astro middleware — gates admin paths behind Cloudflare Access JWT verification.
 //
-// This is the actual auth boundary for /admin and its API routes. Cloudflare
-// Access path-scoping alone is insufficient because Railway's own
+// This is the actual auth boundary for /admin and everything under it. The admin
+// page (/admin) and its mutating API routes (/admin/api/headlines/*) both live
+// under the /admin prefix so a single Cloudflare Access app scoped to /admin*
+// covers them at the edge, and a single matcher here covers them in-app.
+//
+// Cloudflare Access path-scoping alone is insufficient because Railway's own
 // *.up.railway.app fallback domain reaches the Node process directly (not
 // proxied through Cloudflare), bypassing any Access challenge. The app verifies
 // the JWT itself so the protection holds regardless of ingress path.
@@ -11,9 +15,9 @@
 import { defineMiddleware } from 'astro:middleware';
 import { isAuthEnforced, verifyCfAccessJwt } from './lib/cfAccess';
 
-// Protect /admin, /admin/*, /api/headlines/*, /api/headlines/<id>/{update,publish}.
+// Protect /admin and everything nested under it (page + /admin/api/headlines/*).
 // Deliberately NOT matched: / (public feed) and /api/images/* (public image proxy).
-const PROTECTED = /^\/(admin|api\/headlines)(?:\/|$)/;
+const PROTECTED = /^\/admin(?:\/|$)/;
 
 export const onRequest = defineMiddleware(async (context, next) => {
   if (!PROTECTED.test(context.url.pathname)) {

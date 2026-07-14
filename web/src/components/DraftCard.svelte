@@ -1,7 +1,9 @@
 <script lang="ts">
   // Per-draft inline-edit island. Replaces the plain form-POST (full page reload)
-  // with an optimistic fetch to the existing /api/headlines/[id]/{update,publish}
-  // routes. The API contract is unchanged — this is additive, per docs/ui-plan.md.
+  // with an optimistic fetch to /admin/api/headlines/[id]/{update,publish}. The
+  // routes live under /admin/* so a single Cloudflare Access app scoped to
+  // /admin* covers them too (along with the admin page itself).
+  // API contract unchanged — additive, per docs/ui-plan.md.
   //
   // Keyboard accessibility is preserved: all controls remain native form elements.
   import type { Headline } from '../lib/db';
@@ -35,7 +37,7 @@
       if (photoRef) form.set('photo_ref', photoRef);
       if (sourcePostUrl) form.set('source_post_url', sourcePostUrl);
       if (sourceNote) form.set('source_note', sourceNote);
-      const res = await fetch(`/api/headlines/${draft.id}/update`, {
+      const res = await fetch(`/admin/api/headlines/${draft.id}/update`, {
         method: 'POST',
         body: form,
       });
@@ -52,7 +54,7 @@
     publishing = true;
     error = null;
     try {
-      const res = await fetch(`/api/headlines/${draft.id}/publish`, { method: 'POST' });
+      const res = await fetch(`/admin/api/headlines/${draft.id}/publish`, { method: 'POST' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       // Optimistic remove-from-list: hide this card.
       root?.remove();
