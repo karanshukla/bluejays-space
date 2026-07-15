@@ -39,9 +39,13 @@ export async function getImage(key: string): Promise<StoredImage | null> {
     // unreachable, bucket missing — was previously indistinguishable from a
     // missing key (both just returned null, so the proxy route always answered
     // a flat 404 with no server-side trace of what actually went wrong).
-    const name = (err as { name?: string } | undefined)?.name;
+    const { name, message } = (err as { name?: string; message?: string } | undefined) ?? {};
     if (name !== 'NoSuchKey' && name !== 'NotFound') {
-      console.error(`[images] getImage(${key}) failed:`, err);
+      // One concise line, not the full error object — a burst of these (e.g.
+      // a live UI preview re-fetching on every keystroke of a bad key) must
+      // not be able to flood the logs with a full AWS SDK stack trace each,
+      // which is heavy enough on its own to hit Railway's log rate limit.
+      console.error(`[images] getImage(${key}) failed: ${name ?? 'Error'}: ${message ?? err}`);
     }
     return null;
   }
