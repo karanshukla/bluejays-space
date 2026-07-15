@@ -33,12 +33,12 @@ const { title } = Astro.props;
     </header>
     <slot />
     <footer class="mt-16 px-6 py-8 text-center font-mono text-xs text-ink-soft">
-      <p>
+      <div class="flex justify-end">
+        <a href="/admin" class="text-ink-soft/60 hover:underline">Admin</a>
+      </div>
+      <p class="mt-2">
         <strong>bluejays.space</strong> is a parody/satire site. Not affiliated with MLB or the Toronto
         Blue Jays.
-      </p>
-      <p class="mt-2">
-        <a href="/admin" class="text-ink-soft/60 hover:underline">Admin</a>
       </p>
     </footer>
   </body>
