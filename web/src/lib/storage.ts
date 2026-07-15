@@ -2,7 +2,13 @@
 // writes back the one admin-triggered case that needs them — importing a
 // pasted photo URL into MinIO (see photoImport.ts). ingest remains the
 // primary uploader for the automated generation pipeline.
-import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  GetObjectCommand,
+  PutObjectCommand,
+  HeadBucketCommand,
+  CreateBucketCommand,
+} from '@aws-sdk/client-s3';
 import type { Readable } from 'node:stream';
 
 let client: S3Client | undefined;
@@ -51,7 +57,21 @@ export async function getImage(key: string): Promise<StoredImage | null> {
   }
 }
 
+// Mirrors ingest/src/storage.js's ensureBucket — same self-heal (HeadBucket,
+// falling back to CreateBucket) since web can now write too (photoImport.ts),
+// and unlike ingest, web had never created the bucket itself before this.
+async function ensureBucket(): Promise<void> {
+  const s3 = getClient();
+  const bucket = process.env.S3_BUCKET || 'bluejays-images';
+  try {
+    await s3.send(new HeadBucketCommand({ Bucket: bucket }));
+  } catch {
+    await s3.send(new CreateBucketCommand({ Bucket: bucket }));
+  }
+}
+
 export async function uploadImage(key: string, body: Buffer, contentType: string): Promise<void> {
+  await ensureBucket();
   await getClient().send(
     new PutObjectCommand({
       Bucket: process.env.S3_BUCKET || 'bluejays-images',
