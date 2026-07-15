@@ -1,5 +1,7 @@
 # UI follow-up work
 
+> **Archived — mostly shipped.** The admin island landed (`web/src/components/DraftCard.svelte`, mounted with `client:load` per draft in `admin.astro`) — optimistic save/publish, no full-page reload, native form controls preserved for keyboard access. Public feed got a self-hosted display font (`@fontsource/fraunces`, no Google Fonts CDN call) and real alt text keyed off `player_ids[0]` in `index.astro`. **Still open:** the deliberate Pudding-style visual pass (spacing/rhythm once real photographed content is flowing), a full WCAG contrast audit of the register/fact-anchored badges, and a real mobile walkthrough with non-stub content — none of those were re-verified as done. Also newly in scope since this was written: the public feed has no pagination, permalinks, or share/SEO metadata at all — see `docs/frontend-roadmap.md`, which supersedes this doc's remaining open items.
+
 What's built today (`web/src/pages/index.astro`, `admin.astro`, `layouts/Base.astro`) is functional scaffolding, not the finished design. This tracks the gap between "works" and what the spec actually asks for.
 
 ## Admin: plain forms → interactive island

@@ -10,7 +10,7 @@ Monorepo for **bluejays.space** — a parody headline site for Blue Jays fans (i
 |---|---|---|
 | [`handles/`](./handles) | Go service | Serves AT Protocol DID files and a handle-request form for `*.bluejays.space`. JSON-backed; opens GitHub PRs for new handle requests. |
 | [`web/`](./web) | Astro SSR | Public headline feed (published rows) + `/admin` draft review/edit/publish UI, both DB-backed. |
-| [`ingest/`](./ingest) | Node job | Headline generation cron. DB write path is wired up; the real fetch/generate step (Reddit/Bluesky/MLB context, Claude drafting) is still stubbed — each run inserts placeholder draft rows. |
+| [`ingest/`](./ingest) | Node job | Headline generation cron. Fetches Reddit/Bluesky candidates + MLB Stats context (via Claude's MCP connector) and drafts real headlines per register when `ANTHROPIC_API_KEY` is set; falls back to inserting placeholder draft rows when it's unset (credential-free dev). |
 | [`db/`](./db) | Postgres schema | Baseline `handles` + `headlines` tables, auto-loaded on first DB init. |
 | `minio` (no repo folder — off-the-shelf image) | Object storage | Self-hosted S3-compatible store for headline photos, standing in for Cloudflare R2. `ingest` uploads, `web` proxies reads at `/api/images/*`; nothing else talks to it directly. |
 
