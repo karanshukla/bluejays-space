@@ -9,89 +9,120 @@ const drafts = await getDraftHeadlines();
 const recentlyPublished = await getRecentPublishedHeadlines();
 ---
 
-<Base title="Admin — bluejays.space">
-  <main class="mx-auto max-w-3xl px-6 py-16">
-    <h1 class="text-3xl font-semibold font-display">Admin — drafts</h1>
-    <p class="mt-2 text-sm text-neutral-600">
-      {drafts.length} draft{drafts.length === 1 ? '' : 's'} awaiting review. Only published rows appear
-      on the public feed.
-    </p>
-
-    <details class="mt-8 rounded-lg border border-neutral-200 p-5">
-      <summary class="cursor-pointer text-lg font-semibold font-display">
-        Write a headline from scratch
-      </summary>
-      <p class="mt-2 text-sm text-neutral-600">
-        Skips the ingest generation job — lands as an ordinary draft below, same review/publish
-        flow.
+<Base title="Admin · bluejays.space">
+  <main class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+    <header class="mb-8 border-b border-paper-edge pb-4">
+      <h1 class="text-3xl font-semibold text-ink font-display">Drafts</h1>
+      <p class="mt-1 text-sm text-ink-soft font-mono">
+        {drafts.length} draft{drafts.length === 1 ? '' : 's'} awaiting review. Only published rows appear
+        on the public feed.
       </p>
-      <form class="mt-4 space-y-3" method="POST" action="/admin/api/headlines/create">
-        <label class="block text-sm font-medium text-neutral-700">
-          Headline
-          <textarea
-            name="headline"
-            required
-            rows="2"
-            class="mt-1 w-full rounded border border-neutral-300 p-2 text-base"></textarea>
-        </label>
-        <label class="block text-sm font-medium text-neutral-700">
-          Register
-          <select name="register" class="mt-1 w-full rounded border border-neutral-300 p-2">
-            <option value="1">1 — real-event riff</option>
-            <option value="2">2 — fabricated scenario</option>
-          </select>
-        </label>
-        <label class="block text-sm font-medium text-neutral-700">
-          Stat block
-          <input name="stat_block" class="mt-1 w-full rounded border border-neutral-300 p-2" />
-        </label>
-        <label class="block text-sm font-medium text-neutral-700">
-          Photo ref
-          <input name="photo_ref" class="mt-1 w-full rounded border border-neutral-300 p-2" />
-        </label>
-        <label class="block text-sm font-medium text-neutral-700">
-          Source post URL <span class="font-normal text-neutral-400">(register 1 only)</span>
-          <input name="source_post_url" class="mt-1 w-full rounded border border-neutral-300 p-2" />
-        </label>
-        <label class="block text-sm font-medium text-neutral-700">
-          Source note <span class="font-normal text-neutral-400">(register 1 only)</span>
-          <input name="source_note" class="mt-1 w-full rounded border border-neutral-300 p-2" />
-        </label>
-        <button
-          type="submit"
-          class="rounded bg-neutral-900 px-4 py-2 text-sm font-semibold text-white"
-        >
-          Add draft
-        </button>
-      </form>
-    </details>
+    </header>
 
-    {
-      drafts.length === 0 && (
-        <p class="mt-8 text-neutral-500">
-          No drafts right now. Run the ingest job to generate some, or write one from scratch above.
-        </p>
-      )
-    }
+    <div class="admin-layout">
+      <section class="admin-main space-y-6">
+        {
+          drafts.length === 0 && (
+            <div class="rounded-lg border border-dashed border-paper-edge bg-card p-8 text-center">
+              <p class="text-ink-soft font-mono text-sm">
+                No drafts right now. Run the ingest job to generate some, or write one from scratch.
+              </p>
+            </div>
+          )
+        }
 
-    <ul class="mt-8 space-y-8">
-      {drafts.map((draft) => <DraftCard client:load draft={draft} />)}
-    </ul>
+        <ul class="space-y-6">
+          {drafts.map((draft) => <DraftCard client:load draft={draft} />)}
+        </ul>
+      </section>
 
-    {
-      recentlyPublished.length > 0 && (
-        <>
-          <h2 class="mt-16 text-2xl font-semibold font-display">Recently published</h2>
-          <p class="mt-2 text-sm text-neutral-600">
-            Unpublish to pull one back off the public feed for another edit.
+      <aside class="admin-rail space-y-8">
+        <details class="group rounded-lg border border-paper-edge bg-card p-5">
+          <summary
+            class="flex cursor-pointer items-center justify-between text-lg font-semibold text-ink font-display"
+          >
+            <span>New headline</span>
+            <span class="text-ink-soft transition-transform group-open:rotate-90">›</span>
+          </summary>
+          <p class="mt-2 text-sm text-ink-soft">
+            Skips the ingest generation job. Lands as an ordinary draft below, same review/publish
+            flow.
           </p>
-          <ul class="mt-8 space-y-8">
-            {recentlyPublished.map((draft) => (
-              <DraftCard client:load draft={draft} />
-            ))}
-          </ul>
-        </>
-      )
-    }
+          <form class="mt-4 space-y-3" method="POST" action="/admin/api/headlines/create">
+            <label class="block text-sm font-medium text-ink">
+              Headline
+              <textarea
+                name="headline"
+                required
+                rows="2"
+                class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-base text-ink"
+              ></textarea>
+            </label>
+            <label class="block text-sm font-medium text-ink">
+              Register
+              <select
+                name="register"
+                class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
+              >
+                <option value="1">1 · real-event riff</option>
+                <option value="2">2 · fabricated scenario</option>
+              </select>
+            </label>
+            <label class="block text-sm font-medium text-ink">
+              Stat block
+              <input
+                name="stat_block"
+                class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink font-mono text-sm"
+              />
+            </label>
+            <label class="block text-sm font-medium text-ink">
+              Photo ref
+              <input
+                name="photo_ref"
+                class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
+              />
+            </label>
+            <label class="block text-sm font-medium text-ink">
+              Source post URL <span class="font-normal text-ink-soft/70">(register 1 only)</span>
+              <input
+                name="source_post_url"
+                class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
+              />
+            </label>
+            <label class="block text-sm font-medium text-ink">
+              Source note <span class="font-normal text-ink-soft/70">(register 1 only)</span>
+              <input
+                name="source_note"
+                class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
+              />
+            </label>
+            <button
+              type="submit"
+              class="rounded bg-blue px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+            >
+              Add draft
+            </button>
+          </form>
+        </details>
+
+        {
+          recentlyPublished.length > 0 && (
+            <div class="space-y-4">
+              <h2 class="border-b border-paper-edge pb-2 text-lg font-semibold text-ink font-display">
+                Recently published
+              </h2>
+              <p class="text-sm text-ink-soft">
+                Unpublish to pull one back off the public feed for another edit.
+              </p>
+              <ul class="space-y-6">
+                {recentlyPublished.map((draft) => (
+                  <DraftCard client:load draft={draft} />
+                ))}
+              </ul>
+            </div>
+          )
+        }
+      </aside>
+    </div>
   </main>
 </Base>

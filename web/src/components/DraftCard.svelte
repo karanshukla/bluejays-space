@@ -112,20 +112,25 @@
   let root: HTMLLIElement | undefined = $state();
 </script>
 
-<li bind:this={root} class="rounded-lg border border-neutral-200 p-5">
+<li bind:this={root} class="rounded-lg border border-paper-edge bg-card p-5 shadow-sm">
   <div class="mb-3 flex flex-wrap items-center gap-2">
     <span
-      class={`rounded px-2 py-0.5 text-xs font-semibold ${register === 2 ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}
+      class={`rounded px-2 py-0.5 text-xs font-semibold ${register === 2 ? 'bg-amber-100 text-amber-800' : 'bg-blue/10 text-blue'}`}
     >
       Register {register}
     </span>
     {#if isFactAnchored}
-      <span class="rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">
-        fact-anchored — verify before publish
+      <span class="rounded bg-red/10 px-2 py-0.5 text-xs font-semibold text-red">
+        fact-anchored · verify before publish
       </span>
     {/if}
-    <span class="text-xs text-neutral-400">
-      #{draft.id} · {new Date(draft.created_at).toLocaleString()}
+    {#if isPublished}
+      <span class="rounded bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+        Published
+      </span>
+    {/if}
+    <span class="ml-auto text-xs text-ink-soft/70 font-mono">
+      #{draft.id} · {new Date(draft.created_at).toLocaleDateString()}
     </span>
   </div>
 
@@ -136,30 +141,38 @@
       save();
     }}
   >
-    <label class="block text-sm font-medium text-neutral-700">
-      Headline
+    <label class="block text-sm font-medium text-ink">
+      <span class="sr-only">Headline</span>
       <textarea
         bind:value={headline}
         required
         rows="2"
-        class="mt-1 w-full rounded border border-neutral-300 p-2 text-base"
+        class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-base text-ink font-display"
       ></textarea>
     </label>
 
-    <label class="block text-sm font-medium text-neutral-700">
-      Register
-      <select bind:value={register} class="mt-1 w-full rounded border border-neutral-300 p-2">
-        <option value={1}>1 — real-event riff</option>
-        <option value={2}>2 — fabricated scenario</option>
-      </select>
-    </label>
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <label class="block text-sm font-medium text-ink">
+        Register
+        <select
+          bind:value={register}
+          class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
+        >
+          <option value={1}>1 · real-event riff</option>
+          <option value={2}>2 · fabricated scenario</option>
+        </select>
+      </label>
 
-    <label class="block text-sm font-medium text-neutral-700">
-      Stat block
-      <input bind:value={statBlock} class="mt-1 w-full rounded border border-neutral-300 p-2" />
-    </label>
+      <label class="block text-sm font-medium text-ink">
+        Stat block
+        <input
+          bind:value={statBlock}
+          class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink font-mono text-sm"
+        />
+      </label>
+    </div>
 
-    <label class="block text-sm font-medium text-neutral-700">
+    <label class="block text-sm font-medium text-ink">
       Photo ref
       <input
         bind:value={photoRef}
@@ -168,7 +181,7 @@
           previewRetries = 0;
           previewBust = 0;
         }}
-        class="mt-1 w-full rounded border border-neutral-300 p-2"
+        class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
       />
     </label>
     {#if previewRef}
@@ -176,43 +189,51 @@
         src={`/api/images/${previewRef}${previewBust ? `?r=${previewBust}` : ''}`}
         onerror={retryPreview}
         alt=""
-        class="h-32 w-auto rounded border border-neutral-200 object-cover"
+        class="h-32 w-auto rounded border border-paper-edge object-cover"
       />
     {/if}
 
-    <label class="block text-sm font-medium text-neutral-700">
-      Source post URL <span class="font-normal text-neutral-400">(register 1 only)</span>
-      <input bind:value={sourcePostUrl} class="mt-1 w-full rounded border border-neutral-300 p-2" />
-    </label>
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <label class="block text-sm font-medium text-ink">
+        Source post URL <span class="font-normal text-ink-soft/70">(R1 only)</span>
+        <input
+          bind:value={sourcePostUrl}
+          class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
+        />
+      </label>
 
-    <label class="block text-sm font-medium text-neutral-700">
-      Source note <span class="font-normal text-neutral-400">(register 1 only)</span>
-      <input bind:value={sourceNote} class="mt-1 w-full rounded border border-neutral-300 p-2" />
-    </label>
+      <label class="block text-sm font-medium text-ink">
+        Source note <span class="font-normal text-ink-soft/70">(R1 only)</span>
+        <input
+          bind:value={sourceNote}
+          class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
+        />
+      </label>
+    </div>
 
     <div class="flex flex-wrap items-center gap-3 pt-1">
       <button
         type="submit"
         disabled={saving}
-        class="rounded bg-neutral-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        class="rounded bg-ink px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
       >
         {saving ? 'Saving…' : 'Save changes'}
       </button>
       {#if savedAt && !error}
-        <span class="text-xs text-emerald-600">Saved at {savedAt}</span>
+        <span class="text-xs text-emerald-600 font-mono">Saved at {savedAt}</span>
       {/if}
       {#if error}
-        <span class="text-xs text-red-600">{error}</span>
+        <span class="text-xs text-red font-mono">{error}</span>
       {/if}
     </div>
   </form>
 
-  <div class="mt-3 flex flex-wrap items-center gap-3">
+  <div class="mt-3 flex flex-wrap items-center gap-3 border-t border-paper-edge pt-3">
     {#if isPublished}
       <button
         onclick={unpublish}
         disabled={publishing}
-        class="rounded bg-amber-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        class="rounded bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
       >
         {publishing ? 'Unpublishing…' : 'Unpublish'}
       </button>
@@ -220,7 +241,7 @@
       <button
         onclick={publish}
         disabled={publishing}
-        class="rounded bg-emerald-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+        class="rounded bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
       >
         {publishing ? 'Publishing…' : 'Publish'}
       </button>
@@ -228,7 +249,7 @@
     <button
       onclick={discard}
       disabled={discarding}
-      class="rounded border border-red-300 px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-50"
+      class="ml-auto rounded border border-red/40 px-4 py-2 text-sm font-semibold text-red hover:bg-red/5 disabled:opacity-50"
     >
       {discarding ? 'Discarding…' : 'Discard'}
     </button>

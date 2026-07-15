@@ -61,6 +61,20 @@ body {
   }
 }
 
+@media (min-width: 1440px) {
+  .scrapbook-grid {
+    column-count: 4;
+    column-gap: 2rem;
+  }
+}
+
+@media (min-width: 1920px) {
+  .scrapbook-grid {
+    column-count: 5;
+    column-gap: 2.25rem;
+  }
+}
+
 .scrapbook-grid > li {
   break-inside: avoid;
   margin-bottom: 1.75rem;
@@ -177,4 +191,28 @@ body {
   aspect-ratio: 4 / 3;
   object-fit: cover;
   filter: saturate(1.08) contrast(1.03);
+}
+
+/* --- Admin two-column layout: main draft queue on the left, right rail holds
+   the create-from-scratch form and recently-published list. Stacks below the
+   laptop breakpoint where a single column reads better. --- */
+.admin-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+}
+
+@media (min-width: 1024px) {
+  .admin-layout {
+    grid-template-columns: minmax(0, 1fr) 22rem;
+    align-items: start;
+  }
+  .admin-main {
+    grid-column: 1;
+  }
+  .admin-rail {
+    grid-column: 2;
+    position: sticky;
+    top: 2rem;
+  }
 }
