@@ -11,17 +11,20 @@
   --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
   --font-mono: 'Space Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 
-  /* Warm paper palette — deliberately not the default Tailwind neutral-gray
-     scale, which is one of the fastest tells of an unstyled/default-Tailwind
-     "AI-generated" look. Ink reads as near-black-brown, not pure black. */
-  --color-paper: #f4ecd8;
-  --color-paper-edge: #ded0a8;
-  --color-card: #fffdf6;
-  --color-ink: #2a2118;
-  --color-ink-soft: #5b4c3a;
-  --color-tape: #eecf6d;
-  --color-stamp-1: #2f4d7a; /* register 1 — faded ink blue */
-  --color-stamp-2: #8a3324; /* register 2 — faded ink red */
+  /* Blue Jays-themed palette — blue and white forward, deliberately not the
+     default Tailwind neutral-gray scale (one of the fastest tells of an
+     unstyled/default-Tailwind "AI-generated" look). Reads as a fan's game
+     program/scorecard: white card stock, navy ink, team blue trim, a red
+     accent used sparingly rather than an even rainbow of colors. */
+  --color-paper: #eef3fb;
+  --color-paper-edge: #b8cbe8;
+  --color-card: #ffffff;
+  --color-ink: #14213d;
+  --color-ink-soft: #3d5578;
+  --color-tape: #1e4d8c;
+  --color-tape-alt: #c8102e;
+  --color-blue: #134a8e;
+  --color-red: #c8102e;
 }
 
 body {
@@ -92,7 +95,13 @@ body {
   transform: rotate(0deg) scale(1.015);
 }
 
-/* A single strip of washi tape pinning the top of each card. */
+/* A single strip of washi tape pinning the top of each card — blue/white
+   diagonal stripe by default (like ballpark bunting), red on one variant for
+   color variety without turning it into a rainbow. Base placement/angle;
+   the .tape-a..f variants below (picked per-card in index.astro, keyed off
+   the headline's own id so it doesn't reshuffle as the feed changes) vary
+   angle, length, and placement so the board doesn't look machine-stamped —
+   a real scrapbook's tape isn't cut to one identical size and angle. */
 .clipping::before {
   content: '';
   position: absolute;
@@ -104,15 +113,60 @@ body {
     45deg,
     var(--color-tape),
     var(--color-tape) 6px,
-    color-mix(in srgb, var(--color-tape) 78%, white) 6px,
-    color-mix(in srgb, var(--color-tape) 78%, white) 12px
+    white 6px,
+    white 12px
   );
-  opacity: 0.88;
-  box-shadow: 0 1px 2px rgba(42, 33, 24, 0.25);
+  opacity: 0.94;
+  box-shadow: 0 1px 2px rgba(20, 33, 61, 0.3);
   transform: rotate(-3deg);
 }
+.tape-a::before {
+  top: -0.7rem;
+  left: 0.9rem;
+  width: 3.4rem;
+  height: 1.2rem;
+  transform: rotate(-8deg);
+}
+.tape-b::before {
+  top: -0.5rem;
+  left: 2.25rem;
+  width: 5.25rem;
+  height: 1.3rem;
+  transform: rotate(4deg);
+}
+.tape-c::before {
+  top: -0.65rem;
+  left: 3.25rem;
+  width: 4rem;
+  height: 1.4rem;
+  transform: rotate(-2deg);
+  --color-tape: var(--color-tape-alt);
+}
+.tape-d::before {
+  top: -0.6rem;
+  left: auto;
+  right: 1.1rem;
+  width: 4.25rem;
+  height: 1.25rem;
+  transform: rotate(7deg);
+}
+.tape-e::before {
+  top: -0.45rem;
+  left: 1.35rem;
+  width: 3.1rem;
+  height: 1.5rem;
+  transform: rotate(2deg);
+}
+.tape-f::before {
+  top: -0.7rem;
+  left: 2.6rem;
+  width: 5.5rem;
+  height: 1.2rem;
+  transform: rotate(-5deg);
+}
 
-/* Polaroid-style photo mount: thick bottom margin, slightly aged photo tone. */
+/* Polaroid-style photo mount: thick bottom margin, crisp (not sepia-aged —
+   keeps the blue/white palette reading as clean, not vintage-brown). */
 .photo-mount {
   background: var(--color-card);
   padding: 0.6rem 0.6rem 0;
@@ -122,20 +176,5 @@ body {
   width: 100%;
   aspect-ratio: 4 / 3;
   object-fit: cover;
-  filter: sepia(0.1) saturate(1.05) contrast(1.02);
-}
-
-/* Ink-stamp register badge — a bordered, rotated label rather than a filled
-   pill (the filled/rounded "badge" is one of the more recognizable default
-   SaaS-UI tells). */
-.stamp {
-  display: inline-block;
-  border: 2px solid currentColor;
-  border-radius: 2px;
-  padding: 0.05rem 0.45rem;
-  font-family: var(--font-mono);
-  font-size: 0.65rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  transform: rotate(-2.5deg);
+  filter: saturate(1.08) contrast(1.03);
 }

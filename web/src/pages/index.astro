@@ -5,6 +5,13 @@ import { getPublishedHeadlines } from '../lib/db';
 export const prerender = false;
 
 const headlines = await getPublishedHeadlines();
+
+// Deterministic per-card tape variant (angle/length/placement/color), keyed
+// off the headline's own id rather than its position in the list — a card's
+// tape stays put as other headlines publish/unpublish around it, the way a
+// real scrapbook page wouldn't re-tape itself every time you turned back to
+// it. See the .tape-a..f rules in global.css.
+const TAPE_VARIANTS = ['tape-a', 'tape-b', 'tape-c', 'tape-d', 'tape-e', 'tape-f'];
 ---
 
 <Base title="bluejays.space">
@@ -15,9 +22,6 @@ const headlines = await getPublishedHeadlines();
     <h1 class="text-center text-5xl font-semibold tracking-tight text-ink font-display sm:text-6xl">
       bluejays.space
     </h1>
-    <p class="mt-3 text-center font-mono text-sm tracking-wide text-ink-soft uppercase">
-      The Scrapbook
-    </p>
 
     {
       headlines.length === 0 && (
@@ -33,24 +37,26 @@ const headlines = await getPublishedHeadlines();
           // Real alt text for the public feed: a player name when player_ids is
           // populated, otherwise decorative (empty) per docs/ui-plan.md.
           const photoAlt = h.player_ids?.[0] ? `${h.player_ids[0]}` : '';
-          const stampColor = h.register === 2 ? 'text-stamp-2' : 'text-stamp-1';
+          const tapeVariant = TAPE_VARIANTS[h.id % TAPE_VARIANTS.length];
           return (
             <li>
-              <div class="clipping relative border border-paper-edge bg-card p-5 pt-7 shadow-[3px_4px_0_rgba(42,33,24,0.12),0_10px_24px_-8px_rgba(42,33,24,0.25)]">
-                <span class={`stamp ${stampColor}`}>Register {h.register}</span>
-
+              <div
+                class={`clipping ${tapeVariant} relative border border-paper-edge bg-card p-5 pt-7 shadow-[3px_4px_0_rgba(20,33,61,0.12),0_10px_24px_-8px_rgba(20,33,61,0.28)]`}
+              >
                 {h.photo_ref && (
-                  <div class="photo-mount mt-4 border border-paper-edge">
+                  <div class="photo-mount border border-paper-edge">
                     <img src={`/api/images/${h.photo_ref}`} alt={photoAlt} />
                   </div>
                 )}
 
-                <p class="mt-4 text-xl leading-snug font-semibold text-ink font-display">
+                <p
+                  class={`text-xl leading-snug font-semibold text-ink font-display ${h.photo_ref ? 'mt-4' : ''}`}
+                >
                   {h.headline}
                 </p>
 
                 {h.stat_block && (
-                  <p class="mt-3 border-t border-dashed border-paper-edge pt-3 font-mono text-xs text-ink-soft">
+                  <p class="mt-3 border-t border-dashed border-blue/40 pt-3 font-mono text-xs text-ink-soft">
                     {h.stat_block}
                   </p>
                 )}
@@ -59,7 +65,7 @@ const headlines = await getPublishedHeadlines();
                   <p class="mt-2 font-mono text-xs text-ink-soft italic">
                     Inspired by:{' '}
                     {h.source_post_url ? (
-                      <a href={h.source_post_url} class="not-italic underline">
+                      <a href={h.source_post_url} class="text-red not-italic underline">
                         {h.source_note}
                       </a>
                     ) : (
