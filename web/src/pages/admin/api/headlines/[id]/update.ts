@@ -26,8 +26,11 @@ export const POST: APIRoute = async ({ params, request }) => {
   try {
     photoRef = await resolvePhotoRef(asNullableText(form.get('photo_ref')));
   } catch (err) {
+    // 400, not 502/504/52x — see create.ts for why: Cloudflare replaces those
+    // "well-known" gateway codes with its own branded error page regardless
+    // of what the app actually sent, hiding this message from the admin.
     const message = err instanceof Error ? err.message : 'failed to import photo';
-    return new Response(`Photo ref: ${message}`, { status: 502 });
+    return new Response(`Photo ref: ${message}`, { status: 400 });
   }
 
   await updateHeadline(id, {
