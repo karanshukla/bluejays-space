@@ -1,6 +1,6 @@
 # Securing /admin
 
-> **Archived — shipped (app side).** The mutating routes moved to `/admin/api/headlines/[id]/{update,publish}` and `web/src/middleware.ts` + `web/src/lib/cfAccess.ts` now verify the Cloudflare Access JWT in-app (via `jose`, against the team's JWKS), exactly as the "worth adding in the app anyway" section below proposed — see those files for the current implementation and `CF_ACCESS_TEAM`/`CF_ACCESS_AUD` in `.env.example`. The site is live on Railway with a production domain, so the Cloudflare Zero Trust Access application (step 1-4 below) should already be created — see `docs/production-verification.md` for the reference config to check it against if something seems off. Register-2 review flagging (section below) is also shipped, in `web/src/components/DraftCard.svelte`.
+> **Archived — shipped (app side).** The mutating routes moved to `/admin/api/headlines/[id]/{update,publish}` and `web/src/middleware.ts` + `web/src/lib/cfAccess.ts` now verify the Cloudflare Access JWT in-app (via `jose`, against the team's JWKS), exactly as the "worth adding in the app anyway" section below proposed — see those files for the current implementation and `CF_ACCESS_TEAM`/`CF_ACCESS_AUD` in `.env.example`. The site is live on Railway with a production domain, so the Cloudflare Zero Trust Access application (step 1-4 below) should already be created — see `docs/production-verification.md` for the reference config to check it against if something seems off. Register-2 review flagging (section below) is also shipped, in `web/src/components/DraftCard.svelte` (a red "fact-anchored · verify before publish" badge on the register-2 subtype, kept through the PR #70 admin redesign).
 
 Right now `/admin` (`web/src/pages/admin.astro` + its API routes under `web/src/pages/api/headlines/`) is wide open — anyone who finds the URL can edit and publish drafts. The spec's answer is Cloudflare Access, the same pattern already used for the Asher Remote MCP server, and explicitly "no custom auth code here." This doc is the checklist for wiring that up, plus the one piece of defense-in-depth worth adding in the app itself.
 
@@ -22,7 +22,7 @@ Cloudflare Access is the actual gate, but two things are cheap insurance and wor
 
 ## Register-2 review flagging (already built)
 
-The admin list already visually flags register-2 drafts that carry a `source_note` (the fact-anchored subtype) with a red "verify before publish" badge — see `web/src/pages/admin.astro`. That's the in-app nudge the spec calls for ("needs to actually be checked before publish, not just skimmed"); nothing further needed there.
+The admin list already visually flags register-2 drafts that carry a `source_note` (the fact-anchored subtype) with a red "fact-anchored · verify before publish" badge — see `web/src/components/DraftCard.svelte` (moved out of `admin.astro` into the island when inline edit landed, and kept there through the PR #70 redesign). That's the in-app nudge the spec calls for ("needs to actually be checked before publish, not just skimmed"); nothing further needed there.
 
 ## Out of scope here
 
