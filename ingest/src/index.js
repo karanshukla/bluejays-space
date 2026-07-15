@@ -22,6 +22,7 @@ import { fetchFaxPosts } from './fax.js';
 import { fetchRedditPosts } from './reddit.js';
 import { fetchBlueskyPosts } from './bluesky.js';
 import { fetchMastodonPosts } from './mastodon.js';
+import { warmUpMlbMcp } from './mcpWarmup.js';
 import { generateHeadline } from './claude.js';
 import { ensureSeenPostsTable, getSeenIds, markSeen, filterUnseen } from './dedup.js';
 
@@ -126,6 +127,13 @@ function imageKeyFor(post, ext = 'jpg') {
 }
 
 async function runRealGeneration(pool) {
+  // Start waking mlb-api-mcp immediately, in parallel with everything else —
+  // it's a separate Railway service that sleeps when idle, so a cold-start
+  // wake can take minutes. Awaited just before the generation calls below,
+  // so that wait lands here instead of racing Anthropic's per-tool-call MCP
+  // timeout mid-generation (see mcpWarmup.js for the full diagnosis).
+  const mcpWarmup = warmUpMlbMcp();
+
   // Style reference — FAX Sports posts. Never surfaced on the live site.
   const faxPosts = await fetchFaxPosts();
 
@@ -150,6 +158,8 @@ async function runRealGeneration(pool) {
   if (candidatePosts.length === 0) {
     console.log('[ingest] no new candidate posts; generating register-2 only');
   }
+
+  await mcpWarmup;
 
   const drafts = [];
   // Register 1: riff on a real post. Skip if no candidates this run.
