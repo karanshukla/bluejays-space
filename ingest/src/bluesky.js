@@ -37,9 +37,9 @@ let cachedAgent = null;
 async function getAgent() {
   if (cachedAgent) return cachedAgent;
   const identifier = process.env.BSKY_IDENTIFIER;
-  const password = process.env.BSKY_APP_PASSWORD;
+  const password = process.env.BLUESKY_APP_PASSWORD;
   if (!identifier || !password) {
-    throw new Error('[bluesky] BSKY_IDENTIFIER / BSKY_APP_PASSWORD not set');
+    throw new Error('[bluesky] BSKY_IDENTIFIER / BLUESKY_APP_PASSWORD not set');
   }
   const agent = new AtpAgent({ service: 'https://bsky.social' });
   await agent.login({ identifier, password });
@@ -60,7 +60,7 @@ async function searchHashtag(agent, tag, sinceIso, limit) {
 // Fetch recent posts across both hashtags, deduped by uri. Returns [] on
 // failure so a Bluesky outage doesn't abort the generation run.
 export async function fetchBlueskyPosts(limit = 25) {
-  if (!process.env.BSKY_IDENTIFIER || !process.env.BSKY_APP_PASSWORD) {
+  if (!process.env.BSKY_IDENTIFIER || !process.env.BLUESKY_APP_PASSWORD) {
     console.log('[bluesky] credentials not set, skipping');
     return [];
   }
