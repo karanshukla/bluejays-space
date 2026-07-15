@@ -16,6 +16,12 @@
   let register = $state<1 | 2>(draft.register);
   let statBlock = $state(draft.stat_block ?? '');
   let photoRef = $state(draft.photo_ref ?? '');
+  // Decoupled from photoRef on purpose: the preview <img> below is keyed off
+  // this, not the live input, so it doesn't re-fetch /api/images/* on every
+  // keystroke while someone's mid-way through pasting a URL (each keystroke
+  // was firing a full failed MinIO round-trip — a burst of these took the
+  // production site down). Updated on blur and after a successful save.
+  let previewRef = $state(draft.photo_ref ?? '');
   let sourcePostUrl = $state(draft.source_post_url ?? '');
   let sourceNote = $state(draft.source_note ?? '');
 
@@ -46,6 +52,7 @@
       if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
       const data = await res.json();
       photoRef = data.photo_ref ?? '';
+      previewRef = photoRef;
       savedAt = new Date().toLocaleTimeString();
     } catch (err) {
       error = err instanceof Error ? err.message : 'Save failed';
@@ -159,11 +166,15 @@
 
     <label class="block text-sm font-medium text-neutral-700">
       Photo ref
-      <input bind:value={photoRef} class="mt-1 w-full rounded border border-neutral-300 p-2" />
+      <input
+        bind:value={photoRef}
+        onblur={() => (previewRef = photoRef)}
+        class="mt-1 w-full rounded border border-neutral-300 p-2"
+      />
     </label>
-    {#if photoRef}
+    {#if previewRef}
       <img
-        src={`/api/images/${photoRef}`}
+        src={`/api/images/${previewRef}`}
         alt=""
         class="h-32 w-auto rounded border border-neutral-200 object-cover"
       />
