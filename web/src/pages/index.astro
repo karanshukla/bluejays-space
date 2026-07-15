@@ -16,9 +16,6 @@ const TAPE_VARIANTS = ['tape-a', 'tape-b', 'tape-c', 'tape-d', 'tape-e', 'tape-f
 
 <Base title="bluejays.space">
   <main class="mx-auto max-w-6xl px-6 py-12 sm:px-10">
-    <div class="mb-6 flex justify-end">
-      <a href="/admin" class="font-mono text-xs text-ink-soft uppercase hover:underline">Admin</a>
-    </div>
     <h1 class="text-center text-5xl font-semibold tracking-tight text-ink font-display sm:text-6xl">
       bluejays.space
     </h1>
@@ -62,10 +59,10 @@ const TAPE_VARIANTS = ['tape-a', 'tape-b', 'tape-c', 'tape-d', 'tape-e', 'tape-f
                 )}
 
                 {h.source_note && (
-                  <p class="mt-2 font-mono text-xs text-ink-soft italic">
+                  <p class="mt-2 font-mono text-[0.65rem] text-ink-soft/70 italic">
                     Inspired by:{' '}
                     {h.source_post_url ? (
-                      <a href={h.source_post_url} class="text-red not-italic underline">
+                      <a href={h.source_post_url} class="not-italic hover:underline">
                         {h.source_note}
                       </a>
                     ) : (
