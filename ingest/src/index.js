@@ -34,7 +34,7 @@ export function configSummary() {
     ANTHROPIC_API_KEY: present('ANTHROPIC_API_KEY'),
     GENERATION_MODEL: process.env.GENERATION_MODEL || 'claude-haiku-4-5',
     REDDIT_CLIENT_ID: present('REDDIT_CLIENT_ID'),
-    BSKY_IDENTIFIER: present('BSKY_IDENTIFIER'),
+    BLUESKY_IDENTIFIER: present('BLUESKY_IDENTIFIER'),
     MLB_MCP_URL: present('MLB_MCP_URL'),
     MLB_MCP_AUTH_TOKEN: present('MLB_MCP_AUTH_TOKEN'),
   };
