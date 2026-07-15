@@ -1,17 +1,11 @@
 // Bluesky — recent Blue Jays-related posts as generator candidate material.
-// Uses @atproto/api (AtpAgent — BskyAgent is deprecated).
-//
-// One searchPosts call per query (hashtags + a couple of plain-phrase
-// searches to catch untagged mentions) + dedupe by uri: the `tag` param is
-// non-functional (bluesky-social/indigo#890) and boolean OR in the query string
-// is unreliable (bluesky-social/atproto#3751), so neither is used — each query
-// gets its own request instead.
+// One searchPosts call per query (the `tag` param is broken and boolean OR in
+// the query string is unreliable, so each hashtag/phrase gets its own request)
+// then dedupe by uri.
 
 import { AtpAgent } from '@atproto/api';
 
-// Hashtags plus a couple of plain-phrase searches — widened from the original
-// two hashtags to catch posts that mention the team without tagging it.
-// Lucene-style `q`, so a bare phrase needs its own quoting (see searchQuery).
+// Hashtags plus a couple of plain-phrase searches to catch untagged mentions.
 const SEARCH_QUERIES = [
   '#BlueJays',
   '#TorontoBluejays',
@@ -21,8 +15,7 @@ const SEARCH_QUERIES = [
 ];
 const IMAGE_EMBED_TYPE = 'app.bsky.embed.images#view';
 
-// Map a searchPosts response to a normalized post list. Pure function.
-// `external_id` for dedup is the post uri.
+// external_id for dedup is the post uri.
 export function extractBlueskyPosts(data) {
   const posts = data?.posts ?? [];
   return posts.map((p) => {
@@ -33,10 +26,7 @@ export function extractBlueskyPosts(data) {
       cid: p.cid ?? null,
       text: p.record?.text ?? '',
       authorHandle: p.author?.handle ?? '',
-      images: (embed.images ?? []).map((img) => ({
-        fullsize: img.fullsize,
-        alt: img.alt ?? '',
-      })),
+      images: (embed.images ?? []).map((img) => ({ fullsize: img.fullsize, alt: img.alt ?? '' })),
       createdMs: p.record?.createdAt ? Date.parse(p.record.createdAt) : null,
     };
   });
@@ -44,7 +34,6 @@ export function extractBlueskyPosts(data) {
 
 let cachedAgent = null;
 
-// Login once per process; the app password authenticates read access.
 async function getAgent() {
   if (cachedAgent) return cachedAgent;
   const identifier = process.env.BLUESKY_IDENTIFIER;
@@ -58,19 +47,11 @@ async function getAgent() {
   return agent;
 }
 
-// Run a single query (Lucene-style `q` — a hashtag or a quoted phrase),
-// returning raw posts.
 async function searchQuery(agent, query, sinceIso, limit) {
-  const { data } = await agent.app.bsky.feed.searchPosts({
-    q: query,
-    since: sinceIso,
-    limit,
-  });
+  const { data } = await agent.app.bsky.feed.searchPosts({ q: query, since: sinceIso, limit });
   return data;
 }
 
-// Fetch recent posts across all configured queries, deduped by uri. Returns
-// [] on failure so a Bluesky outage doesn't abort the generation run.
 export async function fetchBlueskyPosts(limit = 25) {
   if (!process.env.BLUESKY_IDENTIFIER || !process.env.BLUESKY_APP_PASSWORD) {
     console.log('[bluesky] credentials not set, skipping');
@@ -82,7 +63,6 @@ export async function fetchBlueskyPosts(limit = 25) {
     const results = await Promise.all(
       SEARCH_QUERIES.map((query) => searchQuery(agent, query, since, limit))
     );
-    // Concatenate, then dedupe by uri (a post may match more than one query).
     const seen = new Set();
     const posts = [];
     for (const data of results) {

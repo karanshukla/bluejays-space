@@ -5,15 +5,9 @@ import { resolvePhotoRef } from '../../../../../lib/photoImport';
 
 export const prerender = false;
 
-// Only ever called via DraftCard.svelte's fetch (no plain-form fallback), so
-// this responds with JSON rather than redirecting — the client needs
-// photo_ref back when a submitted URL got downloaded and resolved to a
-// stored MinIO key, so its local state matches what was actually saved.
 export const POST: APIRoute = async ({ params, request }) => {
   const id = Number(params.id);
-  if (!Number.isInteger(id)) {
-    return new Response('Invalid id', { status: 400 });
-  }
+  if (!Number.isInteger(id)) return new Response('Invalid id', { status: 400 });
 
   const form = await request.formData();
   const headline = asNullableText(form.get('headline'));
@@ -26,9 +20,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   try {
     photoRef = await resolvePhotoRef(asNullableText(form.get('photo_ref')));
   } catch (err) {
-    // 400, not 502/504/52x — see create.ts for why: Cloudflare replaces those
-    // "well-known" gateway codes with its own branded error page regardless
-    // of what the app actually sent, hiding this message from the admin.
+    // 400, not 52x — see create.ts: Cloudflare replaces those with its own page.
     const message = err instanceof Error ? err.message : 'failed to import photo';
     return new Response(`Photo ref: ${message}`, { status: 400 });
   }

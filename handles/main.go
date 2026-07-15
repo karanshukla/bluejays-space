@@ -53,7 +53,6 @@ func main() {
 	var jobsMu sync.Mutex
 	jobs := make(map[string]jobResult)
 
-	// Prune stale jobs every 5 minutes.
 	go func() {
 		for range time.Tick(5 * time.Minute) {
 			cutoff := time.Now().Add(-10 * time.Minute)
@@ -69,9 +68,8 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	// AT Protocol handle verification.
-	// Bluesky GETs https://<username>.bluejays.space/.well-known/atproto-did
-	// and expects the plain-text DID in the response.
+	// Bluesky GETs https://<username>.bluejays.space/.well-known/atproto-did and
+	// expects the plain-text DID in the response.
 	mux.HandleFunc("/.well-known/atproto-did", func(w http.ResponseWriter, r *http.Request) {
 		host := r.Host
 		if i := strings.LastIndex(host, ":"); i >= 0 {
@@ -92,7 +90,6 @@ func main() {
 		fmt.Fprint(w, did)
 	})
 
-	// Async job status - polled by the spinner page.
 	mux.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
 		id := r.URL.Query().Get("job")
 		jobsMu.Lock()
@@ -101,7 +98,6 @@ func main() {
 
 		w.Header().Set("Content-Type", "application/json")
 		if !ok {
-			// Expired or invalid - stop polling with a generic message.
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"done":  true,
 				"error": "Status unavailable. Check GitHub for your pull request.",
@@ -129,7 +125,6 @@ func main() {
 			return
 		}
 
-		// Cap body size to prevent large payload abuse.
 		r.Body = http.MaxBytesReader(w, r.Body, 4096)
 		if err := r.ParseForm(); err != nil {
 			http.Redirect(w, r, "/?error=server-error", http.StatusSeeOther)
@@ -147,7 +142,6 @@ func main() {
 			http.Redirect(w, r, "/?error=invalid-did", http.StatusSeeOther)
 			return
 		}
-		// Fast-path checks against the in-memory map before touching GitHub.
 		if _, taken := handles[handle]; taken {
 			http.Redirect(w, r, "/?error=handle-taken", http.StatusSeeOther)
 			return
@@ -192,7 +186,7 @@ func main() {
 			if !isValidHandle(handle) {
 				handle = "your-handle"
 			}
-			// Allow only hex chars in jobID before embedding in JS.
+			// filterHex before embedding the job ID in JS (XSS guard).
 			safeID := filterHex(jobID)
 			flash = fmt.Sprintf(
 				`<div class="notice processing" id="js-notice"><span class="spinner"></span> Opening pull request for <strong>@%s.%s</strong>&hellip;</div>`+
@@ -261,7 +255,7 @@ func newJobID() string {
 	return hex.EncodeToString(b)
 }
 
-// filterHex strips any non-hex characters - used before embedding a job ID in JS.
+// filterHex strips any non-hex characters before embedding a job ID in JS.
 func filterHex(s string) string {
 	var out strings.Builder
 	for _, c := range s {
@@ -285,7 +279,8 @@ func isValidHandle(s string) bool {
 	return s[0] != '-' && s[len(s)-1] != '-'
 }
 
-// isValidDID accepts did:plc: and did:web: DIDs with only printable non-space ASCII.
+// isValidDID accepts did:plc: and did:web: DIDs. Restricted to printable non-space
+// ASCII to prevent injection into the PR body / commit message.
 func isValidDID(s string) bool {
 	if len(s) == 0 || len(s) > 512 {
 		return false
@@ -293,7 +288,6 @@ func isValidDID(s string) bool {
 	if !strings.HasPrefix(s, "did:plc:") && !strings.HasPrefix(s, "did:web:") {
 		return false
 	}
-	// Reject anything outside printable non-space ASCII to prevent injection.
 	for _, c := range s {
 		if c < 33 || c > 126 {
 			return false
@@ -302,7 +296,6 @@ func isValidDID(s string) bool {
 	return true
 }
 
-// clientIP returns the real client IP, honouring the Cloudflare header when present.
 func clientIP(r *http.Request) string {
 	if ip := strings.TrimSpace(r.Header.Get("CF-Connecting-IP")); ip != "" {
 		return ip
@@ -314,7 +307,6 @@ func clientIP(r *http.Request) string {
 	return ip
 }
 
-// rateLimiter is an in-memory sliding-window rate limiter keyed by string (IP).
 type rateLimiter struct {
 	mu      sync.Mutex
 	entries map[string][]time.Time
@@ -354,7 +346,6 @@ func (rl *rateLimiter) allow(key string) bool {
 	return true
 }
 
-// cleanup removes expired entries every 10 minutes to bound memory use.
 func (rl *rateLimiter) cleanup() {
 	for range time.Tick(10 * time.Minute) {
 		cutoff := time.Now().Add(-rl.window)
@@ -411,7 +402,6 @@ func ghRequest(token, method, url string, body interface{}) (*http.Response, err
 func createHandlePR(token, repo, handle, did, baseDomain string) (string, error) {
 	apiBase := "https://api.github.com/repos/" + repo
 
-	// Get current handles.json content and blob SHA.
 	resp, err := ghRequest(token, "GET", apiBase+"/contents/handles/handles.json", nil)
 	if err != nil {
 		return "", fmt.Errorf("get file: %w", err)
@@ -425,7 +415,6 @@ func createHandlePR(token, repo, handle, did, baseDomain string) (string, error)
 		return "", fmt.Errorf("decode file: %w", err)
 	}
 
-	// Decode content and add the new handle.
 	raw, err := base64.StdEncoding.DecodeString(strings.ReplaceAll(fc.Content, "\n", ""))
 	if err != nil {
 		return "", fmt.Errorf("decode base64: %w", err)
@@ -437,7 +426,7 @@ func createHandlePR(token, repo, handle, did, baseDomain string) (string, error)
 	if _, ok := existing[handle]; ok {
 		return "", fmt.Errorf("handle %q is already taken", handle)
 	}
-	// Remove any old handle entry for this DID (rename flow).
+	// Rename flow: remove any old handle entry for this DID.
 	var oldHandle string
 	for h, d := range existing {
 		if d == did && h != handle {
@@ -454,7 +443,6 @@ func createHandlePR(token, repo, handle, did, baseDomain string) (string, error)
 	}
 	updated = append(updated, '\n')
 
-	// Get the SHA of the main branch HEAD.
 	resp2, err := ghRequest(token, "GET", apiBase+"/git/refs/heads/main", nil)
 	if err != nil {
 		return "", fmt.Errorf("get main ref: %w", err)
@@ -468,7 +456,6 @@ func createHandlePR(token, repo, handle, did, baseDomain string) (string, error)
 		return "", fmt.Errorf("decode main ref: %w", err)
 	}
 
-	// Create a new branch off main.
 	branch := "handle-request/" + handle
 	resp3, err := ghRequest(token, "POST", apiBase+"/git/refs", map[string]string{
 		"ref": "refs/heads/" + branch,
@@ -482,7 +469,6 @@ func createHandlePR(token, repo, handle, did, baseDomain string) (string, error)
 		return "", fmt.Errorf("create branch: status %d", resp3.StatusCode)
 	}
 
-	// Commit the updated handles.json to the new branch.
 	resp4, err := ghRequest(token, "PUT", apiBase+"/contents/handles/handles.json", map[string]interface{}{
 		"message": func() string {
 			if oldHandle != "" {
@@ -502,7 +488,6 @@ func createHandlePR(token, repo, handle, did, baseDomain string) (string, error)
 		return "", fmt.Errorf("update file: status %d", resp4.StatusCode)
 	}
 
-	// Open the pull request and return its URL.
 	var prTitle, prBody string
 	if oldHandle != "" {
 		prTitle = "Rename handle: " + oldHandle + " → " + handle

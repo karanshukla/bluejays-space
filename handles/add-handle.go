@@ -1,5 +1,6 @@
 //go:build ignore
 
+// Usage: go run add-handle.go <handle> <did>
 package main
 
 import (
@@ -9,13 +10,6 @@ import (
 	"strings"
 )
 
-// Usage: go run add-handle.go <handle> <did>
-//
-// Rules:
-//   - Same handle + different DID → rejected (handle is locked to its owner)
-//   - New handle + existing DID   → old handle removed, new pair added (rename)
-//   - Same handle + same DID      → no-op
-//   - New handle + new DID        → added normally
 func main() {
 	if len(os.Args) != 3 {
 		fmt.Fprintln(os.Stderr, "usage: go run add-handle.go <handle> <did>")

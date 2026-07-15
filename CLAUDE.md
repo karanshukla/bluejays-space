@@ -18,13 +18,17 @@ Repo orientation for any coding agent working here (Claude Code, GLM, or otherwi
 
 ## Running it
 
+**Always run the app through the Docker stack** — `docker compose up -d` brings up `db` + `minio` + `web` together, and `web` depends on both (the public feed and `/admin` both query Postgres at request time, so the server 500s without a reachable DB). Don't run `node dist/server/entry.mjs` or `astro dev` directly on the host: it'll either fail to connect to services or diverge from the containerized runtime (platform-specific native bindings like `@rolldown/binding` are installed for linux-x64-musl inside the container, not the host OS).
+
 ```bash
 cp .env.example .env
 docker compose up -d              # db + minio + web
 docker compose run --rm ingest    # one-shot generation run
 ```
 
-See `README.md` for the full command/URL table, and `handles/README.md` for the Go service (built/run standalone, not part of `docker compose up`).
+Gotcha: `docker compose up -d web` reuses the anonymous `/app/node_modules` volume across recreations, so a stale install can persist after a `package.json`/lockfile change (symptom: `astro build` failing to resolve a dependency that's definitely in the lockfile). Recreate with `docker compose up -d web --renew-anon-volumes --build` to force a fresh install when that happens. To inspect a running service: `docker compose exec web sh`.
+
+See `README.md` for the full command/URL table, and `handles/README.md` for the Go service (built/run standalone, not part of `docker compose up` — but if you need to run its `go` gates locally and Go isn't installed on the host, run them in the `golang:1.26-alpine` image the Dockerfile already targets: `MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd)/handles:/app" -w /app golang:1.26-alpine sh -c "go vet ./... && go test ./... && go build ./..."`).
 
 ## Quality gates — run these before considering work done
 

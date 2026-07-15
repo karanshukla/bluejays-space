@@ -6,16 +6,13 @@ export const prerender = false;
 
 const headlines = await getPublishedHeadlines();
 
-// Deterministic per-card tape variant (angle/length/placement/color), keyed
-// off the headline's own id rather than its position in the list — a card's
-// tape stays put as other headlines publish/unpublish around it, the way a
-// real scrapbook page wouldn't re-tape itself every time you turned back to
-// it. See the .tape-a..f rules in global.css.
+// Keyed off the headline id, not list position, so a card's tape stays put as
+// other headlines publish/unpublish around it.
 const TAPE_VARIANTS = ['tape-a', 'tape-b', 'tape-c', 'tape-d', 'tape-e', 'tape-f'];
 ---
 
 <Base title="bluejays.space">
-  <main class="mx-auto max-w-6xl px-6 py-12 sm:px-10">
+  <main class="mx-auto max-w-[1600px] px-6 py-12 sm:px-10">
     <h1 class="text-center text-5xl font-semibold tracking-tight text-ink font-display sm:text-6xl">
       bluejays.space
     </h1>
@@ -31,8 +28,6 @@ const TAPE_VARIANTS = ['tape-a', 'tape-b', 'tape-c', 'tape-d', 'tape-e', 'tape-f
     <ul class="scrapbook-grid mt-14">
       {
         headlines.map((h) => {
-          // Real alt text for the public feed: a player name when player_ids is
-          // populated, otherwise decorative (empty) per docs/ui-plan.md.
           const photoAlt = h.player_ids?.[0] ? `${h.player_ids[0]}` : '';
           const tapeVariant = TAPE_VARIANTS[h.id % TAPE_VARIANTS.length];
           return (
