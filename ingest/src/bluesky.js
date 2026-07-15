@@ -1,13 +1,24 @@
-// Bluesky — recent #BlueJays / #TorontoBluejays posts as generator candidate
-// material. Uses @atproto/api (AtpAgent — BskyAgent is deprecated).
+// Bluesky — recent Blue Jays-related posts as generator candidate material.
+// Uses @atproto/api (AtpAgent — BskyAgent is deprecated).
 //
-// Two searchPosts calls (one per hashtag) + dedupe by uri: the `tag` param is
+// One searchPosts call per query (hashtags + a couple of plain-phrase
+// searches to catch untagged mentions) + dedupe by uri: the `tag` param is
 // non-functional (bluesky-social/indigo#890) and boolean OR in the query string
-// is unreliable (bluesky-social/atproto#3751), so neither is used.
+// is unreliable (bluesky-social/atproto#3751), so neither is used — each query
+// gets its own request instead.
 
 import { AtpAgent } from '@atproto/api';
 
-const HASHTAGS = ['BlueJays', 'TorontoBluejays'];
+// Hashtags plus a couple of plain-phrase searches — widened from the original
+// two hashtags to catch posts that mention the team without tagging it.
+// Lucene-style `q`, so a bare phrase needs its own quoting (see searchQuery).
+const SEARCH_QUERIES = [
+  '#BlueJays',
+  '#TorontoBluejays',
+  '#GoJaysGo',
+  '#BlueJaysBaseball',
+  '"Toronto Blue Jays"',
+];
 const IMAGE_EMBED_TYPE = 'app.bsky.embed.images#view';
 
 // Map a searchPosts response to a normalized post list. Pure function.
@@ -47,18 +58,19 @@ async function getAgent() {
   return agent;
 }
 
-// Search a single hashtag (Lucene-style `q`), returning raw posts.
-async function searchHashtag(agent, tag, sinceIso, limit) {
+// Run a single query (Lucene-style `q` — a hashtag or a quoted phrase),
+// returning raw posts.
+async function searchQuery(agent, query, sinceIso, limit) {
   const { data } = await agent.app.bsky.feed.searchPosts({
-    q: `#${tag}`,
+    q: query,
     since: sinceIso,
     limit,
   });
   return data;
 }
 
-// Fetch recent posts across both hashtags, deduped by uri. Returns [] on
-// failure so a Bluesky outage doesn't abort the generation run.
+// Fetch recent posts across all configured queries, deduped by uri. Returns
+// [] on failure so a Bluesky outage doesn't abort the generation run.
 export async function fetchBlueskyPosts(limit = 25) {
   if (!process.env.BLUESKY_IDENTIFIER || !process.env.BLUESKY_APP_PASSWORD) {
     console.log('[bluesky] credentials not set, skipping');
@@ -68,9 +80,9 @@ export async function fetchBlueskyPosts(limit = 25) {
     const agent = await getAgent();
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const results = await Promise.all(
-      HASHTAGS.map((tag) => searchHashtag(agent, tag, since, limit))
+      SEARCH_QUERIES.map((query) => searchQuery(agent, query, since, limit))
     );
-    // Concatenate, then dedupe by uri (a post may match both hashtags).
+    // Concatenate, then dedupe by uri (a post may match more than one query).
     const seen = new Set();
     const posts = [];
     for (const data of results) {
