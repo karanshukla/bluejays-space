@@ -25,7 +25,8 @@ The core joke is the FAX Sports mechanic: headlines get taken as real precisely 
 So the label exists, but it's small — same tier as FAX Sports' own bio line ("PARODY account. Not affiliated with...") that sits there on every post and gets skipped past by anyone scrolling fast. Concretely:
 
 - A small, standard parody/satire label somewhere on the page (footer or an About page is enough) — present so the site is never actually claiming to be real, but not sized, positioned, or watermarked to survive or interrupt a screenshot
-- No card-graphic watermark, no per-post disclaimer, no friction before a headline can be shared — the label lives at the site level, not the content level
+- No card-graphic watermark, no per-post disclaimer, no friction before a headline can be shared — the label lives at the site level, not the content level. This is about the on-page scrapbook card itself (what a visitor would screenshot) — it stays exactly as clean as any other card.
+- **Exception, decided**: the auto-generated Open Graph/social-preview image (what renders when a permalink is shared and unfurls on Bluesky/Discord/iMessage — see Sharing & Discovery below) *does* carry the small parody label baked into the image. Rationale: an OG card is site-level metadata about the page, not the content-level card graphic the bullet above protects, and it's the one artifact that can travel furthest from the site's own footer disclosure — a link that unfurls with zero label anywhere is the actual risk case this section exists to avoid. Keep it the same small, easy-to-skip-past size as the footer label — this isn't a reversal of "present, not prominent," just extending it to a second surface.
 - The joke does the disclosing, not the UI: absurd-but-plausible numbers (km/h read as mph, a stat that's one digit too clean, an age that's technically true but framed misleadingly) are what tips off a careful reader, same as FAX Sports' actual mechanic
 
 ## Features
@@ -38,8 +39,8 @@ Fans can claim a Bluesky handle at `@username.bluejays.space`.
 - Backend resolves their handle to a DID via the Bluesky API
 - App serves the DID at `https://username.bluejays.space/.well-known/atproto-did`
 - Wildcard subdomain (`*.bluejays.space`) routes all subdomains to a single app
-- DID stored in Postgres (same `bluejays-db` instance as the headlines table), looked up at request time
 - Basic username validation: alphanumeric + hyphens, no squatting (must verify Bluesky ownership via DID match)
+- **Storage, decided**: DID mappings live in a JSON file (`handles/handles.json`) committed to this repo, not Postgres. A submission opens a GitHub PR against that file (with rate limiting and a dupe-DID check); merging the PR *is* the human review gate — same "no autonomous publishing" philosophy as the headlines flow, implemented as git review instead of an admin-UI approve button. This supersedes the Postgres design implied by an earlier draft of this spec. See `handles/README.md` and `docs/backend-api-plan.md` item 6 for the full rationale (free git audit trail + rollback; accepted tradeoff: a submission needs `GITHUB_TOKEN` write access to this repo, and a merge needs a redeploy — or Railway's git-auto-redeploy on merge to `main` — before a newly approved handle resolves).
 
 ### 2. Headline Feed ("The Scrapbook")
 
@@ -72,6 +73,16 @@ Headlines are DB-backed, not git-file-based (Astro Content Collections don't fit
 - **Auth**: gate `/admin` behind Cloudflare Access, same pattern already in use for the Asher Remote MCP server — no custom auth to build
 - **Flow**: generation job writes drafts with `status: draft` → admin page lists drafts → edit text inline → publish flips `status: published` and sets a timestamp → public feed only queries published rows. Register-2 real-fact-anchored drafts (fabricated premise + a real connecting fact) should be visually flagged in the admin list for extra scrutiny — the connecting fact is the one part of an otherwise-fictional headline that's a genuine factual claim, and needs to actually be checked before publish, not just skimmed.
 - **Fields per row**: `headline`, `register` (1 or 2), `player_ids[]`, `stat_block`, `photo_ref`, `source_post_url` + `source_note` (register 1 only), `status`, `created_at`, `published_at`
+
+### 3. Sharing & Discovery
+
+The whole point of a FAX-Sports-style site is that individual headlines get shared — a feed with no way to link, unfurl, or subscribe to a single entry undercuts the concept. This feature has a full, ready-to-implement technical spec in `docs/frontend-roadmap.md` § 1 — this section states the product requirement and the decisions already made; that doc carries the route paths, exact meta tags, and library choices.
+
+- **Permalinks**: every published headline gets its own stable, shareable URL (`/h/{id}`) showing that one card — headline, stat block, photo, source note — standalone. A draft's URL 404s rather than leaking unreviewed content.
+- **Open Graph / Twitter Card previews**: sharing a permalink on Bluesky/Discord/iMessage/Slack renders a real preview card (title, image, description), not a bare link. The preview image is generated per headline (headline text + stat block composited over the photo), not just the raw stored photo — see the Parody Labeling section above for the one content decision this feature required: the generated preview image carries the same small parody label as the site footer.
+- **RSS feed** (`/feed.xml`) of published headlines — lets people follow the site without an account (accounts are out of scope, see below).
+- **Sitemap** (`/sitemap.xml`) and **`robots.txt`** — the public feed and every permalink are indexable; `/admin` is explicitly excluded from both (Cloudflare Access already blocks crawlers from reading it, but there's no reason to advertise the path either).
+- **Favicon** — a simple mark in the site's existing palette (`#134a8e` blue / `#c8102e` red), not a placeholder/broken-icon default.
 
 ## Architecture
 
@@ -130,6 +141,7 @@ Don't hotlink Reddit/Bluesky-hosted images directly on the live site — their C
 - `DATABASE_URL` — Postgres connection, shared by both services
 - Object storage credentials (bucket, access key, secret) — see `docs/README.md` for the current MinIO-based env vars
 - MLB Stats MCP server URL (deployed separately)
+- `SITE_URL` — the canonical production origin (`https://bluejays.space`), used to build absolute URLs for Open Graph/Twitter meta tags, the RSS feed, and the sitemap — none of those can be correct with only a relative path, and Astro/Railway don't infer it automatically at request time
 
 ## Register Logic (Generation Detail)
 
@@ -177,6 +189,7 @@ The LLM drafts; it does not publish. One generation step, not a classify+enrich 
 - Typography: expressive font for the headline, clean sans-serif for stat context
 - Small, standard parody/satire label at the site level (footer/About), per the labeling section above — not rendered onto individual card graphics
 - Aesthetic reference: The Pudding — data-forward, readable, a bit of character
+- Per-headline permalink pages ship the same zero/minimal-JS posture as the feed — a permalink is a public read page, not an interactive one, same rule as the feed itself
 
 ## Tech Stack
 
@@ -203,7 +216,7 @@ The LLM drafts; it does not publish. One generation step, not a classify+enrich 
 | Reddit free tier (10k req/month) | Lightweight fetch only (no per-comment classifier calls) — cache aggressively, only poll new content since last run |
 | "FAX Sports" content used as live style reference but read as an affiliation claim | Fetched purely as generation input (style calibration) — never surfaced, credited, or linked on the live site. Basic scraping etiquette (reasonable poll interval, respect any robots.txt) |
 | Hotlinking Reddit/Bluesky-hosted images | Images are downloaded once at generation time and stored in object storage; `photo_ref` always points at the stored object, never at the source platform's CDN |
-| Fabricated statements about real, named players read as real news | Intentional, to a point — this is the core joke. Mitigated by keeping a genuine parody label at the site level (never zero disclosure) and by leaning on absurd-but-plausible details (the km/h-as-mph trick) as the actual tell, rather than escalating headline plausibility indefinitely |
+| Fabricated statements about real, named players read as real news | Intentional, to a point — this is the core joke. Mitigated by keeping a genuine parody label at the site level (never zero disclosure) — including on the generated Open Graph preview image a shared permalink unfurls as, so the label travels with a link even off the live page — and by leaning on absurd-but-plausible details (the km/h-as-mph trick) as the actual tell, rather than escalating headline plausibility indefinitely |
 | Photo rights | Only editorial-use/public-domain/CC-sourced photos, never AI-generated; verify license per source before use |
 | LLM drafting something in poor taste or off-brand | Every headline passes a human edit step before storage — no autonomous publish |
 | "Funny" is subjective | Human review is the actual quality gate, not a classifier threshold |
