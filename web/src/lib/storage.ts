@@ -31,7 +31,16 @@ export async function getImage(key: string): Promise<StoredImage | null> {
       new GetObjectCommand({ Bucket: process.env.S3_BUCKET || 'bluejays-images', Key: key })
     );
     return { body: res.Body as Readable, contentType: res.ContentType };
-  } catch {
+  } catch (err) {
+    // A genuinely missing key is normal (a stale/typo'd photo_ref) and not worth
+    // logging. Anything else — wrong S3_ENDPOINT, bad credentials, MinIO
+    // unreachable, bucket missing — was previously indistinguishable from a
+    // missing key (both just returned null, so the proxy route always answered
+    // a flat 404 with no server-side trace of what actually went wrong).
+    const name = (err as { name?: string } | undefined)?.name;
+    if (name !== 'NoSuchKey' && name !== 'NotFound') {
+      console.error(`[images] getImage(${key}) failed:`, err);
+    }
     return null;
   }
 }
