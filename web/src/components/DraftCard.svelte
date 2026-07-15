@@ -22,6 +22,23 @@
   // was firing a full failed MinIO round-trip — a burst of these took the
   // production site down). Updated on blur and after a successful save.
   let previewRef = $state(draft.photo_ref ?? '');
+  // A freshly-uploaded photo's <img> GET can fire before the write is
+  // reliably readable back (observed: first save succeeds with no error, but
+  // the image doesn't render until an unrelated second save re-requests the
+  // same key moments later — plenty of time for it to become readable by
+  // then). Retry with backoff instead of relying on a manual second save.
+  let previewRetries = $state(0);
+  let previewBust = $state(0);
+  const MAX_PREVIEW_RETRIES = 4;
+
+  function retryPreview() {
+    if (previewRetries >= MAX_PREVIEW_RETRIES) return;
+    previewRetries += 1;
+    setTimeout(() => {
+      previewBust += 1;
+    }, 300 * previewRetries);
+  }
+
   let sourcePostUrl = $state(draft.source_post_url ?? '');
   let sourceNote = $state(draft.source_note ?? '');
 
@@ -53,6 +70,8 @@
       const data = await res.json();
       photoRef = data.photo_ref ?? '';
       previewRef = photoRef;
+      previewRetries = 0;
+      previewBust = 0;
       savedAt = new Date().toLocaleTimeString();
     } catch (err) {
       error = err instanceof Error ? err.message : 'Save failed';
@@ -168,13 +187,18 @@
       Photo ref
       <input
         bind:value={photoRef}
-        onblur={() => (previewRef = photoRef)}
+        onblur={() => {
+          previewRef = photoRef;
+          previewRetries = 0;
+          previewBust = 0;
+        }}
         class="mt-1 w-full rounded border border-neutral-300 p-2"
       />
     </label>
     {#if previewRef}
       <img
-        src={`/api/images/${previewRef}`}
+        src={`/api/images/${previewRef}${previewBust ? `?r=${previewBust}` : ''}`}
+        onerror={retryPreview}
         alt=""
         class="h-32 w-auto rounded border border-neutral-200 object-cover"
       />
