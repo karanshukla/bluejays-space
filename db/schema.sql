@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS headlines (
     photo_ref        text,
     source_post_url  text,          -- register 1 only
     source_note      text,          -- register 1 only
-    status           text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
+    status           text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'discarded')),
     created_at       timestamptz NOT NULL DEFAULT now(),
     published_at     timestamptz
 );
@@ -47,3 +47,14 @@ CREATE TABLE IF NOT EXISTS seen_posts (
     seen_at      timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (source, external_id)
 );
+
+-- Migration: widen headlines.status to allow 'discarded' (soft-delete for a
+-- draft/published row an admin has rejected — see web/src/lib/db.ts
+-- discardHeadline()). CREATE TABLE IF NOT EXISTS above only applies the wider
+-- CHECK on a fresh init; this ALTER re-applies it against an
+-- already-initialized dev volume or the live production DB. Safe to re-run —
+-- DROP CONSTRAINT IF EXISTS makes it idempotent, per docs/production-verification.md's
+-- "no migration runner yet, re-run schema.sql by hand" pattern.
+ALTER TABLE headlines DROP CONSTRAINT IF EXISTS headlines_status_check;
+ALTER TABLE headlines ADD CONSTRAINT headlines_status_check
+    CHECK (status IN ('draft', 'published', 'discarded'));

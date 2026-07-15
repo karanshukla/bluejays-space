@@ -10,11 +10,12 @@
 // middleware matcher covers everything with one regex.
 import Base from '../layouts/Base.astro';
 import DraftCard from '../components/DraftCard.svelte';
-import { getDraftHeadlines } from '../lib/db';
+import { getDraftHeadlines, getRecentPublishedHeadlines } from '../lib/db';
 
 export const prerender = false;
 
 const drafts = await getDraftHeadlines();
+const recentlyPublished = await getRecentPublishedHeadlines();
 ---
 
 <Base title="Admin — bluejays.space">
@@ -25,10 +26,59 @@ const drafts = await getDraftHeadlines();
       on the public feed.
     </p>
 
+    <details class="mt-8 rounded-lg border border-neutral-200 p-5">
+      <summary class="cursor-pointer text-lg font-semibold font-display">
+        Write a headline from scratch
+      </summary>
+      <p class="mt-2 text-sm text-neutral-600">
+        Skips the ingest generation job — lands as an ordinary draft below, same review/publish
+        flow.
+      </p>
+      <form class="mt-4 space-y-3" method="POST" action="/admin/api/headlines/create">
+        <label class="block text-sm font-medium text-neutral-700">
+          Headline
+          <textarea
+            name="headline"
+            required
+            rows="2"
+            class="mt-1 w-full rounded border border-neutral-300 p-2 text-base"></textarea>
+        </label>
+        <label class="block text-sm font-medium text-neutral-700">
+          Register
+          <select name="register" class="mt-1 w-full rounded border border-neutral-300 p-2">
+            <option value="1">1 — real-event riff</option>
+            <option value="2">2 — fabricated scenario</option>
+          </select>
+        </label>
+        <label class="block text-sm font-medium text-neutral-700">
+          Stat block
+          <input name="stat_block" class="mt-1 w-full rounded border border-neutral-300 p-2" />
+        </label>
+        <label class="block text-sm font-medium text-neutral-700">
+          Photo ref
+          <input name="photo_ref" class="mt-1 w-full rounded border border-neutral-300 p-2" />
+        </label>
+        <label class="block text-sm font-medium text-neutral-700">
+          Source post URL <span class="font-normal text-neutral-400">(register 1 only)</span>
+          <input name="source_post_url" class="mt-1 w-full rounded border border-neutral-300 p-2" />
+        </label>
+        <label class="block text-sm font-medium text-neutral-700">
+          Source note <span class="font-normal text-neutral-400">(register 1 only)</span>
+          <input name="source_note" class="mt-1 w-full rounded border border-neutral-300 p-2" />
+        </label>
+        <button
+          type="submit"
+          class="rounded bg-neutral-900 px-4 py-2 text-sm font-semibold text-white"
+        >
+          Add draft
+        </button>
+      </form>
+    </details>
+
     {
       drafts.length === 0 && (
         <p class="mt-8 text-neutral-500">
-          No drafts right now. Run the ingest job to generate some.
+          No drafts right now. Run the ingest job to generate some, or write one from scratch above.
         </p>
       )
     }
@@ -36,5 +86,21 @@ const drafts = await getDraftHeadlines();
     <ul class="mt-8 space-y-8">
       {drafts.map((draft) => <DraftCard client:load draft={draft} />)}
     </ul>
+
+    {
+      recentlyPublished.length > 0 && (
+        <>
+          <h2 class="mt-16 text-2xl font-semibold font-display">Recently published</h2>
+          <p class="mt-2 text-sm text-neutral-600">
+            Unpublish to pull one back off the public feed for another edit.
+          </p>
+          <ul class="mt-8 space-y-8">
+            {recentlyPublished.map((draft) => (
+              <DraftCard client:load draft={draft} />
+            ))}
+          </ul>
+        </>
+      )
+    }
   </main>
 </Base>
