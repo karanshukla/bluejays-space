@@ -3,9 +3,139 @@
 @theme {
   /*
    * Headlines use Fraunces (imported as a JS module in Base.astro so Vite
-   * bundles the self-hosted WOFF2 files), everything else stays on a clean
-   * system sans stack. No Google Fonts CDN — keeps the "zero/minimal JS, no
-   * external calls" posture on public pages per SPEC.md.
+   * bundles the self-hosted WOFF2 files), captions/stat lines use Space Mono
+   * (typed-caption feel — a scrapbook index card, not a SaaS UI). No Google
+   * Fonts CDN for either — keeps the "zero/minimal JS, no external calls"
+   * posture on public pages per SPEC.md.
    */
   --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-mono: 'Space Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  /* Warm paper palette — deliberately not the default Tailwind neutral-gray
+     scale, which is one of the fastest tells of an unstyled/default-Tailwind
+     "AI-generated" look. Ink reads as near-black-brown, not pure black. */
+  --color-paper: #f4ecd8;
+  --color-paper-edge: #ded0a8;
+  --color-card: #fffdf6;
+  --color-ink: #2a2118;
+  --color-ink-soft: #5b4c3a;
+  --color-tape: #eecf6d;
+  --color-stamp-1: #2f4d7a; /* register 1 — faded ink blue */
+  --color-stamp-2: #8a3324; /* register 2 — faded ink red */
+}
+
+body {
+  background-color: var(--color-paper);
+  background-image: var(--grain);
+  background-repeat: repeat;
+}
+
+:root {
+  /* Subtle film-grain noise, generated once as an inline SVG filter — no
+     external image request, no build-time asset. Kept low-opacity so it
+     reads as paper texture, not visual noise. */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+}
+
+/* --- Scrapbook grid: single-column feed on mobile, masonry columns on wider
+   viewports. CSS multi-column rather than JS-driven masonry — keeps the
+   public feed at zero client-side JS per SPEC.md. --- */
+.scrapbook-grid {
+  column-count: 1;
+}
+
+@media (min-width: 640px) {
+  .scrapbook-grid {
+    column-count: 2;
+    column-gap: 1.75rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .scrapbook-grid {
+    column-count: 3;
+    column-gap: 2rem;
+  }
+}
+
+.scrapbook-grid > li {
+  break-inside: avoid;
+  margin-bottom: 1.75rem;
+  /* Room for the washi-tape pseudo-element (below) to overlap the card's top
+     edge without its box escaping *this* element's box — an element that
+     overflows its box inside a CSS multi-column container can get its
+     overflowing part mis-fragmented into a phantom next column with nothing
+     else in it. Keeping the tape's negative offset within this padding keeps
+     the whole visual inside one box. */
+  padding-top: 0.75rem;
+}
+
+/* Gentle alternating tilt so cards read as pasted-in, not machine-aligned.
+   Straightens slightly on hover/focus as a small interactive touch. */
+.clipping {
+  transition: transform 0.15s ease-out;
+}
+.scrapbook-grid > li:nth-child(4n + 1) .clipping {
+  transform: rotate(-1.1deg);
+}
+.scrapbook-grid > li:nth-child(4n + 2) .clipping {
+  transform: rotate(0.9deg);
+}
+.scrapbook-grid > li:nth-child(4n + 3) .clipping {
+  transform: rotate(-0.6deg);
+}
+.scrapbook-grid > li:nth-child(4n + 4) .clipping {
+  transform: rotate(1.3deg);
+}
+.clipping:hover,
+.clipping:focus-within {
+  transform: rotate(0deg) scale(1.015);
+}
+
+/* A single strip of washi tape pinning the top of each card. */
+.clipping::before {
+  content: '';
+  position: absolute;
+  top: -0.6rem;
+  left: 1.5rem;
+  width: 4.5rem;
+  height: 1.35rem;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--color-tape),
+    var(--color-tape) 6px,
+    color-mix(in srgb, var(--color-tape) 78%, white) 6px,
+    color-mix(in srgb, var(--color-tape) 78%, white) 12px
+  );
+  opacity: 0.88;
+  box-shadow: 0 1px 2px rgba(42, 33, 24, 0.25);
+  transform: rotate(-3deg);
+}
+
+/* Polaroid-style photo mount: thick bottom margin, slightly aged photo tone. */
+.photo-mount {
+  background: var(--color-card);
+  padding: 0.6rem 0.6rem 0;
+}
+.photo-mount img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  filter: sepia(0.1) saturate(1.05) contrast(1.02);
+}
+
+/* Ink-stamp register badge — a bordered, rotated label rather than a filled
+   pill (the filled/rounded "badge" is one of the more recognizable default
+   SaaS-UI tells). */
+.stamp {
+  display: inline-block;
+  border: 2px solid currentColor;
+  border-radius: 2px;
+  padding: 0.05rem 0.45rem;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transform: rotate(-2.5deg);
 }
