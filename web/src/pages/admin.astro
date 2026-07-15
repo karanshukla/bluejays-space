@@ -31,7 +31,8 @@ const recentlyPublished = await getRecentPublishedHeadlines();
         Write a headline from scratch
       </summary>
       <p class="mt-2 text-sm text-neutral-600">
-        Skips the ingest generation job — lands as an ordinary draft below, same review/publish flow.
+        Skips the ingest generation job — lands as an ordinary draft below, same review/publish
+        flow.
       </p>
       <form class="mt-4 space-y-3" method="POST" action="/admin/api/headlines/create">
         <label class="block text-sm font-medium text-neutral-700">
@@ -40,8 +41,7 @@ const recentlyPublished = await getRecentPublishedHeadlines();
             name="headline"
             required
             rows="2"
-            class="mt-1 w-full rounded border border-neutral-300 p-2 text-base"
-          ></textarea>
+            class="mt-1 w-full rounded border border-neutral-300 p-2 text-base"></textarea>
         </label>
         <label class="block text-sm font-medium text-neutral-700">
           Register
