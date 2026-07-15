@@ -49,6 +49,8 @@ All of the above run in CI (`.github/workflows/ci.yml`) on every push/PR, plus a
 
 ## What's real vs. stubbed right now
 
-- **Real**: Postgres-backed public feed + `/admin` draft review/edit/publish (plain HTML forms, not the spec's eventual Svelte/React island — see `docs/ui-plan.md`), MinIO image storage + proxy route, the handles service, all CI/quality tooling.
-- **Stubbed**: `ingest`'s actual generation flow. It currently inserts two hardcoded placeholder draft rows and uploads a demo photo to prove the write path works — see `docs/ingestion-pipeline.md` for the real flow (MLB Stats via Claude's MCP connector, Reddit/Bluesky/FAX Sports fetch, the two-register Claude generation call).
-- **Not started**: Cloudflare Access on `/admin` (currently wide open — see `docs/admin-security.md` before any real, unpublished drafts sit in that table).
+MVP is complete — see `docs/README.md` for the full status and what's next.
+
+- **Real**: Postgres-backed public feed + `/admin` draft review/edit/publish via a Svelte inline-edit island (`web/src/components/DraftCard.svelte`), MinIO image storage + proxy route, the handles service (JSON file + GitHub-PR review flow — see `docs/backend-api-plan.md` for why this is a deliberate design, not a stub of the spec's original Postgres plan), `ingest`'s real generation flow (Reddit/Bluesky/FAX Sports fetch, MLB Stats via Claude's MCP connector, two-register Claude generation — falls back to placeholder drafts only when `ANTHROPIC_API_KEY` is unset, for credential-free dev), Cloudflare Access JWT verification in-app (`web/src/middleware.ts`), all CI/quality tooling.
+- **Live**: the site is deployed to Railway (see `docs/production-verification.md` for the reference config). Infra work is done — the priority now is application code.
+- **Next up**: sharing/SEO (no per-headline permalinks, OG tags, RSS, or sitemap yet), CRUD gaps (no unpublish/discard route), ops visibility for the ingest cron, and closing the gap with a "complete" repo bar (test coverage thresholds, E2E, README polish) — see `docs/README.md` → Roadmap for the full list.

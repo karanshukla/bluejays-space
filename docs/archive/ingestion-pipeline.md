@@ -1,5 +1,7 @@
 # Ingestion pipeline — real generation flow
 
+> **Archived — shipped.** The real generation flow this doc specced is built: `ingest/src/reddit.js`, `bluesky.js`, `fax.js`, `dedup.js`, and `claude.js` implement the fetch + two-register Claude generation call (MCP connector, structured output, temperature-fallback handling) described below, and `ingest/src/index.js` runs it whenever `ANTHROPIC_API_KEY` is set (the hardcoded-placeholder path is preserved as a credential-free dev fallback, not the default). `seen_posts` dedup landed in `db/schema.sql`. Kept for the historical gotchas (MCP connector field names, `output_config.format` shape, the temperature-support split by model tier) — see the comments in `ingest/src/claude.js` for the current, load-bearing version of this reasoning. See `docs/README.md` for what's next.
+
 Everything in `ingest/src/index.js` today is a stub: it inserts two hardcoded placeholder rows and uploads a demo image to prove the DB/storage write paths work. This doc specs the real flow described in the project spec's Architecture/Data Flow section — what actually needs to get built, and the concrete gotchas found while checking current API shapes.
 
 ## Data sources, and how each one actually gets called
