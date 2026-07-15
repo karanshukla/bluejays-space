@@ -8,7 +8,7 @@
 // generator live stat/roster lookup, which the spec's register-2 real-fact-
 // anchored subtype needs to verify connecting facts rather than recall them.
 //
-// See docs/ingestion-pipeline.md for the concrete gotchas this encodes:
+// See docs/archive/ingestion-pipeline.md for the concrete gotchas this encodes:
 //   - MCP connector: betas:['mcp-client-2025-11-20'], tools uses `mcp_server_name`
 //     — confirmed against a live 400 from the API ("mcp_toolset.mcp_server_name:
 //     Field required"); an earlier pass had this as `server_name`, which the API
@@ -27,6 +27,17 @@
 //     — a single static bearer token. This field does NOT support OAuth or
 //     Cloudflare Access's two-header Service Token scheme; only a plain
 //     shared-secret bearer token works here.
+//   - Streaming, not .create(): a production run failed after ~15 minutes with
+//     an APIConnectionTimeoutError, well under the client's own 20-minute
+//     REQUEST_TIMEOUT_MS below — that gap means something *other* than the
+//     SDK's own timer killed the connection (almost certainly an idle-network
+//     cutoff somewhere between Railway and Anthropic, since a non-streaming
+//     request sits completely silent for the whole MCP round-trip while the
+//     tool calls happen server-side). Streaming keeps the connection active
+//     with periodic events for the same request, which is the SDK's own
+//     documented mitigation for long-running calls — see also the per-event
+//     progress logging below, which is what actually answers "where did it
+//     stall" the next time this happens.
 
 import Anthropic from '@anthropic-ai/sdk';
 
@@ -168,19 +179,63 @@ function isTemperatureError(err) {
   return err?.status === 400 && /temperature/i.test(err?.message ?? '');
 }
 
+// Human-readable label for a streamed content block — used only for progress
+// logging, not parsed. The MCP tool's name is the useful bit to see live
+// (which stat lookup is running), everything else just needs its block type.
+function blockLabel(block) {
+  return block?.type === 'mcp_tool_use' ? `mcp_tool_use:${block.name}` : (block?.type ?? 'unknown');
+}
+
+// Streams one request and logs progress as it goes — content_block_start for
+// every block (so a slow MCP round-trip shows *which* tool call is in
+// flight, not just silence) plus a 60s heartbeat in case a stretch produces
+// no events at all. Resolves with the same shape .create() would have
+// returned. See the file-header comment for why this replaced .create().
+function streamWithProgress(anthropic, useBeta, params, register, startedAt) {
+  const stream = useBeta
+    ? anthropic.beta.messages.stream(params)
+    : anthropic.messages.stream(params);
+
+  const elapsed = () => Date.now() - startedAt;
+  stream.on('streamEvent', (event) => {
+    if (event.type === 'message_start') {
+      console.log(`[claude] register ${register}: stream connected (+${elapsed()}ms)`);
+    } else if (event.type === 'content_block_start') {
+      console.log(
+        `[claude] register ${register}: content_block_start ${blockLabel(event.content_block)} (+${elapsed()}ms)`
+      );
+    }
+  });
+  stream.on('error', (err) => {
+    console.warn(`[claude] register ${register}: stream error at +${elapsed()}ms: ${err.message}`);
+  });
+
+  const heartbeat = setInterval(() => {
+    console.log(`[claude] register ${register}: still waiting (+${elapsed()}ms)`);
+  }, 60_000);
+
+  return stream.finalMessage().finally(() => clearInterval(heartbeat));
+}
+
 // Generate one headline draft for the given register. Returns the draft object.
 export async function generateHeadline({ register, candidatePosts, faxPosts }) {
   const model = process.env.GENERATION_MODEL || 'claude-haiku-4-5';
   const systemPrompt = buildSystemPrompt(register, faxPosts);
   const userMessage = buildUserMessage(register, candidatePosts);
   const anthropic = client();
+  const useBeta = Boolean(process.env.MLB_MCP_URL);
 
   // Register 1 = low temperature (grounded); register 2 = maxed (inventive).
   const temperature = register === 1 ? 0.7 : 1.0;
 
-  const call = (body) =>
-    process.env.MLB_MCP_URL
-      ? anthropic.beta.messages.create({
+  console.log(
+    `[claude] register ${register}: calling ${model} (mlb-mcp: ${useBeta ? 'enabled' : 'disabled'})`
+  );
+  const startedAt = Date.now();
+
+  const call = (body) => {
+    const params = useBeta
+      ? {
           ...body,
           betas: [MCP_BETA],
           mcp_servers: [
@@ -194,15 +249,12 @@ export async function generateHeadline({ register, candidatePosts, faxPosts }) {
             },
           ],
           tools: [{ type: 'mcp_toolset', mcp_server_name: MCP_SERVER_NAME }],
-        })
-      : anthropic.messages.create(body);
+        }
+      : body;
+    return streamWithProgress(anthropic, useBeta, params, register, startedAt);
+  };
 
   const body = { ...baseRequest(model, systemPrompt, userMessage), temperature };
-
-  console.log(
-    `[claude] register ${register}: calling ${model} (mlb-mcp: ${process.env.MLB_MCP_URL ? 'enabled' : 'disabled'})`
-  );
-  const startedAt = Date.now();
 
   let response;
   try {
@@ -211,7 +263,7 @@ export async function generateHeadline({ register, candidatePosts, faxPosts }) {
     if (isTemperatureError(err)) {
       // Model tier dropped the temperature param (Opus 4.7+). Retry without it.
       console.warn(
-        '[claude] temperature rejected, retrying without (see docs/ingestion-pipeline.md)'
+        '[claude] temperature rejected, retrying without (see docs/archive/ingestion-pipeline.md)'
       );
       response = await call(baseRequest(model, systemPrompt, userMessage));
     } else {

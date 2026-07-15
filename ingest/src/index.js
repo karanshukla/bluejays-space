@@ -6,12 +6,12 @@
 // Two paths:
 //  * Stub path (ANTHROPIC_API_KEY unset): inserts two placeholder drafts so the
 //    admin review UI has rows to work with. Preserved for credential-free dev.
-//  * Real path (ANTHROPIC_API_KEY set): fetches Reddit/Bluesky candidate posts
-//    + FAX Sports style reference, generates one headline per register via
+//  * Real path (ANTHROPIC_API_KEY set): fetches Reddit/Bluesky/Mastodon candidate
+//    posts + FAX Sports style reference, generates one headline per register via
 //    Claude, downloads any reused source image into MinIO, inserts draft rows,
 //    and marks the fetched posts as seen so re-runs don't resurface them.
 //
-// See docs/ingestion-pipeline.md for the concrete decisions this encodes.
+// See docs/archive/ingestion-pipeline.md for the concrete decisions this encodes.
 
 import pg from 'pg';
 import { readFile } from 'node:fs/promises';
@@ -21,6 +21,7 @@ import { ensureBucket, uploadImage, downloadAndStoreImage } from './storage.js';
 import { fetchFaxPosts } from './fax.js';
 import { fetchRedditPosts } from './reddit.js';
 import { fetchBlueskyPosts } from './bluesky.js';
+import { fetchMastodonPosts } from './mastodon.js';
 import { generateHeadline } from './claude.js';
 import { ensureSeenPostsTable, getSeenIds, markSeen, filterUnseen } from './dedup.js';
 
@@ -128,15 +129,22 @@ async function runRealGeneration(pool) {
   // Style reference — FAX Sports posts. Never surfaced on the live site.
   const faxPosts = await fetchFaxPosts();
 
-  // Candidate material — Reddit + Bluesky, filtered against seen_posts.
-  const [redditPosts, blueskyPosts] = await Promise.all([fetchRedditPosts(), fetchBlueskyPosts()]);
+  // Candidate material — Reddit + Bluesky + Mastodon, filtered against seen_posts.
+  const [redditPosts, blueskyPosts, mastodonPosts] = await Promise.all([
+    fetchRedditPosts(),
+    fetchBlueskyPosts(),
+    fetchMastodonPosts(),
+  ]);
   const redditSeen = await getSeenIds(pool, 'reddit');
   const blueskySeen = await getSeenIds(pool, 'bluesky');
+  const mastodonSeen = await getSeenIds(pool, 'mastodon');
   const newReddit = filterUnseen(redditPosts, redditSeen);
   const newBluesky = filterUnseen(blueskyPosts, blueskySeen);
-  const candidatePosts = [...newReddit, ...newBluesky];
+  const newMastodon = filterUnseen(mastodonPosts, mastodonSeen);
+  const candidatePosts = [...newReddit, ...newBluesky, ...newMastodon];
   console.log(
-    `[ingest] candidates: ${newReddit.length} reddit, ${newBluesky.length} bluesky (${redditPosts.length - newReddit.length}/${blueskyPosts.length - newBluesky.length} already seen)`
+    `[ingest] candidates: ${newReddit.length} reddit, ${newBluesky.length} bluesky, ${newMastodon.length} mastodon ` +
+      `(${redditPosts.length - newReddit.length}/${blueskyPosts.length - newBluesky.length}/${mastodonPosts.length - newMastodon.length} already seen)`
   );
 
   if (candidatePosts.length === 0) {
@@ -177,6 +185,7 @@ async function runRealGeneration(pool) {
   // some — so they don't come back next run.
   await markSeen(pool, 'reddit', newReddit.map((p) => p.external_id).filter(Boolean));
   await markSeen(pool, 'bluesky', newBluesky.map((p) => p.external_id).filter(Boolean));
+  await markSeen(pool, 'mastodon', newMastodon.map((p) => p.external_id).filter(Boolean));
 }
 
 // --- Entrypoint ---
