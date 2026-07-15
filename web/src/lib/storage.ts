@@ -1,7 +1,3 @@
-// S3-compatible client. Reads back the image proxy route needs (GetObject);
-// writes back the one admin-triggered case that needs them — importing a
-// pasted photo URL into MinIO (see photoImport.ts). ingest remains the
-// primary uploader for the automated generation pipeline.
 import {
   S3Client,
   GetObjectCommand,
@@ -28,6 +24,8 @@ function getClient(): S3Client {
   return client;
 }
 
+const bucket = () => process.env.S3_BUCKET || 'bluejays-images';
+
 export interface StoredImage {
   body: Readable;
   contentType?: string;
@@ -35,49 +33,31 @@ export interface StoredImage {
 
 export async function getImage(key: string): Promise<StoredImage | null> {
   try {
-    const res = await getClient().send(
-      new GetObjectCommand({ Bucket: process.env.S3_BUCKET || 'bluejays-images', Key: key })
-    );
+    const res = await getClient().send(new GetObjectCommand({ Bucket: bucket(), Key: key }));
     return { body: res.Body as Readable, contentType: res.ContentType };
   } catch (err) {
-    // A genuinely missing key is normal (a stale/typo'd photo_ref) and not worth
-    // logging. Anything else — wrong S3_ENDPOINT, bad credentials, MinIO
-    // unreachable, bucket missing — was previously indistinguishable from a
-    // missing key (both just returned null, so the proxy route always answered
-    // a flat 404 with no server-side trace of what actually went wrong).
+    // NoSuchKey/NotFound are expected (stale/typo'd photo_ref); anything else is
+    // logged concisely so a burst of bad-key previews can't flood the logs.
     const { name, message } = (err as { name?: string; message?: string } | undefined) ?? {};
     if (name !== 'NoSuchKey' && name !== 'NotFound') {
-      // One concise line, not the full error object — a burst of these (e.g.
-      // a live UI preview re-fetching on every keystroke of a bad key) must
-      // not be able to flood the logs with a full AWS SDK stack trace each,
-      // which is heavy enough on its own to hit Railway's log rate limit.
       console.error(`[images] getImage(${key}) failed: ${name ?? 'Error'}: ${message ?? err}`);
     }
     return null;
   }
 }
 
-// Mirrors ingest/src/storage.js's ensureBucket — same self-heal (HeadBucket,
-// falling back to CreateBucket) since web can now write too (photoImport.ts),
-// and unlike ingest, web had never created the bucket itself before this.
 async function ensureBucket(): Promise<void> {
   const s3 = getClient();
-  const bucket = process.env.S3_BUCKET || 'bluejays-images';
   try {
-    await s3.send(new HeadBucketCommand({ Bucket: bucket }));
+    await s3.send(new HeadBucketCommand({ Bucket: bucket() }));
   } catch {
-    await s3.send(new CreateBucketCommand({ Bucket: bucket }));
+    await s3.send(new CreateBucketCommand({ Bucket: bucket() }));
   }
 }
 
 export async function uploadImage(key: string, body: Buffer, contentType: string): Promise<void> {
   await ensureBucket();
   await getClient().send(
-    new PutObjectCommand({
-      Bucket: process.env.S3_BUCKET || 'bluejays-images',
-      Key: key,
-      Body: body,
-      ContentType: contentType,
-    })
+    new PutObjectCommand({ Bucket: bucket(), Key: key, Body: body, ContentType: contentType })
   );
 }

@@ -1,27 +1,17 @@
-// Mastodon — recent Blue Jays-related hashtag posts as generator candidate
-// material. Public hashtag-timeline API, no auth/credentials needed —
-// Mastodon's API is deliberately open for this kind of read.
-//
-// One important limitation, unlike Reddit/Bluesky (single authoritative
-// index): Mastodon is federated, so a hashtag timeline only reflects what
-// the *queried instance* has already seen/federated for that tag — it's not
-// a global index of the fediverse. Querying a large, well-federated instance
-// (mastodon.social by default) gives decent best-effort breadth, not
-// completeness. Configurable via MASTODON_INSTANCE for a different instance.
+// Mastodon — recent Blue Jays hashtag posts as generator candidate material.
+// Public hashtag-timeline API, no auth needed. Federated, so a tag timeline only
+// reflects what the queried instance has federated — mastodon.social by default
+// gives decent breadth, not completeness (MASTODON_INSTANCE to change it).
 
 const DEFAULT_INSTANCE = 'mastodon.social';
 const HASHTAGS = ['BlueJays', 'TorontoBluejays', 'GoJaysGo'];
 
-// Mastodon status `content` is HTML (e.g. "<p>Vlad walk-off!</p>"). Strip
-// tags for a plain-text candidate excerpt — this is prompt input, not
-// rendered markup, so a regex strip is enough.
 function stripHtml(html) {
   return html.replace(/<[^>]*>/g, '').trim();
 }
 
-// Map a hashtag-timeline response (array of statuses) to a normalized post
-// list. Pure function. `external_id` for dedup is the status's global `uri`
-// (federation-unique) — its `id` is only unique within the queried instance.
+// external_id for dedup is the status's global `uri` — its `id` is only unique
+// within the queried instance.
 export function extractMastodonPosts(statuses) {
   const list = Array.isArray(statuses) ? statuses : [];
   return list.map((s) => {
@@ -32,10 +22,7 @@ export function extractMastodonPosts(statuses) {
       text: stripHtml(s.content ?? ''),
       authorHandle: s.account?.acct ?? '',
       permalink: s.url ?? null,
-      images: images.map((m) => ({
-        fullsize: m.url,
-        alt: m.description ?? '',
-      })),
+      images: images.map((m) => ({ fullsize: m.url, alt: m.description ?? '' })),
       createdMs: s.created_at ? Date.parse(s.created_at) : null,
     };
   });
@@ -44,15 +31,10 @@ export function extractMastodonPosts(statuses) {
 async function fetchHashtag(instance, tag, limit) {
   const url = `https://${instance}/api/v1/timelines/tag/${encodeURIComponent(tag)}?limit=${limit}`;
   const res = await fetch(url, { headers: { Accept: 'application/json' } });
-  if (!res.ok) {
-    throw new Error(`[mastodon] #${tag} returned ${res.status}`);
-  }
+  if (!res.ok) throw new Error(`[mastodon] #${tag} returned ${res.status}`);
   return res.json();
 }
 
-// Fetch recent posts across all configured hashtags from one instance,
-// deduped by uri. Returns [] on failure so a Mastodon outage/instance hiccup
-// doesn't abort the generation run.
 export async function fetchMastodonPosts(limit = 25) {
   const instance = process.env.MASTODON_INSTANCE || DEFAULT_INSTANCE;
   try {

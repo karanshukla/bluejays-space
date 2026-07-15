@@ -1,8 +1,3 @@
-// Object storage — self-hosted S3-compatible store (MinIO locally, any
-// S3-compatible endpoint in production) standing in for Cloudflare R2.
-// Only ingest writes; web only reads (via its own proxy route), so the
-// write client and its credentials live here, not in web.
-
 import {
   S3Client,
   PutObjectCommand,
@@ -41,10 +36,9 @@ export async function uploadImage(key, body, contentType) {
   return key;
 }
 
-// Downloads a source image (Reddit/Bluesky CDN URL — never hotlinked on the
-// live site) and stores it under `key` so `photo_ref` points at our own copy.
-// Returns the key, or null if the fetch fails or the content isn't an image.
-// No new dep: `fetch` is global in Node 18+.
+// Downloads a source image and stores it under `key` so photo_ref points at our
+// own copy — never hotlink a source CDN on the live site (SPEC.md). Returns the
+// key, or null if the fetch fails or the content isn't an image.
 export async function downloadAndStoreImage(url, key) {
   const res = await fetch(url);
   if (!res.ok) {

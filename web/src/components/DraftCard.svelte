@@ -1,32 +1,18 @@
 <script lang="ts">
-  // Per-draft inline-edit island. Replaces the plain form-POST (full page reload)
-  // with an optimistic fetch to /admin/api/headlines/[id]/{update,publish}. The
-  // routes live under /admin/* so a single Cloudflare Access app scoped to
-  // /admin* covers them too (along with the admin page itself).
-  // API contract unchanged — additive, per docs/ui-plan.md.
-  //
-  // Keyboard accessibility is preserved: all controls remain native form elements.
   import type { Headline } from '../lib/db';
 
   type Props = { draft: Headline };
   let { draft }: Props = $props();
 
-  // Local editable copy — synced to the server on save.
   let headline = $state(draft.headline);
   let register = $state<1 | 2>(draft.register);
   let statBlock = $state(draft.stat_block ?? '');
   let photoRef = $state(draft.photo_ref ?? '');
-  // Decoupled from photoRef on purpose: the preview <img> below is keyed off
-  // this, not the live input, so it doesn't re-fetch /api/images/* on every
-  // keystroke while someone's mid-way through pasting a URL (each keystroke
-  // was firing a full failed MinIO round-trip — a burst of these took the
-  // production site down). Updated on blur and after a successful save.
+  // Decoupled from photoRef so typing into the field doesn't fire a failed
+  // MinIO round-trip on every keystroke (a burst of those took prod down once).
   let previewRef = $state(draft.photo_ref ?? '');
-  // A freshly-uploaded photo's <img> GET can fire before the write is
-  // reliably readable back (observed: first save succeeds with no error, but
-  // the image doesn't render until an unrelated second save re-requests the
-  // same key moments later — plenty of time for it to become readable by
-  // then). Retry with backoff instead of relying on a manual second save.
+  // A freshly-uploaded photo's GET can fire before the write is reliably
+  // readable back — retry with backoff instead of needing a manual re-save.
   let previewRetries = $state(0);
   let previewBust = $state(0);
   const MAX_PREVIEW_RETRIES = 4;
@@ -80,14 +66,9 @@
     }
   }
 
-  // Publish/unpublish move a row between the server-rendered "Drafts" and
-  // "Recently published" sections — unlike save (an in-place edit) or discard
-  // (a pure removal), an optimistic root?.remove() here would make the card
-  // vanish with no indication it reappeared in the *other* section, since
-  // that section was rendered at the initial page load and isn't re-fetched.
-  // A full reload is the simple, correct fix — publish/unpublish are
-  // low-frequency actions, so losing the no-reload optimization here isn't
-  // the cost inline editing would be.
+  // Both reload the page rather than optimistically removing the card: the row
+  // moves between the server-rendered "Drafts" and "Recently published"
+  // sections, so an in-place removal would just make it vanish silently.
   async function publish() {
     publishing = true;
     error = null;
@@ -101,8 +82,6 @@
     }
   }
 
-  // Undoes a publish — flips the row back to draft. See publish() above for
-  // why this reloads rather than removing the card optimistically.
   async function unpublish() {
     publishing = true;
     error = null;
@@ -116,9 +95,6 @@
     }
   }
 
-  // Soft-deletes the row (kept in the DB, excluded from every list/feed —
-  // see discardHeadline in web/src/lib/db.ts). Confirmed since there's no
-  // undo surfaced in the UI once a card is gone.
   async function discard() {
     if (!confirm('Discard this headline? It will disappear from every list.')) return;
     discarding = true;

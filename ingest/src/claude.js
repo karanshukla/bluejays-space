@@ -1,52 +1,27 @@
-// Claude headline generation — the real generation step.
+// Claude headline generation — one call per register per run.
+// Structured output via output_config.format (GA), temperature split by
+// register. The mlb-api-mcp server attaches via the MCP connector (beta) when
+// MLB_MCP_URL is set, giving live stat/roster lookup.
 //
-// One call per register per run, via @anthropic-ai/sdk. Structured output is
-// requested via `output_config.format` (GA — no beta header) so the response
-// parses straight into a draft row shape. Temperature is split by
-// register (1 = low, 2 = maxed). The mlb-api-mcp server is conditionally
-// attached via the MCP connector (beta) when MLB_MCP_URL is set — giving the
-// generator live stat/roster lookup, which the spec's register-2 real-fact-
-// anchored subtype needs to verify connecting facts rather than recall them.
-//
-// See docs/archive/ingestion-pipeline.md for the concrete gotchas this encodes:
-//   - MCP connector: betas:['mcp-client-2025-11-20'], tools uses `mcp_server_name`
-//     — confirmed against a live 400 from the API ("mcp_toolset.mcp_server_name:
-//     Field required"); an earlier pass had this as `server_name`, which the API
-//     rejects.
-//   - Temperature: Haiku 4.5 (default) accepts it; Opus 4.7+ rejects it with a
-//     400. Since GENERATION_MODEL is swappable via env var without a code
-//     change, the call retries without temperature on a 400 mentioning it.
-//   - Structured output JSON is returned in a `text` content block — parse it.
-//   - output_config.format is flat: `{ type: 'json_schema', schema }` —
-//     confirmed against a live 400 ("Unexpected key 'json_schema'..."); an
-//     earlier pass wrapped `schema` (plus name/strict) inside a nested
-//     `json_schema` key, which the API rejects.
-//   - MLB_MCP_AUTH_TOKEN (optional): if the mlb-api-mcp deployment sits behind
-//     a shared-secret check (e.g. a Cloudflare rule gating the public
-//     endpoint), set this and it's sent as `mcp_servers[].authorization_token`
-//     — a single static bearer token. This field does NOT support OAuth or
-//     Cloudflare Access's two-header Service Token scheme; only a plain
-//     shared-secret bearer token works here.
-//   - Streaming, not .create(): a production run failed after ~15 minutes with
-//     an APIConnectionTimeoutError, well under the client's own 20-minute
-//     REQUEST_TIMEOUT_MS below — that gap means something *other* than the
-//     SDK's own timer killed the connection (almost certainly an idle-network
-//     cutoff somewhere between Railway and Anthropic, since a non-streaming
-//     request sits completely silent for the whole MCP round-trip while the
-//     tool calls happen server-side). Streaming keeps the connection active
-//     with periodic events for the same request, which is the SDK's own
-//     documented mitigation for long-running calls — see also the per-event
-//     progress logging below, which is what actually answers "where did it
-//     stall" the next time this happens.
+// Gotchas confirmed against live API 400s (don't reintroduce):
+//   - MCP connector needs betas:['mcp-client-2025-11-20'] and tools use
+//     `mcp_server_name` (not `server_name`).
+//   - output_config.format is flat: { type:'json_schema', schema } — not nested.
+//   - Structured-output JSON arrives in a `text` content block.
+//   - Haiku accepts `temperature`; Opus 4.7+ rejects it. GENERATION_MODEL is
+//     env-swappable, so the call retries without it on a matching 400.
+//   - MLB_MCP_AUTH_TOKEN is a plain bearer token only — the connector supports
+//     neither OAuth nor Cloudflare's two-header Service Token scheme.
+//   - Streaming (.messages.stream), not .create(): a non-streaming request sits
+//     silent for the whole MCP round-trip and hit an idle-network cutoff in
+//     production well under the client timeout. Streaming keeps it alive.
 
 import Anthropic from '@anthropic-ai/sdk';
 
 const MCP_BETA = 'mcp-client-2025-11-20';
 const MCP_SERVER_NAME = 'mlb-stats';
 
-// JSON schema for structured output. Maps 1:1 onto the headlines row shape
-// (suggested_stat -> stat_block column at insert time). Register 2 leaves
-// source_post_url + source_note null — no real source for a fabricated premise.
+// Maps 1:1 onto the headlines row shape (suggested_stat -> stat_block).
 export const headlineSchema = {
   type: 'object',
   additionalProperties: false,
@@ -68,8 +43,6 @@ export const headlineSchema = {
   ],
 };
 
-// System prompt carries the site's voice + the FAX Sports style reference.
-// FAX content is style-only: never credited or surfaced on the live site.
 export function buildSystemPrompt(register, faxPosts) {
   const styleSamples = faxPosts
     .slice(0, 8)
@@ -95,8 +68,6 @@ ${registerGuidance}
 Return one headline. Keep it short and punchy — one line. If you reference a stat, put a compact version in suggested_stat. List any real player ids/names you riffed on in player_ids.`;
 }
 
-// Format candidate posts (Reddit + Bluesky) for the user message. Register 2
-// gets an empty list (no real source to riff on) — the prompt says so above.
 export function buildUserMessage(register, candidatePosts) {
   if (register === 2 || candidatePosts.length === 0) {
     return 'Draft a register-2 fabricated-scenario headline about a current Blue Jays player. No candidate posts this run — rely on the voice reference and your own baseball knowledge.';
@@ -113,8 +84,6 @@ export function buildUserMessage(register, candidatePosts) {
   return `Candidate posts from r/Torontobluejays and #BlueJays Bluesky:\n\n${formatted}\n\nDraft one register-1 headline riffing on one of these. Set source_post_url to the post that sparked it.`;
 }
 
-// Parse the structured-output response content blocks into a draft object.
-// The JSON arrives in a `text` block per the structured-outputs API.
 export function parseHeadlineResponse(content) {
   const blocks = Array.isArray(content) ? content : [];
   const textBlock = blocks.find((b) => b.type === 'text');
@@ -129,34 +98,23 @@ export function parseHeadlineResponse(content) {
       `[claude] could not parse JSON from text block: ${textBlock.text.slice(0, 120)}`
     );
   }
-  // Coerce to the DB row shape (suggested_stat -> stat_block).
   return {
     headline: String(parsed.headline),
     register: Number(parsed.register),
     player_ids: Array.isArray(parsed.player_ids) ? parsed.player_ids.map(String) : [],
     stat_block: parsed.suggested_stat ?? null,
-    photo_ref: null, // filled by the orchestrator if a source image is stored
+    photo_ref: null,
     source_post_url: parsed.source_post_url ?? null,
     source_note: parsed.source_note ?? null,
   };
 }
 
-// The first real run against the live MLB MCP connector took ~10 minutes —
-// almost exactly the SDK's default 10-minute timeout (which retries on
-// timeout by default, per its own docs, risking an even longer/flakier next
-// attempt rather than a clean failure). Baseball MCP sleeps when idle
-// (Railway "sleep when inactive"), so a cold-started MCP round-trip inside
-// the tool-use loop is the likely cause. Widen the timeout so a legitimately
-// slow-but-working run isn't cut off, since this only runs once/day via cron
-// (see cron_schedule on the Railway service) — there's no overlap risk from
-// letting a single run take longer.
 const REQUEST_TIMEOUT_MS = 20 * 60 * 1000;
 
 function client() {
   return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: REQUEST_TIMEOUT_MS });
 }
 
-// Build the base request body (model, max tokens, structured output, messages).
 function baseRequest(model, systemPrompt, userMessage) {
   return {
     model,
@@ -172,25 +130,14 @@ function baseRequest(model, systemPrompt, userMessage) {
   };
 }
 
-// Detect a 400 specifically about the temperature param — the documented
-// failure mode when GENERATION_MODEL is swapped to a tier that dropped sampling
-// controls (Opus 4.7+). Lets the call retry without temperature.
 function isTemperatureError(err) {
   return err?.status === 400 && /temperature/i.test(err?.message ?? '');
 }
 
-// Human-readable label for a streamed content block — used only for progress
-// logging, not parsed. The MCP tool's name is the useful bit to see live
-// (which stat lookup is running), everything else just needs its block type.
 function blockLabel(block) {
   return block?.type === 'mcp_tool_use' ? `mcp_tool_use:${block.name}` : (block?.type ?? 'unknown');
 }
 
-// Streams one request and logs progress as it goes — content_block_start for
-// every block (so a slow MCP round-trip shows *which* tool call is in
-// flight, not just silence) plus a 60s heartbeat in case a stretch produces
-// no events at all. Resolves with the same shape .create() would have
-// returned. See the file-header comment for why this replaced .create().
 function streamWithProgress(anthropic, useBeta, params, register, startedAt) {
   const stream = useBeta
     ? anthropic.beta.messages.stream(params)
@@ -217,7 +164,6 @@ function streamWithProgress(anthropic, useBeta, params, register, startedAt) {
   return stream.finalMessage().finally(() => clearInterval(heartbeat));
 }
 
-// Generate one headline draft for the given register. Returns the draft object.
 export async function generateHeadline({ register, candidatePosts, faxPosts }) {
   const model = process.env.GENERATION_MODEL || 'claude-haiku-4-5';
   const systemPrompt = buildSystemPrompt(register, faxPosts);
@@ -225,7 +171,6 @@ export async function generateHeadline({ register, candidatePosts, faxPosts }) {
   const anthropic = client();
   const useBeta = Boolean(process.env.MLB_MCP_URL);
 
-  // Register 1 = low temperature (grounded); register 2 = maxed (inventive).
   const temperature = register === 1 ? 0.7 : 1.0;
 
   console.log(
@@ -261,10 +206,7 @@ export async function generateHeadline({ register, candidatePosts, faxPosts }) {
     response = await call(body);
   } catch (err) {
     if (isTemperatureError(err)) {
-      // Model tier dropped the temperature param (Opus 4.7+). Retry without it.
-      console.warn(
-        '[claude] temperature rejected, retrying without (see docs/archive/ingestion-pipeline.md)'
-      );
+      console.warn('[claude] temperature rejected, retrying without');
       response = await call(baseRequest(model, systemPrompt, userMessage));
     } else {
       console.error(`[claude] register ${register}: call failed after ${Date.now() - startedAt}ms`);
@@ -291,7 +233,6 @@ export async function generateHeadline({ register, candidatePosts, faxPosts }) {
   }
 
   const draft = parseHeadlineResponse(response.content);
-  // The model should echo the register, but trust the requested one if it drifts.
   draft.register = register;
   return draft;
 }

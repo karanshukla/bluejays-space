@@ -38,13 +38,11 @@ func saveHandles(m map[string]string, path string) error {
 	return os.WriteFile(path, append(b, '\n'), 0644)
 }
 
-// add upserts handle→did into m, enforcing two invariants:
-//   - A handle is locked to its original DID; registering the same handle
-//     with a different DID returns ErrHandleTaken.
-//   - A DID can only belong to one handle; if it is already registered under
-//     a different handle, that old entry is removed first.
+// add upserts handle→did into m, enforcing:
+//   - a handle is locked to its original DID (same handle + different DID → ErrHandleTaken)
+//   - a DID belongs to one handle (an existing entry under a different handle is removed)
 //
-// Returns the old handle that was displaced by a DID move, or "" if none.
+// Returns the old handle displaced by a DID move, or "" if none.
 func add(m map[string]string, handle, did string) (displaced string, err error) {
 	if existing, ok := m[handle]; ok && existing != did {
 		return "", ErrHandleTaken{Handle: handle, ExistingDID: existing}
@@ -59,8 +57,8 @@ func add(m map[string]string, handle, did string) (displaced string, err error) 
 	return displaced, nil
 }
 
-// warnDuplicateDIDs logs a warning for every DID that appears under more than
-// one handle. Returns the number of duplicates found.
+// warnDuplicateDIDs logs a warning for every DID registered under more than one
+// handle. Returns the number of duplicates found.
 func warnDuplicateDIDs(m map[string]string, warn func(string, ...any)) int {
 	seen := make(map[string]string, len(m))
 	count := 0
