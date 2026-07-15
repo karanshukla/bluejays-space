@@ -10,4 +10,12 @@ if [ ! -d node_modules ]; then
     npm install
 fi
 
+# Same schema-application step as production (see scripts/migrate.mjs and
+# the Dockerfile's runtime CMD) — an existing dev Postgres volume only gets
+# schema.sql applied once, on first `docker compose up` ever, via Postgres's
+# own docker-entrypoint-initdb.d hook. A volume created before a later
+# schema.sql change (e.g. an ALTER) won't have picked it up without this.
+echo "[dev] applying schema migration..."
+node scripts/migrate.mjs
+
 exec "$@"

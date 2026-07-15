@@ -22,8 +22,15 @@ ENV PORT=4321
 COPY --from=builder /app/package.json /app/package-lock.json* ./
 RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/db ./db
+COPY --from=builder /app/scripts ./scripts
 USER node
 EXPOSE 4321
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget --spider -q http://127.0.0.1:${PORT:-4321}/ || exit 1
-CMD ["node", "./dist/server/entry.mjs"]
+# Apply db/schema.sql (see scripts/migrate.mjs) before the server starts
+# accepting traffic — closes the "schema change merged but nobody ran it
+# against the real DB yet" gap. `exec` hands off PID 1 to the node server so
+# it still receives signals directly (graceful shutdown) rather than the
+# shell staying in the middle.
+CMD ["sh", "-c", "node scripts/migrate.mjs && exec node dist/server/entry.mjs"]

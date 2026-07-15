@@ -11,7 +11,7 @@ Monorepo for **bluejays.space** — a parody headline site for Blue Jays fans (i
 | [`handles/`](./handles) | Go service | Serves AT Protocol DID files and a handle-request form for `*.bluejays.space`. JSON-backed; opens GitHub PRs for new handle requests. |
 | [`web/`](./web) | Astro SSR | Public headline feed (published rows) + `/admin` draft review/edit/publish UI, both DB-backed. |
 | [`ingest/`](./ingest) | Node job | Headline generation cron. Fetches Reddit/Bluesky candidates + MLB Stats context (via Claude's MCP connector) and drafts real headlines per register when `ANTHROPIC_API_KEY` is set; falls back to inserting placeholder draft rows when it's unset (credential-free dev). |
-| [`db/`](./db) | Postgres schema | Baseline `handles` + `headlines` tables, auto-loaded on first DB init. |
+| [`web/db/`](./web/db) | Postgres schema | `handles`, `headlines`, `seen_posts` tables. Auto-loaded on first local DB init (docker-compose); applied against a running DB on every boot by `web` (see `web/scripts/migrate.mjs`) — lives inside `web/` because Railway builds each service from an isolated per-directory context, so it has to be reachable from `web`'s own build. |
 | `minio` (no repo folder — off-the-shelf image) | Object storage | Self-hosted S3-compatible store for headline photos, standing in for Cloudflare R2. `ingest` uploads, `web` proxies reads at `/api/images/*`; nothing else talks to it directly. |
 
 See [`handles/README.md`](./handles/README.md) for the handle service's env vars and deployment notes.

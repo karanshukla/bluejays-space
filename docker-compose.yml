@@ -45,7 +45,7 @@ services:
       - '5432:5432'
     volumes:
       # Auto-loads on first volume init only.
-      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./web/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-bluejays} -d ${POSTGRES_DB:-bluejays}']
