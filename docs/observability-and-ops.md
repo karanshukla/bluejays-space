@@ -1,6 +1,6 @@
 # Observability & ops — running this for real, not just standing it up
 
-Everything in `docs/launch-checklist.md` gets the three services live. This doc is about what happens *after* that — a scheduled cron job (`bluejays-ingest`) with no human watching it in real time is exactly the kind of thing that fails silently for weeks unless something is watching it, and this repo doesn't have that yet.
+The three services are live on Railway (see `docs/production-verification.md` for the reference config). This doc is about what happens *day-to-day after that* — a scheduled cron job (`bluejays-ingest`) with no human watching it in real time is exactly the kind of thing that fails silently for weeks unless something is watching it, and this repo doesn't have that yet.
 
 ## 1. Ingest run visibility
 
@@ -13,7 +13,7 @@ Cheapest fix that doesn't require standing up a monitoring stack for a single-op
 
 ## 2. Postgres backups
 
-Railway's managed Postgres plugin has its own backup story (check current Railway docs at deploy time — this moves), but nothing in this repo documents whether it's enabled, what the retention window is, or how to restore. Given the `headlines` table is the entire content of the site and the `handles` table (if it migrates to Postgres per `docs/backend-api-plan.md` item 6) would hold live DID mappings, this is worth nailing down explicitly as part of `docs/launch-checklist.md` rather than assuming Railway's defaults are sufficient without checking.
+Railway's managed Postgres plugin has its own backup story (check current Railway docs at deploy time — this moves), but nothing in this repo documents whether it's enabled, what the retention window is, or how to restore. Given the `headlines` table is the entire content of the site and the `handles` table (if it migrates to Postgres per `docs/backend-api-plan.md` item 6) would hold live DID mappings, this is worth nailing down explicitly (check the Railway dashboard directly, and note the answer in `docs/production-verification.md`) rather than assuming Railway's defaults are sufficient without checking.
 
 ## 3. MinIO image lifecycle
 

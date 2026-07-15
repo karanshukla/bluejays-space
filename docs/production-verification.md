@@ -1,10 +1,8 @@
-# Going live — Railway + Cloudflare launch checklist
+# Production configuration — Railway + Cloudflare reference
 
-The MVP is functionally complete: real ingestion (`ingest`), a DB-backed public feed + admin review UI (`web`), in-app Cloudflare Access JWT verification, and the handles service. What's *not* verified from inside this repo is that any of it is actually deployed and reachable at `bluejays.space`. This doc is the concrete "make it real" checklist — infra/console steps, not code — derived from `README.md` → Production (Railway) and `SPEC.md` → Architecture. Nothing here should require a code change; if a step turns out to need one, that's a bug in this checklist, not a missing feature.
+**The site is live on Railway.** This doc is no longer a "how to launch" checklist — it's a reference for how the production setup is *supposed* to be wired (derived from `README.md` → Production (Railway) and `SPEC.md` → Architecture), worth checking against the real Railway/Cloudflare dashboards any time something in prod seems off, a new service gets added, or a secret needs rotating. With deployment done, the actual priority is application code — see `docs/README.md` → Roadmap; this doc is reference material, not the current focus.
 
-## Order of operations
-
-Bring services up in this order — each step depends on the one before it having a live URL/credential to hand to the next.
+## Order of operations (reference — services are already live in this order)
 
 1. **Postgres** — Railway managed Postgres plugin. Grab its private `DATABASE_URL` (used by `web` and `ingest` only — `handles` doesn't touch it yet, see `docs/backend-api-plan.md` for why). Run `db/schema.sql` against it once (there's no migration runner — see "Schema application" below).
 2. **MinIO** — deploy from the `minio/minio` image directly (Railway "Deploy from Docker Image", not a repo subfolder). Attach a volume for `/data`. Set `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD` to real (non-`bluejays-dev-only`) values. **Do not give it a public domain** — `web`'s `/api/images/*` proxy is the only intended public path to its contents.
@@ -19,9 +17,9 @@ Bring services up in this order — each step depends on the one before it havin
 
 `db/schema.sql` is auto-loaded by Postgres only on **first volume init** via `docker-entrypoint-initdb.d` locally — that mechanism doesn't exist against a Railway-managed Postgres plugin. Before `web`/`ingest` can do anything useful in production, `db/schema.sql` needs to be run once by hand against the production `DATABASE_URL` (`psql "$DATABASE_URL" -f db/schema.sql`, or Railway's query console). It's idempotent (`CREATE TABLE IF NOT EXISTS`) so re-running it is safe, which also means it's fine to run again after any future schema addition — but there's no tracking of *which* statements have already run, so a genuine migration (`ALTER TABLE`, backfill) still needs to be written and applied by hand, in order, same as today. If the schema grows past a couple of ad-hoc `ALTER`s, revisit the "no ORM/migration tool" decision in `docs/README.md` — it was made when there were two tables; there are three now (`seen_posts` since shipped).
 
-## Smoke test after deploy
+## Smoke test — worth re-running after any prod-affecting change
 
-Not a full test suite — just enough to confirm the pieces are wired correctly, since nothing in CI exercises the actual Railway network:
+Not a full test suite — just enough to confirm the pieces are still wired correctly, since nothing in CI exercises the actual Railway network. Re-run this after touching any env var, redeploying a service, or rotating a secret — not just once at launch:
 
 - [ ] `bluejays.space/` loads and shows "No headlines published yet" (or real content, if ingest has already run)
 - [ ] `bluejays.space/admin` prompts a Cloudflare Access login; a non-allowlisted email is rejected
@@ -30,7 +28,7 @@ Not a full test suite — just enough to confirm the pieces are wired correctly,
 - [ ] `alice.bluejays.space/.well-known/atproto-did` (any handle already in `handles.json`) returns the DID as plain text
 - [ ] Publish one draft from `/admin`, confirm it appears on `/`
 
-## Secrets checklist (don't ship without these confirmed set, not blank)
+## Secrets checklist (confirm these stay set, not blank, across redeploys)
 
 `ANTHROPIC_API_KEY`, `REDDIT_CLIENT_ID`/`SECRET`, `BLUESKY_IDENTIFIER`/`APP_PASSWORD`, `GITHUB_TOKEN` (handles), MinIO credentials (non-default), `CF_ACCESS_TEAM`/`CF_ACCESS_AUD`. `.env.example` documents every one of these; treat a blank value in the Railway dashboard the same as a missing one — several of them (`GITHUB_TOKEN`, `CF_ACCESS_*`) fail *open* to a degraded-but-running state (handle requests silently disabled, admin auth silently skipped) rather than a startup crash, which makes them easy to forget.
 
