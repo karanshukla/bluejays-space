@@ -1,6 +1,6 @@
 # Backend / CRUD API follow-up
 
-What exists today, and what's still missing, across the two data-owning services (`web`'s API routes over the `headlines` table, and `handles`' JSON-file + GitHub-PR flow). Read `db/schema.sql` alongside this — it's short enough to just read directly rather than restate here.
+What exists today, and what's still missing, across the two data-owning services (`web`'s API routes over the `headlines` table, and `handles`' JSON-file + GitHub-PR flow). Read `web/db/schema.sql` alongside this — it's short enough to just read directly rather than restate here.
 
 ## `headlines` API — current surface
 
@@ -23,7 +23,7 @@ Both mutating routes live under `/admin/*` specifically so one Cloudflare Access
 
 ### 2. No delete / discard — shipped
 
-`discardHeadline` (`web/src/lib/db.ts`) + `/admin/api/headlines/[id]/discard` do exactly the soft-delete this section recommended: `status = 'discarded'`, guarded by `status != 'discarded'` so it's idempotent, callable from either `draft` or `published` (a bad headline doesn't need to be unpublished first). `db/schema.sql`'s `headlines_status_check` CHECK constraint was widened to allow it, with an idempotent `ALTER TABLE ... DROP/ADD CONSTRAINT` migration below the `CREATE TABLE IF NOT EXISTS` so it also applies to the already-initialized production DB (re-run `schema.sql` by hand — see `docs/production-verification.md`). Both `getPublishedHeadlines` and `getDraftHeadlines`'s status filters already exclude `discarded` rows without any query change, since they filter on exact status rather than `!= 'published'`/`!= 'draft'`.
+`discardHeadline` (`web/src/lib/db.ts`) + `/admin/api/headlines/[id]/discard` do exactly the soft-delete this section recommended: `status = 'discarded'`, guarded by `status != 'discarded'` so it's idempotent, callable from either `draft` or `published` (a bad headline doesn't need to be unpublished first). `web/db/schema.sql`'s `headlines_status_check` CHECK constraint was widened to allow it. This shipped *before* `web/scripts/migrate.mjs` existed (see item 8) — the widened constraint sat applied in the repo but not against the real production DB until someone manually re-ran the schema file, which is exactly the gap that script now closes automatically. Both `getPublishedHeadlines` and `getDraftHeadlines`'s status filters already exclude `discarded` rows without any query change, since they filter on exact status rather than `!= 'published'`/`!= 'draft'`.
 
 ### 2b. Create-from-scratch — shipped
 
@@ -55,6 +55,12 @@ Whichever way this goes, `README.md`'s line "once its DID storage moves off `han
 ### 7. No pagination / filtering on `getPublishedHeadlines` or `getDraftHeadlines`
 
 Both currently `SELECT *` with no `LIMIT`. Fine at today's volume; becomes a real problem once ingest has been running for months (one register-2 + occasionally one register-1 draft per cron tick, times however many ticks/day, accumulates fast on the admin side even after publish/discard workflows exist). See `docs/frontend-roadmap.md` for the public-feed side of this — the DB query and the page rendering it should be sized together, not as two separate problems.
+
+### 8. Schema application: automatic-on-boot shipped; a real migration tool is the long-term follow-up
+
+`web/scripts/migrate.mjs` now re-applies the *entire* `web/db/schema.sql` on every `bluejays-web` boot (production Docker `CMD`, and locally via `docker-entrypoint-dev.sh`), guarded by a Postgres advisory lock — see `docs/production-verification.md` → Schema application for the full story and why the file had to move from repo-root `db/` into `web/db/` to be reachable at Railway's per-service build-context boundary. This closes the specific gap that caused item 2's shipped discard route to 500 in production (the widened `status` CHECK sat un-applied against the real DB for a while).
+
+What this *doesn't* solve, and shouldn't be asked to: the script has no concept of individual migrations or what's already been applied — it just re-runs the whole file, which only stays safe as long as every change to `schema.sql` is expressible as an idempotent `CREATE ... IF NOT EXISTS` / `DROP ... IF EXISTS` + re-add. That breaks down the moment a real migration needs to do something that can't be safely repeated on every boot — a data backfill, a destructive column rename/drop, a type change on a populated column. At that point, adopt an actual lightweight migration tool: something like `node-pg-migrate` (plain SQL/JS migration files, a tracked `pgmigrations` table, minimal footprint — no full ORM, consistent with the project's existing "plain `pg`, no ORM" stance) rather than Drizzle/Prisma's heavier migrate+ORM bundles, since a query builder isn't what's missing here. Revisit when the first non-idempotent-safe migration is actually needed — not speculatively before then.
 
 ## Out of scope here
 

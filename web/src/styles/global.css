@@ -3,9 +3,178 @@
 @theme {
   /*
    * Headlines use Fraunces (imported as a JS module in Base.astro so Vite
-   * bundles the self-hosted WOFF2 files), everything else stays on a clean
-   * system sans stack. No Google Fonts CDN — keeps the "zero/minimal JS, no
-   * external calls" posture on public pages per SPEC.md.
+   * bundles the self-hosted WOFF2 files), captions/stat lines use Space Mono
+   * (typed-caption feel — a scrapbook index card, not a SaaS UI). No Google
+   * Fonts CDN for either — keeps the "zero/minimal JS, no external calls"
+   * posture on public pages per SPEC.md.
    */
   --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-mono: 'Space Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  /* Blue Jays-themed palette — blue and white forward, deliberately not the
+     default Tailwind neutral-gray scale (one of the fastest tells of an
+     unstyled/default-Tailwind "AI-generated" look). Reads as a fan's game
+     program/scorecard: white card stock, navy ink, team blue trim, a red
+     accent used sparingly rather than an even rainbow of colors. */
+  --color-paper: #eef3fb;
+  --color-paper-edge: #b8cbe8;
+  --color-card: #ffffff;
+  --color-ink: #14213d;
+  --color-ink-soft: #3d5578;
+  --color-tape: #1e4d8c;
+  --color-tape-alt: #c8102e;
+  --color-blue: #134a8e;
+  --color-red: #c8102e;
+}
+
+body {
+  background-color: var(--color-paper);
+  background-image: var(--grain);
+  background-repeat: repeat;
+}
+
+:root {
+  /* Subtle film-grain noise, generated once as an inline SVG filter — no
+     external image request, no build-time asset. Kept low-opacity so it
+     reads as paper texture, not visual noise. */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+}
+
+/* --- Scrapbook grid: single-column feed on mobile, masonry columns on wider
+   viewports. CSS multi-column rather than JS-driven masonry — keeps the
+   public feed at zero client-side JS per SPEC.md. --- */
+.scrapbook-grid {
+  column-count: 1;
+}
+
+@media (min-width: 640px) {
+  .scrapbook-grid {
+    column-count: 2;
+    column-gap: 1.75rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .scrapbook-grid {
+    column-count: 3;
+    column-gap: 2rem;
+  }
+}
+
+.scrapbook-grid > li {
+  break-inside: avoid;
+  margin-bottom: 1.75rem;
+  /* Room for the washi-tape pseudo-element (below) to overlap the card's top
+     edge without its box escaping *this* element's box — an element that
+     overflows its box inside a CSS multi-column container can get its
+     overflowing part mis-fragmented into a phantom next column with nothing
+     else in it. Keeping the tape's negative offset within this padding keeps
+     the whole visual inside one box. */
+  padding-top: 0.75rem;
+}
+
+/* Gentle alternating tilt so cards read as pasted-in, not machine-aligned.
+   Straightens slightly on hover/focus as a small interactive touch. */
+.clipping {
+  transition: transform 0.15s ease-out;
+}
+.scrapbook-grid > li:nth-child(4n + 1) .clipping {
+  transform: rotate(-1.1deg);
+}
+.scrapbook-grid > li:nth-child(4n + 2) .clipping {
+  transform: rotate(0.9deg);
+}
+.scrapbook-grid > li:nth-child(4n + 3) .clipping {
+  transform: rotate(-0.6deg);
+}
+.scrapbook-grid > li:nth-child(4n + 4) .clipping {
+  transform: rotate(1.3deg);
+}
+.clipping:hover,
+.clipping:focus-within {
+  transform: rotate(0deg) scale(1.015);
+}
+
+/* A single strip of washi tape pinning the top of each card — blue/white
+   diagonal stripe by default (like ballpark bunting), red on one variant for
+   color variety without turning it into a rainbow. Base placement/angle;
+   the .tape-a..f variants below (picked per-card in index.astro, keyed off
+   the headline's own id so it doesn't reshuffle as the feed changes) vary
+   angle, length, and placement so the board doesn't look machine-stamped —
+   a real scrapbook's tape isn't cut to one identical size and angle. */
+.clipping::before {
+  content: '';
+  position: absolute;
+  top: -0.6rem;
+  left: 1.5rem;
+  width: 4.5rem;
+  height: 1.35rem;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--color-tape),
+    var(--color-tape) 6px,
+    white 6px,
+    white 12px
+  );
+  opacity: 0.94;
+  box-shadow: 0 1px 2px rgba(20, 33, 61, 0.3);
+  transform: rotate(-3deg);
+}
+.tape-a::before {
+  top: -0.7rem;
+  left: 0.9rem;
+  width: 3.4rem;
+  height: 1.2rem;
+  transform: rotate(-8deg);
+}
+.tape-b::before {
+  top: -0.5rem;
+  left: 2.25rem;
+  width: 5.25rem;
+  height: 1.3rem;
+  transform: rotate(4deg);
+}
+.tape-c::before {
+  top: -0.65rem;
+  left: 3.25rem;
+  width: 4rem;
+  height: 1.4rem;
+  transform: rotate(-2deg);
+  --color-tape: var(--color-tape-alt);
+}
+.tape-d::before {
+  top: -0.6rem;
+  left: auto;
+  right: 1.1rem;
+  width: 4.25rem;
+  height: 1.25rem;
+  transform: rotate(7deg);
+}
+.tape-e::before {
+  top: -0.45rem;
+  left: 1.35rem;
+  width: 3.1rem;
+  height: 1.5rem;
+  transform: rotate(2deg);
+}
+.tape-f::before {
+  top: -0.7rem;
+  left: 2.6rem;
+  width: 5.5rem;
+  height: 1.2rem;
+  transform: rotate(-5deg);
+}
+
+/* Polaroid-style photo mount: thick bottom margin, crisp (not sepia-aged —
+   keeps the blue/white palette reading as clean, not vintage-brown). */
+.photo-mount {
+  background: var(--color-card);
+  padding: 0.6rem 0.6rem 0;
+}
+.photo-mount img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  filter: saturate(1.08) contrast(1.03);
 }
