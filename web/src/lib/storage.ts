@@ -1,6 +1,8 @@
-// Read-only S3-compatible client for the image proxy route. web never writes
-// — only ingest uploads — so this only needs GetObject.
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+// S3-compatible client. Reads back the image proxy route needs (GetObject);
+// writes back the one admin-triggered case that needs them — importing a
+// pasted photo URL into MinIO (see photoImport.ts). ingest remains the
+// primary uploader for the automated generation pipeline.
+import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import type { Readable } from 'node:stream';
 
 let client: S3Client | undefined;
@@ -43,4 +45,15 @@ export async function getImage(key: string): Promise<StoredImage | null> {
     }
     return null;
   }
+}
+
+export async function uploadImage(key: string, body: Buffer, contentType: string): Promise<void> {
+  await getClient().send(
+    new PutObjectCommand({
+      Bucket: process.env.S3_BUCKET || 'bluejays-images',
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+    })
+  );
 }

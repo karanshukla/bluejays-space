@@ -43,7 +43,9 @@
         method: 'POST',
         body: form,
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
+      const data = await res.json();
+      photoRef = data.photo_ref ?? '';
       savedAt = new Date().toLocaleTimeString();
     } catch (err) {
       error = err instanceof Error ? err.message : 'Save failed';

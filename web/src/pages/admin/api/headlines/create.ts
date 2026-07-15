@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { createHeadline } from '../../../../lib/db';
 import { asNullableText } from '../../../../lib/formHelpers';
+import { resolvePhotoRef } from '../../../../lib/photoImport';
 
 export const prerender = false;
 
@@ -15,11 +16,19 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     return new Response('Missing required fields', { status: 400 });
   }
 
+  let photoRef: string | null;
+  try {
+    photoRef = await resolvePhotoRef(asNullableText(form.get('photo_ref')));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'failed to import photo';
+    return new Response(`Photo ref: ${message}`, { status: 502 });
+  }
+
   await createHeadline({
     headline,
     register,
     stat_block: asNullableText(form.get('stat_block')),
-    photo_ref: asNullableText(form.get('photo_ref')),
+    photo_ref: photoRef,
     source_post_url: asNullableText(form.get('source_post_url')),
     source_note: asNullableText(form.get('source_note')),
   });
