@@ -12,16 +12,42 @@ interface Props {
   title: string;
   description?: string;
   ogImage?: string;
+  // Alt text for the OG/Twitter image — both the static default and every
+  // dynamic per-headline render are 1200×630 PNGs, so width/height/type below
+  // are hardcoded rather than props; alt is the one dimension that varies.
+  ogImageAlt?: string;
   ogType?: 'website' | 'article';
   canonicalPath?: string;
+  // ISO timestamp — only meaningful (and only rendered) alongside ogType="article".
+  articlePublishedTime?: string;
 }
 
-const { title, description, ogImage, ogType = 'website', canonicalPath } = Astro.props;
+const {
+  title,
+  description,
+  ogImage,
+  ogImageAlt,
+  ogType = 'website',
+  canonicalPath,
+  articlePublishedTime,
+} = Astro.props;
 
 const site = getSiteUrl();
 const canonical = new URL(canonicalPath ?? Astro.url.pathname, site);
 const imageUrl = new URL(ogImage ?? '/og-default.png', site);
 const desc = description ?? DEFAULT_DESCRIPTION;
+const imageAlt = ogImageAlt ?? title;
+
+// Deliberately WebSite, not NewsArticle/Article — this is a parody site and
+// SPEC.md's whole labeling philosophy is about never reading as real news;
+// giving search engines an Article-typed schema would cut against that.
+const websiteJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'bluejays.space',
+  url: site.href,
+  description: DEFAULT_DESCRIPTION,
+};
 ---
 
 <!doctype html>
@@ -39,18 +65,34 @@ const desc = description ?? DEFAULT_DESCRIPTION;
     <meta name="description" content={desc} />
 
     <meta property="og:site_name" content="bluejays.space" />
+    <meta property="og:locale" content="en_US" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={desc} />
     <meta property="og:image" content={imageUrl.href} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:alt" content={imageAlt} />
     <meta property="og:url" content={canonical.href} />
     <meta property="og:type" content={ogType} />
+    {
+      ogType === 'article' && articlePublishedTime && (
+        <meta
+          property="article:published_time"
+          content={new Date(articlePublishedTime).toISOString()}
+        />
+      )
+    }
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={desc} />
     <meta name="twitter:image" content={imageUrl.href} />
+    <meta name="twitter:image:alt" content={imageAlt} />
 
     <link rel="alternate" type="application/rss+xml" title="bluejays.space" href="/feed.xml" />
+
+    <script type="application/ld+json" is:inline set:html={JSON.stringify(websiteJsonLd)} />
   </head>
   <body class="min-h-screen text-ink antialiased">
     <slot />

@@ -1,9 +1,11 @@
 import satori from 'satori';
 import { Resvg } from '@resvg/resvg-js';
+import sharp from 'sharp';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Headline } from './db';
+import { getImage } from './storage';
 
 // Loaded once, reused across renders. Satori needs the raw font binary (TTF/
 // OTF/WOFF, not woff2); @fontsource ships a .woff alongside the .woff2.
@@ -74,7 +76,133 @@ export function tapeBackgroundFor(id: number): string {
   }
 }
 
+const CARD_WIDTH = 900;
+const CARD_PADDING_X = 56;
+const PHOTO_SIZE = 220;
+const PHOTO_TEXT_GAP = 36;
+// Explicit width, not just flexGrow: 1 — Satori's flex children default to
+// not shrinking below their content's natural width (same as browsers' flex
+// min-width:auto default), so without a hard width the headline text
+// overflowed past the card's right edge instead of wrapping at the intended
+// column width.
+const TEXT_COLUMN_WIDTH = CARD_WIDTH - CARD_PADDING_X * 2 - PHOTO_SIZE - PHOTO_TEXT_GAP;
+
+// Fetches the headline's photo and inlines it as a base64 PNG data URL so
+// Satori (which renders standalone, no network access of its own) can place
+// it as an <img> node. Re-encodes through sharp regardless of the stored
+// format \u2014 Satori's image handling doesn't reliably decode webp (the format
+// storeImageBytes normally produces), so passing the stored bytes straight
+// through crashes the render. Pre-cropping to an exact square here also means
+// the Satori tree doesn't need to lean on its (patchy) object-fit support.
+// Returns null on any failure \u2014 a missing/unreadable/unrecognized photo must
+// degrade to the text-only layout, never break the render (same "never break
+// a crawler's unfurl" rule the route itself already follows).
+export async function loadPhotoDataUrl(photoRef: string | null): Promise<string | null> {
+  if (!photoRef) return null;
+  try {
+    const image = await getImage(photoRef);
+    if (!image) return null;
+    const chunks: Buffer[] = [];
+    for await (const chunk of image.body) chunks.push(chunk as Buffer);
+    const png = await sharp(Buffer.concat(chunks))
+      .resize(PHOTO_SIZE, PHOTO_SIZE, { fit: 'cover' })
+      .png()
+      .toBuffer();
+    return `data:image/png;base64,${png.toString('base64')}`;
+  } catch {
+    return null;
+  }
+}
+
+// Headline (+ optional stat block) text block. Smaller font size when it's
+// sharing the row with a photo (narrower column) than when it has the full
+// card width to itself.
+function buildTextChildren(headline: Headline, headlineFontSize: number) {
+  return [
+    {
+      type: 'p',
+      props: {
+        style: {
+          fontSize: `${headlineFontSize}px`,
+          fontWeight: 600,
+          color: INK,
+          lineHeight: 1.2,
+          fontFamily: 'Fraunces',
+        },
+        children: headline.headline,
+      },
+    },
+    headline.stat_block
+      ? {
+          type: 'p',
+          props: {
+            style: {
+              fontSize: '22px',
+              color: INK_SOFT,
+              fontFamily: 'Space Mono',
+              marginTop: '20px',
+              paddingTop: '16px',
+              borderTop: `2px dashed ${BLUE}66`,
+            },
+            children: headline.stat_block,
+          },
+        }
+      : null,
+  ].filter((c) => c !== null);
+}
+
 export async function renderOgPng(headline: Headline): Promise<Buffer> {
+  const photoDataUrl = await loadPhotoDataUrl(headline.photo_ref);
+
+  // With a photo: polaroid-style thumbnail on the left, headline/stat block
+  // in a narrower column on the right \u2014 the layout most unfurl cards use.
+  // Without one: the original full-width text block.
+  const contentNode = photoDataUrl
+    ? {
+        type: 'div',
+        props: {
+          style: { display: 'flex', flexDirection: 'row', alignItems: 'flex-start' },
+          children: [
+            {
+              type: 'img',
+              props: {
+                src: photoDataUrl,
+                width: PHOTO_SIZE,
+                height: PHOTO_SIZE,
+                // No object-fit needed — loadPhotoDataUrl already pre-crops
+                // to an exact PHOTO_SIZE×PHOTO_SIZE square via sharp.
+                style: {
+                  width: `${PHOTO_SIZE}px`,
+                  height: `${PHOTO_SIZE}px`,
+                  border: `3px solid ${CARD}`,
+                  outline: `1px solid ${PAPER_EDGE}`,
+                  boxShadow: '0 4px 10px rgba(20,33,61,0.25)',
+                },
+              },
+            },
+            {
+              type: 'div',
+              props: {
+                style: {
+                  display: 'flex',
+                  flexDirection: 'column',
+                  marginLeft: `${PHOTO_TEXT_GAP}px`,
+                  width: `${TEXT_COLUMN_WIDTH}px`,
+                },
+                children: buildTextChildren(headline, 40),
+              },
+            },
+          ],
+        },
+      }
+    : {
+        type: 'div',
+        props: {
+          style: { display: 'flex', flexDirection: 'column' },
+          children: buildTextChildren(headline, 52),
+        },
+      };
+
   const svg = await satori(
     {
       type: 'div',
@@ -95,7 +223,7 @@ export async function renderOgPng(headline: Headline): Promise<Buffer> {
             style: {
               display: 'flex',
               flexDirection: 'column',
-              width: '900px',
+              width: `${CARD_WIDTH}px`,
               padding: '64px 56px 48px',
               backgroundColor: CARD,
               border: `2px solid ${PAPER_EDGE}`,
@@ -117,35 +245,7 @@ export async function renderOgPng(headline: Headline): Promise<Buffer> {
                   },
                 },
               },
-              {
-                type: 'p',
-                props: {
-                  style: {
-                    fontSize: '52px',
-                    fontWeight: 600,
-                    color: INK,
-                    lineHeight: 1.2,
-                    fontFamily: 'Fraunces',
-                  },
-                  children: headline.headline,
-                },
-              },
-              headline.stat_block
-                ? {
-                    type: 'p',
-                    props: {
-                      style: {
-                        fontSize: '24px',
-                        color: INK_SOFT,
-                        fontFamily: 'Space Mono',
-                        marginTop: '28px',
-                        paddingTop: '20px',
-                        borderTop: `2px dashed ${BLUE}66`,
-                      },
-                      children: headline.stat_block,
-                    },
-                  }
-                : null,
+              contentNode,
               { type: 'div', props: { style: { height: '32px' } } },
               {
                 type: 'p',
@@ -159,7 +259,109 @@ export async function renderOgPng(headline: Headline): Promise<Buffer> {
                   children: 'bluejays.space \u00B7 parody \u00B7 not affiliated with MLB',
                 },
               },
-            ].filter((c) => c !== null),
+            ],
+          },
+        },
+      },
+    },
+    { width: OG_WIDTH, height: OG_HEIGHT, fonts: loadFonts() }
+  );
+
+  return new Resvg(svg, { fitTo: { mode: 'width', value: OG_WIDTH } }).render().asPng();
+}
+
+// Renders the static site-wide fallback (public/og-default.png) — used for
+// the homepage's og:image and whenever a per-headline render fails. Same
+// scrapbook look (tape, card, Fraunces/Space Mono) as the live site, so a
+// generic share never looks like a different, unstyled product. Not called
+// at runtime: this is a one-off asset generator. To regenerate after a design
+// tweak, call it from a throwaway vitest test (writeFileSync the result to
+// public/og-default.png) — see git history for the pattern, no permanent
+// script exists since this asset changes rarely.
+export async function renderDefaultOgPng(): Promise<Buffer> {
+  const svg = await satori(
+    {
+      type: 'div',
+      props: {
+        style: {
+          width: `${OG_WIDTH}px`,
+          height: `${OG_HEIGHT}px`,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: PAPER,
+          padding: '40px',
+        },
+        children: {
+          type: 'div',
+          props: {
+            style: {
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              width: `${CARD_WIDTH}px`,
+              padding: '84px 56px 56px',
+              backgroundColor: CARD,
+              border: `2px solid ${PAPER_EDGE}`,
+              boxShadow: '4px 6px 0 rgba(20,33,61,0.12), 0 14px 36px -8px rgba(20,33,61,0.28)',
+            },
+            children: [
+              {
+                type: 'div',
+                props: {
+                  style: {
+                    position: 'absolute',
+                    top: '-12px',
+                    left: '60px',
+                    width: '100px',
+                    height: '28px',
+                    backgroundImage: tapeBackgroundFor(0),
+                    opacity: 0.94,
+                    transform: 'rotate(-4deg)',
+                  },
+                },
+              },
+              {
+                type: 'p',
+                props: {
+                  style: {
+                    fontSize: '72px',
+                    fontWeight: 600,
+                    color: INK,
+                    fontFamily: 'Fraunces',
+                    textAlign: 'center',
+                  },
+                  children: 'bluejays.space',
+                },
+              },
+              { type: 'div', props: { style: { height: '28px' } } },
+              {
+                type: 'p',
+                props: {
+                  style: {
+                    fontSize: '28px',
+                    color: INK_SOFT,
+                    fontFamily: 'Space Mono',
+                    textAlign: 'center',
+                  },
+                  children: 'The best Blue Jays misinformation on the web',
+                },
+              },
+              { type: 'div', props: { style: { height: '56px' } } },
+              {
+                type: 'p',
+                props: {
+                  style: {
+                    fontSize: '18px',
+                    color: `${INK_SOFT}99`,
+                    fontFamily: 'Space Mono',
+                    textAlign: 'center',
+                  },
+                  children: 'Parody · not affiliated with MLB or the Toronto Blue Jays',
+                },
+              },
+            ],
           },
         },
       },

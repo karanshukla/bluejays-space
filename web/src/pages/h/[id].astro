@@ -26,7 +26,12 @@ if (Astro.url.pathname !== canonical) {
 
 const headlines = await getPublishedHeadlines();
 
-const crawlerUA = /Bluesky Cardyb|Discordbot|Twitterbot|Slackbot|facebookexternalhit/i;
+// Covers the platforms SPEC.md names for sharing (Bluesky/Discord/Slack) plus
+// the other common link-unfurl bots. iMessage deliberately isn't listed: its
+// preview fetcher doesn't send a distinctly-identifiable User-Agent, so there's
+// no reliable string to match — it falls back to the static default image.
+const crawlerUA =
+  /Bluesky Cardyb|Discordbot|Twitterbot|Slackbot|facebookexternalhit|WhatsApp|TelegramBot|LinkedInBot|redditbot|SkypeUriPreview/i;
 const isCrawler = crawlerUA.test(Astro.request.headers.get('user-agent') ?? '');
 const ogImage = isCrawler ? `/api/og/${id}.png` : undefined;
 
@@ -41,6 +46,8 @@ const description = headline.stat_block
   ogType="article"
   canonicalPath={canonical}
   ogImage={ogImage}
+  ogImageAlt={headline.headline}
+  articlePublishedTime={headline.published_at ?? undefined}
 >
   <main class="permalink-overlay mx-auto max-w-[1600px] px-6 py-12 sm:px-10" data-focus-id={id}>
     <a href="/" class="block text-center transition-opacity hover:opacity-80">

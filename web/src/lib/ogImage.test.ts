@@ -1,6 +1,18 @@
-import { describe, expect, it } from 'vitest';
-import { ogCacheKey, tapeBackgroundFor } from './ogImage';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { Readable } from 'node:stream';
 import type { Headline } from './db';
+
+const getImage = vi.fn();
+vi.mock('./storage', () => ({ getImage: (...args: unknown[]) => getImage(...args) }));
+
+const sharpChain = {
+  resize: vi.fn(() => sharpChain),
+  png: vi.fn(() => sharpChain),
+  toBuffer: vi.fn(),
+};
+vi.mock('sharp', () => ({ default: vi.fn(() => sharpChain) }));
+
+const { ogCacheKey, tapeBackgroundFor, loadPhotoDataUrl } = await import('./ogImage');
 
 function makeHeadline(overrides: Partial<Headline> = {}): Headline {
   return {
@@ -58,6 +70,52 @@ describe('ogCacheKey', () => {
 
   it('produces a 12-hex-char hash segment', () => {
     expect(ogCacheKey(makeHeadline())).toMatch(/^og\/1-[0-9a-f]{12}\.png$/);
+  });
+});
+
+describe('loadPhotoDataUrl', () => {
+  beforeEach(() => {
+    getImage.mockReset();
+    sharpChain.toBuffer.mockReset();
+    sharpChain.toBuffer.mockResolvedValue(Buffer.from([9, 9, 9]));
+  });
+
+  it('returns null when there is no photo_ref', async () => {
+    expect(await loadPhotoDataUrl(null)).toBeNull();
+    expect(getImage).not.toHaveBeenCalled();
+  });
+
+  it('returns null when the stored image is missing', async () => {
+    getImage.mockResolvedValue(null);
+    expect(await loadPhotoDataUrl('admin/gone.webp')).toBeNull();
+  });
+
+  it('returns null instead of throwing when storage errors', async () => {
+    getImage.mockRejectedValue(new Error('S3 down'));
+    expect(await loadPhotoDataUrl('admin/photo.webp')).toBeNull();
+  });
+
+  it('returns null instead of throwing when sharp cannot decode the bytes', async () => {
+    getImage.mockResolvedValue({
+      body: Readable.from([Buffer.from([1, 2, 3])]),
+      contentType: 'image/webp',
+    });
+    sharpChain.toBuffer.mockRejectedValue(new Error('unsupported image format'));
+    expect(await loadPhotoDataUrl('admin/photo.webp')).toBeNull();
+  });
+
+  it('re-encodes to a PNG data URL regardless of the stored format', async () => {
+    // Re-encoding through sharp is required, not optional: Satori's <img>
+    // handling doesn't reliably decode webp, which is what storeImageBytes
+    // normally produces — passing stored bytes straight through crashes the
+    // render (see the "u is not iterable" failure this was written against).
+    getImage.mockResolvedValue({
+      body: Readable.from([Buffer.from([1, 2, 3])]),
+      contentType: 'image/webp',
+    });
+    const url = await loadPhotoDataUrl('admin/photo.webp');
+    expect(url).toBe(`data:image/png;base64,${Buffer.from([9, 9, 9]).toString('base64')}`);
+    expect(sharpChain.resize).toHaveBeenCalledWith(220, 220, { fit: 'cover' });
   });
 });
 

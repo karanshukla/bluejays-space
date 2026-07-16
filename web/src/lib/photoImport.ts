@@ -4,8 +4,22 @@ import { safeFetch } from './urlSafety';
 
 export const MAX_BYTES = 15 * 1024 * 1024;
 
-const MAX_WIDTH = 1280;
+// Two sizes because the feed's widest single-card layout tops out around
+// 460px (CSS multi-column grid, see global.css .scrapbook-grid) — LARGE covers
+// that at ~2x DPR, SMALL covers the common single/two-column mobile width
+// (~350-460px at 1x-1.5x). Serving everyone the old flat 1280px original was
+// the single biggest Lighthouse "improve image delivery" offender (most
+// visitors see a card far narrower than that).
+const LARGE_WIDTH = 1024;
+const SMALL_WIDTH = 640;
 const WEBP_QUALITY = 82;
+
+// Small-variant key convention: insert `-sm` before the extension. Lets the
+// reader (HeadlineCard.astro) derive the srcset's second URL from `photo_ref`
+// alone, no schema change needed.
+export function smallVariantKey(key: string): string {
+  return key.replace(/(\.[a-z0-9]+)$/i, '-sm$1');
+}
 
 // Raster formats only — deliberately excludes image/svg+xml, which is XML
 // that browsers parse and execute <script> inside, unlike a real raster image.
@@ -50,13 +64,24 @@ export async function storeImageBytes(
   }
 
   try {
-    const webp = await sharp(buf)
-      .rotate()
-      .resize({ width: MAX_WIDTH, withoutEnlargement: true })
-      .webp({ quality: WEBP_QUALITY })
-      .toBuffer();
+    const oriented = sharp(buf).rotate();
+    const [large, small] = await Promise.all([
+      oriented
+        .clone()
+        .resize({ width: LARGE_WIDTH, withoutEnlargement: true })
+        .webp({ quality: WEBP_QUALITY })
+        .toBuffer(),
+      oriented
+        .clone()
+        .resize({ width: SMALL_WIDTH, withoutEnlargement: true })
+        .webp({ quality: WEBP_QUALITY })
+        .toBuffer(),
+    ]);
     const webpKey = key.replace(/\.[a-z0-9]+$/i, '') + '.webp';
-    await uploadImage(webpKey, webp, 'image/webp');
+    await Promise.all([
+      uploadImage(webpKey, large, 'image/webp'),
+      uploadImage(smallVariantKey(webpKey), small, 'image/webp'),
+    ]);
     return webpKey;
   } catch {
     await uploadImage(key, buf, contentType);

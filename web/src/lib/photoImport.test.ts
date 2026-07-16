@@ -8,13 +8,21 @@ vi.mock('./urlSafety', () => ({ safeFetch: (...args: unknown[]) => safeFetch(...
 
 const chain = {
   rotate: vi.fn(() => chain),
+  clone: vi.fn(() => chain),
   resize: vi.fn(() => chain),
   webp: vi.fn(() => chain),
   toBuffer: vi.fn(),
 };
 vi.mock('sharp', () => ({ default: vi.fn(() => chain) }));
 
-const { resolvePhotoRef, storeImageBytes, isAllowedImageType } = await import('./photoImport');
+const { resolvePhotoRef, storeImageBytes, isAllowedImageType, smallVariantKey } =
+  await import('./photoImport');
+
+describe('smallVariantKey', () => {
+  it('inserts -sm before the extension', () => {
+    expect(smallVariantKey('admin/123-photo.webp')).toBe('admin/123-photo-sm.webp');
+  });
+});
 
 describe('isAllowedImageType', () => {
   it('accepts common raster types', () => {
@@ -46,11 +54,17 @@ describe('storeImageBytes', () => {
     expect(uploadImage).toHaveBeenCalledWith(key, buf, 'image/gif');
   });
 
-  it('re-encodes a non-GIF image to webp', async () => {
+  it('re-encodes a non-GIF image to webp, storing a large and a small variant', async () => {
     const buf = Buffer.from([4, 5, 6]);
     const key = await storeImageBytes(buf, 'image/jpeg', 'photo.jpg');
     expect(key).toMatch(/^admin\/\d+-photo\.webp$/);
+    expect(uploadImage).toHaveBeenCalledTimes(2);
     expect(uploadImage).toHaveBeenCalledWith(key, expect.any(Buffer), 'image/webp');
+    expect(uploadImage).toHaveBeenCalledWith(
+      smallVariantKey(key),
+      expect.any(Buffer),
+      'image/webp'
+    );
   });
 
   it('throws when over the size cap', async () => {
@@ -98,7 +112,13 @@ describe('resolvePhotoRef', () => {
 
     const key = await resolvePhotoRef('https://www.sportsnet.ca/wp-content/uploads/photo.jpg');
     expect(key).toMatch(/^admin\/\d+-photo\.webp$/);
+    expect(uploadImage).toHaveBeenCalledTimes(2);
     expect(uploadImage).toHaveBeenCalledWith(key, expect.any(Buffer), 'image/webp');
+    expect(uploadImage).toHaveBeenCalledWith(
+      smallVariantKey(key as string),
+      expect.any(Buffer),
+      'image/webp'
+    );
   });
 
   it('throws when the URL fetch fails outright', async () => {
