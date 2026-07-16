@@ -26,20 +26,12 @@ if (Astro.url.pathname !== canonical) {
 
 const headlines = await getPublishedHeadlines();
 
-// Point the dynamic OG card only at known link-preview crawlers — a human
-// reading the page doesn't need the per-headline image rendered, and skipping
-// it avoids the Satori+resvg pass on ordinary browser visits.
 const crawlerUA = /Bluesky Cardyb|Discordbot|Twitterbot|Slackbot|facebookexternalhit/i;
 const isCrawler = crawlerUA.test(Astro.request.headers.get('user-agent') ?? '');
 const ogImage = isCrawler ? `/api/og/${id}.png` : undefined;
 
-// The OG card image already carries a small parody label baked in (see
-// SPEC.md's parody-labeling section), but the text description is a
-// separate surface some clients show instead of — or alongside — the image,
-// so it needs its own disclosure. A bare stat_block used to be the whole
-// description, silently dropping that disclosure whenever one existed.
 const description = headline.stat_block
-  ? `${headline.stat_block} — ${DEFAULT_DESCRIPTION}`
+  ? `${headline.stat_block} - ${DEFAULT_DESCRIPTION}`
   : undefined;
 ---
 
