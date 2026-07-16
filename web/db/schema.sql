@@ -15,8 +15,12 @@ CREATE TABLE IF NOT EXISTS handles (
 );
 
 -- Headline feed ("The Scrapbook") — draft/publish workflow.
--- Drafts are written by bluejays-ingest; Karan reviews/edits in /admin and
--- flips status to 'published'. The public feed only reads published rows.
+-- Drafts originate from the admin create-form (user-submission intake is a
+-- planned follow-up) and are classified by bluejays-ingest: it assigns a topic
+-- category and a safety verdict (text + image, via Claude vision), auto-
+-- discarding only illegal/doxxing content and flagging the rest for review.
+-- Karan reviews/edits in /admin and flips status to 'published'. The public
+-- feed only reads published rows.
 CREATE TABLE IF NOT EXISTS headlines (
     id               serial PRIMARY KEY,
     headline         text NOT NULL,
@@ -27,6 +31,13 @@ CREATE TABLE IF NOT EXISTS headlines (
     source_post_url  text,          -- register 1 only
     source_note      text,          -- register 1 only
     status           text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'discarded')),
+    -- Auto-classification output (written by the ingest classifier job).
+    -- NULL until first classified; re-set to NULL by web if a draft is edited
+    -- so the job re-runs on the new content.
+    category         text,          -- topic tag: game-recap | trade-rumor | ...
+    safety_status    text CHECK (safety_status IN ('safe', 'review', 'blocked')),
+    safety_reason    text,
+    classified_at    timestamptz,
     created_at       timestamptz NOT NULL DEFAULT now(),
     published_at     timestamptz
 );
@@ -36,19 +47,10 @@ CREATE INDEX IF NOT EXISTS headlines_published_idx
     ON headlines (published_at DESC)
     WHERE status = 'published';
 
--- Ingest dedup: records which Reddit/Bluesky/Mastodon posts have already been
--- fed to the generator so re-runs don't re-surface the same candidate
--- material. `external_id` is the platform's stable id — Reddit fullname
--- (t3_...), Bluesky post uri, or Mastodon status uri. `source` isn't
--- constrained to a fixed enum (plain text) so a new source doesn't need a
--- migration. Created idempotently by ingest at runtime so existing dev
--- volumes pick it up without a `docker compose down -v` reset.
-CREATE TABLE IF NOT EXISTS seen_posts (
-    source       text NOT NULL,        -- 'reddit' | 'bluesky' | 'mastodon'
-    external_id  text NOT NULL,
-    seen_at      timestamptz NOT NULL DEFAULT now(),
-    PRIMARY KEY (source, external_id)
-);
+-- Ingest classifier selects draft rows it hasn't seen yet (classified_at NULL).
+CREATE INDEX IF NOT EXISTS headlines_unclassified_idx
+    ON headlines (created_at)
+    WHERE status = 'draft' AND classified_at IS NULL;
 
 -- Migration: widen headlines.status to allow 'discarded' (soft-delete for a
 -- draft/published row an admin has rejected — see web/src/lib/db.ts
@@ -60,3 +62,20 @@ CREATE TABLE IF NOT EXISTS seen_posts (
 ALTER TABLE headlines DROP CONSTRAINT IF EXISTS headlines_status_check;
 ALTER TABLE headlines ADD CONSTRAINT headlines_status_check
     CHECK (status IN ('draft', 'published', 'discarded'));
+
+-- Migration: add the auto-classification columns + safety_status CHECK to
+-- headlines tables created before the classifier existed (CREATE TABLE IF NOT
+-- EXISTS above only adds them on a fresh init). Same idempotent ADD COLUMN IF
+-- NOT EXISTS / DROP+ADD CONSTRAINT pattern as the status migration above.
+ALTER TABLE headlines ADD COLUMN IF NOT EXISTS category text;
+ALTER TABLE headlines ADD COLUMN IF NOT EXISTS safety_status text;
+ALTER TABLE headlines ADD COLUMN IF NOT EXISTS safety_reason text;
+ALTER TABLE headlines ADD COLUMN IF NOT EXISTS classified_at timestamptz;
+ALTER TABLE headlines DROP CONSTRAINT IF EXISTS headlines_safety_status_check;
+ALTER TABLE headlines ADD CONSTRAINT headlines_safety_status_check
+    CHECK (safety_status IN ('safe', 'review', 'blocked'));
+
+-- Drop the legacy seen_posts dedup table. The classifier reads drafts back
+-- from headlines (classified_at IS NULL), so the per-source post dedup the
+-- old generator relied on is dead. Safe to re-run.
+DROP TABLE IF EXISTS seen_posts;

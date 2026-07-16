@@ -1,180 +1,132 @@
-// bluejays-ingest — headline generation job. Runs once and exits.
-// Dev: `docker compose run --rm ingest`. Real path (ANTHROPIC_API_KEY set)
-// fetches Reddit/Bluesky/Mastodon + FAX style reference, generates one headline
-// per register via Claude, stores any source image, and marks posts as seen.
-// Stub path (key unset) inserts placeholder drafts for credential-free dev.
+// bluejays-ingest — draft classifier job. Runs once and exits.
+// Dev: `docker compose run --rm ingest`. Selects draft rows the classifier
+// hasn't seen yet (classified_at IS NULL), assigns each a topic category and a
+// safety verdict via Claude (text + attached image, vision), and writes the
+// result back. Blocked (illegal/doxxing) drafts are auto-discarded; everything
+// else is flagged for admin review. Requires ANTHROPIC_API_KEY.
 
 import pg from 'pg';
-import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
-import { ensureBucket, uploadImage, downloadAndStoreImage } from './storage.js';
-import { fetchFaxPosts } from './fax.js';
-import { fetchRedditPosts } from './reddit.js';
-import { fetchBlueskyPosts } from './bluesky.js';
-import { fetchMastodonPosts } from './mastodon.js';
-import { warmUpMlbMcp } from './mcpWarmup.js';
-import { generateHeadline } from './claude.js';
-import { ensureSeenPostsTable, getSeenIds, markSeen, filterUnseen } from './dedup.js';
+import { classify } from './classify.js';
+import { getImageBytes } from './storage.js';
 
 const { Pool } = pg;
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export function configSummary() {
   const present = (name) => (process.env[name] ? 'set' : 'NOT SET');
   return {
     DATABASE_URL: present('DATABASE_URL'),
     ANTHROPIC_API_KEY: present('ANTHROPIC_API_KEY'),
-    GENERATION_MODEL: process.env.GENERATION_MODEL || 'claude-haiku-4-5',
-    REDDIT_CLIENT_ID: present('REDDIT_CLIENT_ID'),
-    BLUESKY_IDENTIFIER: present('BLUESKY_IDENTIFIER'),
-    MLB_MCP_URL: present('MLB_MCP_URL'),
-    MLB_MCP_AUTH_TOKEN: present('MLB_MCP_AUTH_TOKEN'),
+    CLASSIFIER_MODEL: process.env.CLASSIFIER_MODEL || 'claude-haiku-4-5',
+    S3_ENDPOINT: present('S3_ENDPOINT'),
   };
 }
 
-export function stubDrafts(demoPhotoRef) {
-  return [
-    {
-      headline: 'Home Run Dragon found as lifeless as Trey Yesavage’s pitching',
-      register: 1,
-      player_ids: [],
-      stat_block: '(stub) placeholder stat line',
-      photo_ref: demoPhotoRef,
-      source_post_url: null,
-      source_note: '(stub) placeholder — real fetch/generation pending',
-    },
-    {
-      headline: '(stub) fabricated-scenario placeholder headline',
-      register: 2,
-      player_ids: [],
-      stat_block: '(stub) placeholder stat line',
-      photo_ref: null,
-      source_post_url: null,
-      source_note: null,
-    },
-  ];
+// Pure verdict applicator — the job's only rule, extracted so it's testable
+// without a DB. Returns the set of headline columns to write for a given
+// classification result. Blocked (illegal/doxxing) rows are auto-discarded;
+// safe/review keep their status and just get flagged.
+export function applyVerdict(result) {
+  const base = {
+    category: result.category,
+    safety_status: result.safety_status,
+    safety_reason: result.safety_reason,
+    classified_at: 'now()',
+  };
+  if (result.safety_status === 'blocked') {
+    return { ...base, status: "'discarded'" };
+  }
+  return base;
 }
 
-async function insertDrafts(pool, drafts) {
-  for (const draft of drafts) {
+async function getUnclassifiedDrafts(pool) {
+  const { rows } = await pool.query(
+    `SELECT id, headline, stat_block, source_note, photo_ref
+     FROM headlines
+     WHERE status = 'draft' AND classified_at IS NULL
+     ORDER BY created_at`
+  );
+  return rows;
+}
+
+async function saveClassification(pool, id, result) {
+  const cols = applyVerdict(result);
+  // classified_at uses now() literally; safety_status/category/reason are
+  // parameters. status is only present for the blocked branch.
+  if (cols.status) {
     await pool.query(
-      `INSERT INTO headlines (headline, register, player_ids, stat_block, photo_ref, source_post_url, source_note)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [
-        draft.headline,
-        draft.register,
-        draft.player_ids,
-        draft.stat_block,
-        draft.photo_ref,
-        draft.source_post_url,
-        draft.source_note,
-      ]
+      `UPDATE headlines
+       SET category = $2, safety_status = $3, safety_reason = $4,
+           classified_at = now(), status = 'discarded'
+       WHERE id = $1`,
+      [id, cols.category, cols.safety_status, cols.safety_reason]
+    );
+  } else {
+    await pool.query(
+      `UPDATE headlines
+       SET category = $2, safety_status = $3, safety_reason = $4, classified_at = now()
+       WHERE id = $1`,
+      [id, cols.category, cols.safety_status, cols.safety_reason]
     );
   }
 }
 
-async function uploadDemoImage() {
-  if (!process.env.S3_ENDPOINT) {
-    console.log('[ingest] S3_ENDPOINT not set, skipping demo image upload');
-    return null;
-  }
-  await ensureBucket();
-  const bytes = await readFile(path.join(__dirname, '..', 'assets', 'demo.jpg'));
-  const key = 'stub/demo.jpg';
-  await uploadImage(key, bytes, 'image/jpeg');
-  return key;
-}
+async function runClassification(pool) {
+  const drafts = await getUnclassifiedDrafts(pool);
+  console.log(`[ingest] ${drafts.length} unclassified draft(s) to process`);
+  if (drafts.length === 0) return;
 
-function sourceImageUrl(post) {
-  if (!post) return null;
-  if (post.imageUrl) return post.imageUrl;
-  if (Array.isArray(post.images) && post.images[0]?.fullsize) {
-    return post.images[0].fullsize;
-  }
-  return null;
-}
-
-function imageKeyFor(post, ext = 'jpg') {
-  const stamp = Date.now();
-  const slug = (post.external_id || 'post').replace(/[^a-z0-9_-]/gi, '').slice(0, 40);
-  return `${post.source}/${slug || 'post'}-${stamp}.${ext}`;
-}
-
-async function runRealGeneration(pool) {
-  // Start waking mlb-api-mcp immediately: it sleeps when idle and a cold-start
-  // can take minutes. Awaited just before generation so the wait lands here
-  // instead of racing Anthropic's per-tool-call MCP timeout mid-generation.
-  const mcpWarmup = warmUpMlbMcp();
-
-  const faxPosts = await fetchFaxPosts();
-
-  const [redditPosts, blueskyPosts, mastodonPosts] = await Promise.all([
-    fetchRedditPosts(),
-    fetchBlueskyPosts(),
-    fetchMastodonPosts(),
-  ]);
-  const newReddit = filterUnseen(redditPosts, await getSeenIds(pool, 'reddit'));
-  const newBluesky = filterUnseen(blueskyPosts, await getSeenIds(pool, 'bluesky'));
-  const newMastodon = filterUnseen(mastodonPosts, await getSeenIds(pool, 'mastodon'));
-  const candidatePosts = [...newReddit, ...newBluesky, ...newMastodon];
-  console.log(
-    `[ingest] candidates: ${newReddit.length} reddit, ${newBluesky.length} bluesky, ${newMastodon.length} mastodon ` +
-      `(${redditPosts.length - newReddit.length}/${blueskyPosts.length - newBluesky.length}/${mastodonPosts.length - newMastodon.length} already seen)`
-  );
-
-  if (candidatePosts.length === 0) {
-    console.log('[ingest] no new candidate posts; generating register-2 only');
-  }
-
-  await mcpWarmup;
-
-  const drafts = [];
-  if (candidatePosts.length > 0) {
-    const draft = await generateHeadline({ register: 1, candidatePosts, faxPosts });
-    const credited = candidatePosts.find((p) => p.permalink === draft.source_post_url);
-    const imgUrl = sourceImageUrl(credited) || sourceImageUrl(candidatePosts[0]);
-    if (imgUrl) {
-      const key = await downloadAndStoreImage(imgUrl, imageKeyFor(credited || candidatePosts[0]));
-      if (key) draft.photo_ref = key;
+  let processed = 0;
+  let blocked = 0;
+  for (const draft of drafts) {
+    // Best-effort image fetch: a missing/unreadable photo must not block text
+    // classification. The classifier degrades to text-only in that case.
+    let image = null;
+    if (draft.photo_ref) {
+      const img = await getImageBytes(draft.photo_ref);
+      if (img) {
+        image = { base64: img.buffer.toString('base64'), mediaType: img.contentType };
+      }
     }
-    drafts.push(draft);
+
+    try {
+      const result = await classify({
+        headline: draft.headline,
+        statBlock: draft.stat_block,
+        sourceNote: draft.source_note,
+        image,
+      });
+      await saveClassification(pool, draft.id, result);
+      processed += 1;
+      if (result.safety_status === 'blocked') blocked += 1;
+    } catch (err) {
+      // One draft failing must not abort the run; leave it unclassified so the
+      // next run retries it.
+      console.error(`[ingest] draft #${draft.id} failed: ${err.message}`);
+    }
   }
 
-  drafts.push(await generateHeadline({ register: 2, candidatePosts: [], faxPosts }));
-
-  await insertDrafts(pool, drafts);
-  console.log(`[ingest] inserted ${drafts.length} draft row(s)`);
-
-  await markSeen(pool, 'reddit', newReddit.map((p) => p.external_id).filter(Boolean));
-  await markSeen(pool, 'bluesky', newBluesky.map((p) => p.external_id).filter(Boolean));
-  await markSeen(pool, 'mastodon', newMastodon.map((p) => p.external_id).filter(Boolean));
+  console.log(`[ingest] classified ${processed}/${drafts.length} (${blocked} auto-discarded)`);
 }
 
 async function main() {
-  console.log('[ingest] starting generation run');
+  console.log('[ingest] starting classification run');
   console.log('[ingest] config:', configSummary());
 
   if (!process.env.DATABASE_URL) {
-    console.log('[ingest] DATABASE_URL not set, skipping DB write');
+    console.log('[ingest] DATABASE_URL not set, nothing to do');
     console.log('[ingest] done');
+    return;
+  }
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.warn('[ingest] ANTHROPIC_API_KEY not set — cannot classify, exiting');
+    process.exitCode = 1;
     return;
   }
 
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   try {
-    await ensureSeenPostsTable(pool);
-
-    if (!process.env.ANTHROPIC_API_KEY) {
-      console.log('[ingest] ANTHROPIC_API_KEY not set — running stub path');
-      const demoPhotoRef = await uploadDemoImage();
-      const drafts = stubDrafts(demoPhotoRef);
-      await insertDrafts(pool, drafts);
-      console.log(`[ingest] inserted ${drafts.length} stub draft row(s)`);
-      return;
-    }
-
-    await runRealGeneration(pool);
+    await runClassification(pool);
   } finally {
     await pool.end();
   }

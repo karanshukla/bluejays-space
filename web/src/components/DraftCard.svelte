@@ -37,6 +37,20 @@
   const isFactAnchored = $derived(register === 2 && !!sourceNote);
   const isPublished = $derived(draft.status === 'published');
 
+  // Auto-classification display (read-only — the ingest job writes these).
+  // safety_status colors: review = amber nudge, blocked = red (rare, since the
+  // job auto-discards blocked drafts; shown only in the race window).
+  const safetyBadgeClass = $derived.by(() => {
+    switch (draft.safety_status) {
+      case 'review':
+        return 'bg-amber-100 text-amber-800';
+      case 'blocked':
+        return 'bg-red/10 text-red';
+      default:
+        return 'bg-emerald-100 text-emerald-700';
+    }
+  });
+
   async function save() {
     saving = true;
     error = null;
@@ -119,6 +133,19 @@
     >
       Register {register}
     </span>
+    {#if draft.category}
+      <span class="rounded bg-ink/5 px-2 py-0.5 text-xs font-medium text-ink-soft">
+        {draft.category}
+      </span>
+    {/if}
+    {#if draft.safety_status}
+      <span
+        class={`rounded px-2 py-0.5 text-xs font-semibold ${safetyBadgeClass}`}
+        title={draft.safety_reason ?? ''}
+      >
+        {draft.safety_status}{draft.safety_reason ? ` · ${draft.safety_reason}` : ''}
+      </span>
+    {/if}
     {#if isFactAnchored}
       <span class="rounded bg-red/10 px-2 py-0.5 text-xs font-semibold text-red">
         fact-anchored · verify before publish

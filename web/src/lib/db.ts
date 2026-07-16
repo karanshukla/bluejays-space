@@ -19,6 +19,13 @@ export interface Headline {
   source_post_url: string | null;
   source_note: string | null;
   status: 'draft' | 'published' | 'discarded';
+  // Auto-classification output written by the ingest classifier job.
+  // category is plain text (taxonomy defined in the classifier prompt), not an
+  // enum, so adding a tag needs no migration; safety_status mirrors the DB CHECK.
+  category: string | null;
+  safety_status: 'safe' | 'review' | 'blocked' | null;
+  safety_reason: string | null;
+  classified_at: string | null;
   created_at: string;
   published_at: string | null;
 }
@@ -69,7 +76,11 @@ export interface HeadlineEdit {
 export async function updateHeadline(id: number, edit: HeadlineEdit): Promise<void> {
   await getPool().query(
     `UPDATE headlines
-     SET headline = $2, register = $3, stat_block = $4, photo_ref = $5, source_post_url = $6, source_note = $7
+     SET headline = $2, register = $3, stat_block = $4, photo_ref = $5, source_post_url = $6, source_note = $7,
+         -- Content changed, so the previous classification is stale. Clear all
+         -- four fields (not just classified_at) so no stale badge lingers before
+         -- the job re-runs; classified_at NULL makes the classifier pick it up.
+         category = NULL, safety_status = NULL, safety_reason = NULL, classified_at = NULL
      WHERE id = $1`,
     [
       id,

@@ -8,7 +8,7 @@ These docs assume you've already read [`../SPEC.md`](../SPEC.md) — the canonic
 
 The three areas this directory used to track as the roadmap are done and now live under [`archive/`](./archive/):
 
-- **[archive/ingestion-pipeline.md](./archive/ingestion-pipeline.md)** — real generation flow (Reddit/Bluesky/FAX fetch, MLB Stats via the mlb-api-mcp MCP connector, two-register Claude generation, image download into MinIO). `ingest/src/index.js` runs this whenever `ANTHROPIC_API_KEY` is set.
+- **[archive/ingestion-pipeline.md](./archive/ingestion-pipeline.md)** — the original generation flow (Reddit/Bluesky/FAX fetch, MLB Stats via the mlb-api-mcp MCP connector, two-register Claude generation, image download into MinIO). **Superseded** — `ingest/` is now a draft *classifier* (assigns a topic category + safety verdict to existing drafts via Claude, text + image; auto-discards illegal/doxxing content). Kept as historical context for why the now-deleted fetch/MCP/generation code looked the way it did.
 - **[archive/admin-security.md](./archive/admin-security.md)** — `/admin` gated by Cloudflare Access, with in-app JWT verification (`web/src/middleware.ts`) as defense-in-depth against the Railway fallback domain. The site is live on Railway with this wired up — see `production-verification.md` for the reference config if something needs checking.
 - **[archive/ui-plan.md](./archive/ui-plan.md)** — the admin inline-edit Svelte island, self-hosted display font, real alt text on public photos. A few visual/a11y items from this doc are still open — carried forward into `frontend-roadmap.md` rather than left stranded in the archive.
 
