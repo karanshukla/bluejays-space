@@ -14,6 +14,13 @@ const headline = await getHeadlineById(id);
 if (!headline) {
   return new Response('Not Found', { status: 404 });
 }
+
+// Point the dynamic OG card only at known link-preview crawlers — a human
+// reading the page doesn't need the per-headline image rendered, and skipping
+// it avoids the Satori+resvg pass on ordinary browser visits.
+const crawlerUA = /Bluesky Cardyb|Discordbot|Twitterbot|Slackbot|facebookexternalhit/i;
+const isCrawler = crawlerUA.test(Astro.request.headers.get('user-agent') ?? '');
+const ogImage = isCrawler ? `/api/og/${id}.png` : undefined;
 ---
 
 <Base
@@ -21,6 +28,7 @@ if (!headline) {
   description={headline.stat_block ?? undefined}
   ogType="article"
   canonicalPath={`/h/${id}`}
+  ogImage={ogImage}
 >
   <main class="mx-auto max-w-2xl px-6 py-12">
     <a
