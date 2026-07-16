@@ -59,9 +59,11 @@ Sitemap: https://bluejays.space/sitemap.xml
 ```
 (Cloudflare Access already blocks crawlers from reading `/admin`'s content — this is a non-security second layer, purely about not advertising the path.)
 
-### 1.7 Favicon
+### 1.7 Favicon — shipped
 
-`web/src/layouts/Base.astro`'s `<head>` has no `<link rel="icon">` — add `web/public/favicon.svg` (a simple mark in the site's existing palette, `--color-blue: #134a8e` / `--color-red: #c8102e` from `global.css` — doesn't need to be elaborate, just not a broken/default browser icon) plus a `favicon.ico` fallback for older clients, and `<link rel="icon" href="/favicon.svg" type="image/svg+xml" />` in `Base.astro`.
+`web/public/` now exists with `favicon-32.png`, `favicon-256.png`, `apple-touch-icon.png`, and `favicon.ico`, all wired into `Base.astro`'s `<head>` (`<link rel="icon" ...>`, `<link rel="apple-touch-icon" ...>`, `<link rel="shortcut icon" ...>`).
+
+**Deviation from the original plan, decided in flight:** the plan above called for a palette mark (`favicon.svg` in `#134a8e`/`#c8102e`). What shipped is a real Blue Jay photo cropped to icon sizes — a 32/256px PNG + 180px apple-touch-icon + `.ico`, sourced from a public-domain U.S. Fish & Wildlife Service photo (Dave Menke, DeSoto National Wildlife Refuge; [Wikimedia Commons source](https://commons.wikimedia.org/wiki/File:Cyanocitta_cristata_FWS.jpg)). Rationale: a recognizable bird reads better at 32px than an abstract two-color mark, and a public-domain government photo keeps the rights story as clean as the MLB/Wikimedia photo path the feed already uses. An SVG palette mark is still a reasonable future polish (crisper at all DPRs, smaller), but the "not a broken/default browser icon" bar is met.
 
 ## 2. Public feed pagination
 
@@ -75,18 +77,26 @@ Sitemap: https://bluejays.space/sitemap.xml
 - Prev/next links: plain `<a href="/?page=N">` at the top and bottom of the card grid, omitted on whichever end has no adjacent page (no page 0 link, no next-page link past the last page).
 - Land this alongside `docs/backend-api-plan.md` item 7 — the query and the page render together, not as two separate changes.
 
-## 3. Handles site UI
+### 2a. Wide-screen scrapbook stretch — shipped
+
+The scrapbook used to cap at 3 columns at the `lg` (1024px) breakpoint and sit in a `max-w-6xl` (1152px) container, so on a 1440px+ or 1920px+ display the feed left a lot of horizontal dead space and stacked more cards vertically than it needed to. **Shipped** in PR #70: the container is now `max-w-[1600px]` (`index.astro`) and the `.scrapbook-grid` media ladder in `global.css` adds two tiers — `column-count: 4` at ≥1440px, `column-count: 5` at ≥1920px. Mobile/tablet (<640px) stays single-column as before; the tilt, tape pseudo-elements, and `break-inside: avoid` all key off `.scrapbook-grid > li` and carry over to the new columns with no JS. Less vertical scrolling on widescreen, no change to the mobile feed.
+
+## 3. Admin redesign — shipped
+
+The admin page (`admin.astro` + `DraftCard.svelte`) shipped originally as functional scaffolding (neutral grays, single-column, plain form controls). **Shipped in PR #70** as a redesign in the scrapbook brand palette (navy ink on cream card stock, blue accents, paper-edge borders, tape-style status badges) with a two-column desktop layout: the draft queue is the wider left column, and a right rail holds the create-from-scratch `<details>` form and the "Recently published" list (sticky at `top: 2rem`). Below the `lg` (1024px) breakpoint it stacks to one column. All field names, field types, the create-form's `POST` action, and the DraftCard API contract (`fetch` to `/admin/api/headlines/[id]/{update,publish,unpublish,discard}`) are unchanged — pure markup/class restructure. The 8 user-facing em dashes in admin copy were also removed (`→` middot or sentence break); code-comment dashes were left alone.
+
+## 4. Handles site UI
 
 `handles/templates/index.html` + `handles/static/` (Go service, server-rendered HTML + a small JS spinner for async PR-creation polling) hasn't had any design pass — it predates the Fraunces/Tailwind work done on `web`. Since it's a separate Go binary with its own template, it can't just inherit `web`'s Tailwind build; either hand-write matching CSS or accept it'll look visually distinct from the main site (it already lives on a different subdomain, `handles.bluejays.space`, so some visual distinction is less jarring than it would be on the same domain). Low priority relative to items 1-2, but worth a pass before treating the handles feature as "done" rather than "functional."
 
-## 4. Remaining items from the archived UI plan, not yet re-verified
+## 5. Remaining items from the archived UI plan, not yet re-verified
 
 `docs/archive/ui-plan.md` flagged three things as still-open when the island/font/alt-text work landed; none of them were touched since, so they carry forward as-is:
 - The Pudding-style visual/spacing pass, done against real photographed content (not stub text) — hasn't happened, since ingest was still stub-only when that doc was written and real drafts are only just starting to flow now that generation is real.
-- A full WCAG contrast audit specifically on the register/fact-anchored badges (`bg-amber-100`/`text-amber-800`, `bg-red-100`/`text-red-800` in `DraftCard.svelte`) — never actually run against a contrast checker, just asserted as "worth checking."
+- A full WCAG contrast audit specifically on the register/fact-anchored badges in `DraftCard.svelte` (currently `bg-amber-100`/`text-amber-800` for the register-2 badge, `bg-red/10`/`text-red` for the fact-anchored badge — the redesign kept these utility classes rather than moving to palette tokens, so the audit is against the same Tailwind colors as before) — never actually run against a contrast checker, just asserted as "worth checking."
 - A deliberate mobile walkthrough with real (non-stub) content, since register-2 copy and real photos stress-test wrapping/truncation differently than placeholder text.
 
-## 5. Dark mode / theming
+## 6. Dark mode / theming
 
 Not in `SPEC.md` at all — not recommending it, just noting it's untouched (`global.css` has no `prefers-color-scheme` handling) in case it comes up as a request later. Don't build speculatively.
 

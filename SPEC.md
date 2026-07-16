@@ -82,7 +82,7 @@ The whole point of a FAX-Sports-style site is that individual headlines get shar
 - **Open Graph / Twitter Card previews**: sharing a permalink on Bluesky/Discord/iMessage/Slack renders a real preview card (title, image, description), not a bare link. The preview image is generated per headline (headline text + stat block composited over the photo), not just the raw stored photo — see the Parody Labeling section above for the one content decision this feature required: the generated preview image carries the same small parody label as the site footer.
 - **RSS feed** (`/feed.xml`) of published headlines — lets people follow the site without an account (accounts are out of scope, see below).
 - **Sitemap** (`/sitemap.xml`) and **`robots.txt`** — the public feed and every permalink are indexable; `/admin` is explicitly excluded from both (Cloudflare Access already blocks crawlers from reading it, but there's no reason to advertise the path either).
-- **Favicon** — a simple mark in the site's existing palette (`#134a8e` blue / `#c8102e` red), not a placeholder/broken-icon default.
+- **Favicon** — a real mark, not a placeholder/broken-icon default. **Shipped** as a 32/256px PNG + apple-touch-icon + `.ico` fallback, sourced from a public-domain U.S. Fish & Wildlife Service Blue Jay photo (Dave Menke, DeSoto NWR) — see `docs/frontend-roadmap.md` § 1.7 for the deviation from the original palette-mark idea and the source link.
 
 ## Architecture
 
