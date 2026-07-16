@@ -47,11 +47,6 @@ CREATE INDEX IF NOT EXISTS headlines_published_idx
     ON headlines (published_at DESC)
     WHERE status = 'published';
 
--- Ingest classifier selects draft rows it hasn't seen yet (classified_at NULL).
-CREATE INDEX IF NOT EXISTS headlines_unclassified_idx
-    ON headlines (created_at)
-    WHERE status = 'draft' AND classified_at IS NULL;
-
 -- Migration: widen headlines.status to allow 'discarded' (soft-delete for a
 -- draft/published row an admin has rejected — see web/src/lib/db.ts
 -- discardHeadline()). CREATE TABLE IF NOT EXISTS above only applies the wider
@@ -67,6 +62,10 @@ ALTER TABLE headlines ADD CONSTRAINT headlines_status_check
 -- headlines tables created before the classifier existed (CREATE TABLE IF NOT
 -- EXISTS above only adds them on a fresh init). Same idempotent ADD COLUMN IF
 -- NOT EXISTS / DROP+ADD CONSTRAINT pattern as the status migration above.
+-- NOTE: these ALTERs must run BEFORE any statement that references the new
+-- columns (the headlines_unclassified_idx partial index below filters on
+-- classified_at) — on an existing DB the CREATE TABLE IF NOT EXISTS above is a
+-- no-op, so the columns don't exist until these ALTERs run.
 ALTER TABLE headlines ADD COLUMN IF NOT EXISTS category text;
 ALTER TABLE headlines ADD COLUMN IF NOT EXISTS safety_status text;
 ALTER TABLE headlines ADD COLUMN IF NOT EXISTS safety_reason text;
@@ -79,3 +78,10 @@ ALTER TABLE headlines ADD CONSTRAINT headlines_safety_status_check
 -- from headlines (classified_at IS NULL), so the per-source post dedup the
 -- old generator relied on is dead. Safe to re-run.
 DROP TABLE IF EXISTS seen_posts;
+
+-- Ingest classifier selects draft rows it hasn't seen yet (classified_at NULL).
+-- Must come AFTER the ADD COLUMN classified_at migration above so the column
+-- exists on already-initialized volumes.
+CREATE INDEX IF NOT EXISTS headlines_unclassified_idx
+    ON headlines (created_at)
+    WHERE status = 'draft' AND classified_at IS NULL;
