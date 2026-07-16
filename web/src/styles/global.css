@@ -121,13 +121,13 @@ body {
   transform: rotate(0deg) scale(1.015);
 }
 
-/* A single strip of washi tape pinning the top of each card — blue/white
-   diagonal stripe by default (like ballpark bunting), red on one variant for
-   color variety without turning it into a rainbow. Base placement/angle;
-   the .tape-a..f variants below (picked per-card in index.astro, keyed off
-   the headline's own id so it doesn't reshuffle as the feed changes) vary
-   angle, length, and placement so the board doesn't look machine-stamped —
-   a real scrapbook's tape isn't cut to one identical size and angle. */
+/* A single strip of washi tape pinning the top of each card. The base style
+   is a blue/white diagonal stripe (like ballpark bunting); the .tape-a..f
+   variants below (picked per-card in HeadlineCard.astro, keyed off the
+   headline's own id so a card's tape stays put as the feed changes) vary
+   angle, length, placement, color, and pattern. The mix is roughly even
+   blue/red across the six so the board doesn't read as one color — a real
+   scrapbook's tape comes off a mix of rolls, not all the same spool. */
 .clipping::before {
   content: '';
   position: absolute;
@@ -175,6 +175,7 @@ body {
   width: 4.25rem;
   height: 1.25rem;
   transform: rotate(7deg);
+  background: var(--color-tape);
 }
 .tape-e::before {
   top: -0.45rem;
@@ -182,6 +183,7 @@ body {
   width: 3.1rem;
   height: 1.5rem;
   transform: rotate(2deg);
+  background: var(--color-tape-alt);
 }
 .tape-f::before {
   top: -0.7rem;
@@ -189,6 +191,7 @@ body {
   width: 5.5rem;
   height: 1.2rem;
   transform: rotate(-5deg);
+  --color-tape: var(--color-tape-alt);
 }
 
 /* Polaroid-style photo mount: thick bottom margin, crisp (not sepia-aged —

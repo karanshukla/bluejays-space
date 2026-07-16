@@ -93,6 +93,7 @@
 
   let fileInput = $state<HTMLInputElement | null>(null);
   let root = $state<HTMLDivElement | null>(null);
+  let dropzone = $state<HTMLDivElement | null>(null);
 </script>
 
 <div bind:this={root} onpaste={onPaste} class="space-y-2">
@@ -120,6 +121,7 @@
   {/if}
 
   <div
+    bind:this={dropzone}
     role="button"
     tabindex="0"
     ondragover={(e) => {
@@ -129,13 +131,14 @@
     ondragleave={() => (dragging = false)}
     ondrop={onDrop}
     onclick={() => fileInput?.click()}
+    onmouseenter={() => dropzone?.focus()}
     onkeydown={(e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         fileInput?.click();
       }
     }}
-    class={`flex cursor-pointer items-center justify-center rounded border-2 border-dashed px-3 py-4 text-sm ${dragging ? 'border-blue bg-blue/5' : 'border-paper-edge bg-paper hover:border-blue/50'}`}
+    class={`flex cursor-pointer items-center justify-center rounded border-2 border-dashed px-3 py-4 text-sm outline-none transition-colors focus-visible:border-blue focus-visible:ring-2 focus-visible:ring-blue/30 ${dragging ? 'border-blue bg-blue/5' : 'border-paper-edge bg-paper hover:border-blue/50'}`}
   >
     <span class="text-center text-ink-soft">
       {uploading
