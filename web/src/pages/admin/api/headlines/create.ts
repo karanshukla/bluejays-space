@@ -8,10 +8,14 @@ export const prerender = false;
 export const POST: APIRoute = async ({ request, redirect }) => {
   const form = await request.formData();
   const headline = asNullableText(form.get('headline'));
-  const register = Number(form.get('register'));
-  if (!headline || (register !== 1 && register !== 2)) {
+  if (!headline) {
     return new Response('Missing required fields', { status: 400 });
   }
+  // Optional: register is a leftover generation-style tag (real-event riff vs.
+  // fabricated scenario), not a field an admin (or a public submitter) needs
+  // to set to author a headline. Left blank on the form, it stays null.
+  const registerNum = Number(form.get('register'));
+  const register = registerNum === 1 || registerNum === 2 ? (registerNum as 1 | 2) : null;
 
   let photoRef: string | null;
   try {

@@ -12,13 +12,18 @@ function getPool(): pg.Pool {
 export interface Headline {
   id: number;
   headline: string;
-  register: 1 | 2;
+  register: 1 | 2 | null;
   player_ids: string[] | null;
   stat_block: string | null;
   photo_ref: string | null;
   source_post_url: string | null;
   source_note: string | null;
   status: 'draft' | 'published' | 'discarded';
+  // Who authored the draft. 'submission' rows came in through the public
+  // /submit form and carry unverified text/photo, so the admin queue treats
+  // them as needing extra scrutiny.
+  source: 'admin' | 'submission';
+  submitter_name: string | null;
   // Auto-classification output written by the ingest classifier job.
   // category is plain text (taxonomy defined in the classifier prompt), not an
   // enum, so adding a tag needs no migration; safety_status mirrors the DB CHECK.
@@ -38,7 +43,7 @@ export async function getPublishedHeadlines(): Promise<Headline[]> {
 }
 
 // Single published headline for a permalink page. Returns null for a draft or
-// discarded row — a permalink to an unpublished headline must 404, never leak
+// discarded row. A permalink to an unpublished headline must 404, never leak
 // the unreviewed row.
 export async function getHeadlineById(id: number): Promise<Headline | null> {
   const { rows } = await getPool().query<Headline>(
@@ -55,7 +60,7 @@ export async function getDraftHeadlines(): Promise<Headline[]> {
   return rows;
 }
 
-// Capped window for the admin unpublish UI — not the full publish history.
+// Capped window for the admin unpublish UI, not the full publish history.
 export async function getRecentPublishedHeadlines(limit = 20): Promise<Headline[]> {
   const { rows } = await getPool().query<Headline>(
     `SELECT * FROM headlines WHERE status = 'published' ORDER BY published_at DESC LIMIT $1`,
@@ -66,7 +71,7 @@ export async function getRecentPublishedHeadlines(limit = 20): Promise<Headline[
 
 export interface HeadlineEdit {
   headline: string;
-  register: 1 | 2;
+  register: 1 | 2 | null;
   stat_block: string | null;
   photo_ref: string | null;
   source_post_url: string | null;
@@ -108,8 +113,8 @@ export async function unpublishHeadline(id: number): Promise<void> {
   );
 }
 
-// Soft-deletes (kept, not hard-deleted) — discarded register-2 generations are
-// useful signal for prompt tuning later.
+// Soft-deletes (kept, not hard-deleted). Discarded generations are useful
+// signal for prompt tuning later.
 export async function discardHeadline(id: number): Promise<void> {
   await getPool().query(
     `UPDATE headlines SET status = 'discarded' WHERE id = $1 AND status != 'discarded'`,
@@ -119,7 +124,7 @@ export async function discardHeadline(id: number): Promise<void> {
 
 export interface HeadlineCreate {
   headline: string;
-  register: 1 | 2;
+  register: 1 | 2 | null;
   stat_block: string | null;
   photo_ref: string | null;
   source_post_url: string | null;
@@ -138,5 +143,28 @@ export async function createHeadline(input: HeadlineCreate): Promise<void> {
       input.source_post_url,
       input.source_note,
     ]
+  );
+}
+
+export interface HeadlineSubmission {
+  headline: string;
+  stat_block: string | null;
+  photo_ref: string | null;
+  source_note: string | null;
+  submitter_name: string | null;
+}
+
+// Public /submit intake (issue #82). Just the fields the classifier and the
+// public card actually use: headline, stat_block, photo_ref (the classifier
+// reads all three, see ingest/src/classify.js), and source_note (extra
+// context for the classifier, also shown on the card). No register, no
+// source_post_url, no player tagging. Lands as a normal draft row so the
+// existing classifier + admin review + publish gate apply unchanged;
+// `source`/`submitter_name` just mark where it came from.
+export async function createSubmittedHeadline(input: HeadlineSubmission): Promise<void> {
+  await getPool().query(
+    `INSERT INTO headlines (headline, player_ids, stat_block, photo_ref, source_note, submitter_name, source)
+     VALUES ($1, '{}', $2, $3, $4, $5, 'submission')`,
+    [input.headline, input.stat_block, input.photo_ref, input.source_note, input.submitter_name]
   );
 }
