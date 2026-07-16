@@ -86,19 +86,19 @@ CREATE INDEX IF NOT EXISTS headlines_unclassified_idx
     ON headlines (created_at)
     WHERE status = 'draft' AND classified_at IS NULL;
 
--- Migration: relax register to optional. It was a generation-style tag (real-
+-- Migration: relax register to optional. It was a generation-style tag (real
 -- event riff vs. fabricated scenario) from the retired auto-generation
 -- pipeline; admin-authored and (now) publicly-submitted drafts have no
 -- mechanical need to set it. Postgres CHECK constraints pass on NULL, so
--- dropping NOT NULL is enough to allow it — the (1, 2) check still applies
+-- dropping NOT NULL is enough to allow it, the (1, 2) check still applies
 -- to any non-null value. Safe to re-run.
 ALTER TABLE headlines ALTER COLUMN register DROP NOT NULL;
 
 -- Migration: public headline submissions (issue #82). submitter_name is a
--- free-text display credit — no account system backs it, it's just what
+-- free-text display credit, no account system backs it, it's just what
 -- shows on the card. source distinguishes admin-authored drafts from publicly
 -- submitted ones so the admin queue can flag the latter for extra scrutiny
--- (unverified provenance on the text, no photo path yet). Safe to re-run.
+-- (unverified provenance on the text and any attached photo). Safe to re-run.
 ALTER TABLE headlines ADD COLUMN IF NOT EXISTS submitter_name text;
 ALTER TABLE headlines ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'admin';
 ALTER TABLE headlines DROP CONSTRAINT IF EXISTS headlines_source_check;

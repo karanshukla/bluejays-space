@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 // db.ts does `import pg from 'pg'; const { Pool } = pg; new Pool(...)`. Mock the
 // default export so destructured Pool constructs an object with a controllable
-// query method — no real DB needed.
+// query method, no real DB needed.
 const query = vi.fn();
 vi.mock('pg', () => ({
   default: {
@@ -47,26 +47,38 @@ describe('createSubmittedHeadline', () => {
 
     await createSubmittedHeadline({
       headline: 'Bo Bichette drafted by three teams simultaneously',
+      stat_block: '.311 AVG',
+      photo_ref: 'admin/123-bo.webp',
+      source_note: 'saw it on the subway',
       submitter_name: 'A Fan',
-      context_note: 'saw it on the subway',
     });
 
     expect(query).toHaveBeenCalledWith(expect.stringContaining("'submission'"), [
       'Bo Bichette drafted by three teams simultaneously',
+      '.311 AVG',
+      'admin/123-bo.webp',
       'saw it on the subway',
       'A Fan',
     ]);
   });
 
-  it('accepts a submission with no name or context', async () => {
+  it('accepts a submission with only a headline', async () => {
     query.mockResolvedValue({ rows: [] });
 
     await createSubmittedHeadline({
       headline: 'Anonymous tip',
+      stat_block: null,
+      photo_ref: null,
+      source_note: null,
       submitter_name: null,
-      context_note: null,
     });
 
-    expect(query).toHaveBeenCalledWith(expect.any(String), ['Anonymous tip', null, null]);
+    expect(query).toHaveBeenCalledWith(expect.any(String), [
+      'Anonymous tip',
+      null,
+      null,
+      null,
+      null,
+    ]);
   });
 });

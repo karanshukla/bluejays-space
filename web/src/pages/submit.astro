@@ -1,6 +1,12 @@
 ---
 import Base from '../layouts/Base.astro';
-import { HEADLINE_MAX, SUBMITTER_NAME_MAX, CONTEXT_NOTE_MAX } from '../lib/submissionLimits';
+import PhotoInput from '../components/PhotoInput.svelte';
+import {
+  HEADLINE_MAX,
+  SUBMITTER_NAME_MAX,
+  STAT_BLOCK_MAX,
+  SOURCE_NOTE_MAX,
+} from '../lib/submissionLimits';
 
 export const prerender = false;
 
@@ -8,8 +14,8 @@ const sent = Astro.url.searchParams.has('sent');
 const error = Astro.url.searchParams.get('error');
 const errorMessage: Record<string, string> = {
   missing: "Headline can't be empty.",
-  too_long: `Keep it under ${HEADLINE_MAX} characters (and your name/context short too).`,
-  rate_limited: 'Too many submissions from you recently — try again in a bit.',
+  too_long: `Keep the headline under ${HEADLINE_MAX} characters (and the other fields short too).`,
+  rate_limited: 'Too many submissions from you recently. Try again in a bit.',
 };
 ---
 
@@ -23,13 +29,13 @@ const errorMessage: Record<string, string> = {
     </h1>
     <p class="mt-4 text-center text-sm text-ink-soft">
       Got a bit? Send it in. Every submission goes into the same review queue as everything else on
-      the site — nothing publishes until a human's read it.
+      the site. Nothing publishes until a human's read it.
     </p>
 
     {
       sent && (
         <p class="mt-8 rounded-lg border border-paper-edge bg-card p-4 text-center text-sm font-medium text-ink">
-          Thanks — it's in the queue for review.
+          Thanks, it's in the queue for review.
         </p>
       )
     }
@@ -60,19 +66,43 @@ const errorMessage: Record<string, string> = {
       </label>
 
       <label class="block text-sm font-medium text-ink">
-        Your name <span class="font-normal text-ink-soft/70">(optional — shown on the card)</span>
+        Stat block <span class="font-normal text-ink-soft/70">(optional)</span>
         <input
-          name="submitter_name"
-          maxlength={SUBMITTER_NAME_MAX}
-          class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
+          name="stat_block"
+          maxlength={STAT_BLOCK_MAX}
+          placeholder="e.g. .320 AVG, 40 HR"
+          class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink font-mono text-sm"
         />
       </label>
 
       <label class="block text-sm font-medium text-ink">
         What's this riffing on? <span class="font-normal text-ink-soft/70">(optional)</span>
         <input
-          name="context_note"
-          maxlength={CONTEXT_NOTE_MAX}
+          name="source_note"
+          maxlength={SOURCE_NOTE_MAX}
+          class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
+        />
+      </label>
+
+      <div>
+        <span class="block text-sm font-medium text-ink">
+          Photo <span class="font-normal text-ink-soft/70">(optional)</span>
+        </span>
+        <div class="mt-1">
+          <PhotoInput
+            client:load
+            name="photo_ref"
+            importEndpoint="/api/submit-photo"
+            allowRawKey={false}
+          />
+        </div>
+      </div>
+
+      <label class="block text-sm font-medium text-ink">
+        Your name <span class="font-normal text-ink-soft/70">(optional, shown on the card)</span>
+        <input
+          name="submitter_name"
+          maxlength={SUBMITTER_NAME_MAX}
           class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
         />
       </label>

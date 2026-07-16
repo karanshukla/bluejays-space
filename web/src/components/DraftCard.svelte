@@ -120,7 +120,7 @@
     {#if draft.source === 'submission'}
       <span
         class="rounded bg-blue/10 px-2 py-0.5 text-xs font-semibold text-blue"
-        title="Came in through the public /submit form — unverified provenance, review with extra care"
+        title="Came in through the public /submit form. Unverified provenance, review with extra care"
       >
         Submitted{draft.submitter_name ? ` · ${draft.submitter_name}` : ' · anonymous'}
       </span>
@@ -177,7 +177,7 @@
           bind:value={register}
           class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
         >
-          <option value={null}>— unset —</option>
+          <option value={null}>(unset)</option>
           <option value={1}>1 · real-event riff</option>
           <option value={2}>2 · fabricated scenario</option>
         </select>

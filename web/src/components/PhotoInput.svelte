@@ -3,8 +3,24 @@
     name?: string;
     currentRef?: string | null;
     onchange?: (key: string | null) => void;
+    // Where uploads/URL fetches are posted. Defaults to the admin route;
+    // the public submission form (submit.astro) passes /api/submit-photo,
+    // its own rate-limited, unauthenticated equivalent.
+    importEndpoint?: string;
+    // Admin usage lets you paste an already-uploaded object key straight
+    // into the URL field, skipping the import round-trip. A public
+    // submitter has no legitimate reason to do that (there's no prior
+    // upload of theirs to reference), so submit.astro turns this off and
+    // treats any non-http(s) input as a mistake instead of a raw key.
+    allowRawKey?: boolean;
   };
-  let { name, currentRef = null, onchange }: Props = $props();
+  let {
+    name,
+    currentRef = null,
+    onchange,
+    importEndpoint = '/admin/api/photos/import',
+    allowRawKey = true,
+  }: Props = $props();
 
   let key = $state<string | null>(currentRef);
   let urlInput = $state('');
@@ -37,7 +53,7 @@
     try {
       const form = new FormData();
       form.append('file', file);
-      const res = await fetch('/admin/api/photos/import', { method: 'POST', body: form });
+      const res = await fetch(importEndpoint, { method: 'POST', body: form });
       if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
       const data = (await res.json()) as { key: string };
       setKey(data.key);
@@ -52,7 +68,11 @@
     const url = urlInput.trim();
     if (!url) return;
     if (!/^https?:\/\//i.test(url)) {
-      setKey(url);
+      if (allowRawKey) {
+        setKey(url);
+      } else {
+        error = 'Paste an image URL, or use the upload area above.';
+      }
       return;
     }
     uploading = true;
@@ -60,7 +80,7 @@
     try {
       const form = new FormData();
       form.append('url', url);
-      const res = await fetch('/admin/api/photos/import', { method: 'POST', body: form });
+      const res = await fetch(importEndpoint, { method: 'POST', body: form });
       if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
       const data = (await res.json()) as { key: string };
       setKey(data.key);
@@ -161,7 +181,9 @@
   </div>
 
   <label class="block text-sm font-medium text-ink">
-    <span class="text-ink-soft/70">…or paste a URL / existing key</span>
+    <span class="text-ink-soft/70"
+      >{allowRawKey ? '…or paste a URL / existing key' : '…or paste an image URL'}</span
+    >
     <input
       bind:value={urlInput}
       onblur={importUrl}
@@ -171,7 +193,7 @@
           importUrl();
         }
       }}
-      placeholder="https://… or admin/1234-photo.webp"
+      placeholder={allowRawKey ? 'https://… or admin/1234-photo.webp' : 'https://…'}
       class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
     />
   </label>

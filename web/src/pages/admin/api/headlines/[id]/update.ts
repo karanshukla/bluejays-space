@@ -14,7 +14,7 @@ export const POST: APIRoute = async ({ params, request }) => {
   if (!headline) {
     return new Response('Missing required fields', { status: 400 });
   }
-  // Optional — see create.ts. Left blank (e.g. a submitted draft that never
+  // Optional, see create.ts. Left blank (e.g. a submitted draft that never
   // had one), it stays null rather than blocking the save.
   const registerNum = Number(form.get('register'));
   const register = registerNum === 1 || registerNum === 2 ? (registerNum as 1 | 2) : null;
