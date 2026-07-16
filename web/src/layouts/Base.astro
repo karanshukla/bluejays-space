@@ -4,6 +4,7 @@ import '@fontsource/fraunces/600.css';
 import '@fontsource/fraunces/400.css';
 import '@fontsource/space-mono/400.css';
 import '@fontsource/space-mono/700.css';
+import { getSiteUrl } from '../lib/site';
 
 const DEFAULT_DESCRIPTION =
   'Parody Blue Jays headlines. Not affiliated with MLB or the Toronto Blue Jays.';
@@ -18,7 +19,7 @@ interface Props {
 
 const { title, description, ogImage, ogType = 'website', canonicalPath } = Astro.props;
 
-const site = Astro.site ?? new URL('http://localhost:4321');
+const site = getSiteUrl();
 const canonical = new URL(canonicalPath ?? Astro.url.pathname, site);
 const imageUrl = new URL(ogImage ?? '/og-default.png', site);
 const desc = description ?? DEFAULT_DESCRIPTION;
