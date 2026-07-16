@@ -4,10 +4,24 @@ import '@fontsource/fraunces/600.css';
 import '@fontsource/fraunces/400.css';
 import '@fontsource/space-mono/400.css';
 import '@fontsource/space-mono/700.css';
+
+const DEFAULT_DESCRIPTION =
+  'Parody Blue Jays headlines. Not affiliated with MLB or the Toronto Blue Jays.';
+
 interface Props {
   title: string;
+  description?: string;
+  ogImage?: string;
+  ogType?: 'website' | 'article';
+  canonicalPath?: string;
 }
-const { title } = Astro.props;
+
+const { title, description, ogImage, ogType = 'website', canonicalPath } = Astro.props;
+
+const site = Astro.site ?? new URL('http://localhost:4321');
+const canonical = new URL(canonicalPath ?? Astro.url.pathname, site);
+const imageUrl = new URL(ogImage ?? '/og-default.png', site);
+const desc = description ?? DEFAULT_DESCRIPTION;
 ---
 
 <!doctype html>
@@ -20,6 +34,23 @@ const { title } = Astro.props;
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="shortcut icon" href="/favicon.ico" />
     <title>{title}</title>
+
+    <link rel="canonical" href={canonical.href} />
+    <meta name="description" content={desc} />
+
+    <meta property="og:site_name" content="bluejays.space" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={desc} />
+    <meta property="og:image" content={imageUrl.href} />
+    <meta property="og:url" content={canonical.href} />
+    <meta property="og:type" content={ogType} />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={desc} />
+    <meta name="twitter:image" content={imageUrl.href} />
+
+    <link rel="alternate" type="application/rss+xml" title="bluejays.space" href="/feed.xml" />
   </head>
   <body class="min-h-screen text-ink antialiased">
     <header class="flex justify-end px-6 py-4">

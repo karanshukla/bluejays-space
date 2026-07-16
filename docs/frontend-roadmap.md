@@ -1,33 +1,36 @@
 # Frontend follow-up — sharing, scale, and the polish `docs/archive/ui-plan.md` left open
 
-The admin island, self-hosted display font, and real alt text all shipped (see `docs/archive/ui-plan.md`). This doc covers what's next: the site currently has no way to be *shared* as individual headlines (no permalinks, no social preview cards, no feed syndication), which matters a lot for a parody headline site — that's the whole distribution mechanism for something in the FAX Sports/Onion mold. It also covers what's left of the original visual/a11y punch list, and the handles site's UI, which nothing has touched yet.
+The admin island, self-hosted display font, and real alt text all shipped (see `docs/archive/ui-plan.md`). The entire sharing/discovery section (§ 1 — permalinks, OG/Twitter tags, RSS, sitemap, robots.txt, and the dynamic per-headline OG image) has now shipped. Below also covers what's left of the original visual/a11y punch list, feed pagination, and the handles site's UI, which nothing has touched yet.
 
-## 1. Sharing & discovery — the biggest gap
+## 1. Sharing & discovery — shipped
 
-Right now `web/` has no `robots.txt`, no sitemap, no Open Graph tags, and `/` is the only page (no per-headline permalink). (A favicon and the `public/` directory itself have since shipped — see § 1.7.) Every decision below is final — see `SPEC.md` → "Sharing & Discovery" and the Parody Labeling section for the product-level calls (permalinks/OG/RSS/sitemap in scope; the generated OG image carries the parody label; handles stays JSON+GitHub-PR, unrelated but resolved the same pass). This section is the technical spec an implementing agent should be able to build straight from.
+All of § 1 has shipped: SITE_URL config (§ 1.0), permalinks (§ 1.1), OG/Twitter meta tags (§ 1.2), the dynamic per-headline OG image (§ 1.3), RSS (§ 1.4), sitemap (§ 1.5), robots.txt (§ 1.6), and favicon (§ 1.7). Individual headlines are now shareable with real preview cards. See `SPEC.md` → "Sharing & Discovery" and the Parody Labeling section for the product-level calls. What's below is the original spec, annotated with what shipped.
 
-### 1.0 Prerequisite: canonical site URL
+### 1.0 Prerequisite: canonical site URL — shipped
 
-None of the below can produce correct absolute URLs (`og:image`, RSS `<link>`, sitemap `<loc>`) without knowing the production origin. Add:
-- `SITE_URL=https://bluejays.space` to `.env.example` and Railway's `bluejays-web` service (local dev can default it to `http://localhost:4321` if unset).
-- `site: process.env.SITE_URL` in `web/astro.config.mjs`'s `defineConfig({...})` — this is what lets `new URL(path, Astro.site)` (or Astro's own `Astro.url`/`astro:content` helpers) build absolute URLs instead of every call site hand-concatenating a base.
+`SITE_URL` is in `.env.example` (default `http://localhost:4321`), the `web` service's docker-compose `environment:` block, and `site: process.env.SITE_URL` is in `web/astro.config.mjs`'s `defineConfig`. Production sets `SITE_URL=https://bluejays.space` in the Railway dashboard. Every absolute-URL call site (`og:image`, RSS `<link>`, sitemap `<loc>`) now goes through `new URL(path, Astro.site)` with a localhost fallback when `Astro.site` is unset.
 
-### 1.1 Per-headline permalink page
+### 1.1 Per-headline permalink page — shipped
 
-- Route: `web/src/pages/h/[id].astro`.
-- New query in `web/src/lib/db.ts`: `getHeadlineById(id: number): Promise<Headline | null>`, `WHERE id = $1 AND status = 'published'` — a draft's id must return `null`, never the row.
-- Page behavior: `null` → `return new Response('Not Found', { status: 404 })` (or `Astro.rewrite('/404')` if a 404 page exists — none does yet; a plain 404 response is sufficient, a styled 404 page is optional polish, not a blocker).
-- Found → render the same card markup as the feed. **Extract the per-card JSX currently inline in `web/src/pages/index.astro`'s `.map()` (the `<div class="clipping ...">` block, roughly lines 40-76) into a shared `web/src/components/HeadlineCard.astro` taking a `headline` + `tapeVariant` prop** — both `index.astro` and `h/[id].astro` render it, so the markup doesn't fork in two places. Card gets a tape variant on the permalink page too (`TAPE_VARIANTS[h.id % TAPE_VARIANTS.length]`, same formula, for visual consistency with how it looks in the feed).
-- Add a small "← Back to the feed" link to `/` above or below the card — the permalink is a landing point from an external share, not a dead end.
+- Route: `web/src/pages/h/[id].astro` (SSR, `prerender = false`).
+- `getHeadlineById(id: number): Promise<Headline | null>` in `web/src/lib/db.ts`, `WHERE id = $1 AND status = 'published'` — a draft/discarded id returns `null`, never the row. Covered by a unit test (`db.test.ts`) asserting the 404-on-draft invariant.
+- Page behavior: `null` or a non-positive/non-numeric id → `new Response('Not Found', { status: 404 })`. Verified: draft id, id=0, negative id, non-numeric id, and non-existent id all return 404.
+- Found → renders `HeadlineCard.astro` (the shared component extracted from `index.astro`'s inline `.map()` block — both pages now render it, markup doesn't fork). Card gets the same tape variant the feed would (`TAPE_VARIANTS[h.id % TAPE_VARIANTS.length]`, exported from the component). A "← Back to the feed" link sits above the card.
 
-### 1.2 Open Graph / Twitter Card meta tags
+### 1.2 Open Graph / Twitter Card meta tags — shipped
 
-- Extend `web/src/layouts/Base.astro`'s `Props` interface: `title: string` (existing, required) plus new optional fields `description?: string`, `ogImage?: string` (absolute or root-relative path), `ogType?: 'website' | 'article'` (default `'website'`), `canonicalPath?: string` (defaults to the current request path if omitted).
-- In `<head>`, add: `<link rel="canonical" href={new URL(canonicalPath ?? Astro.url.pathname, Astro.site)} />`, `<meta property="og:title" content={title} />`, `<meta property="og:description" content={description ?? defaultDescription} />` (site-wide default description: something like "Parody Blue Jays headlines. Not affiliated with MLB."), `<meta property="og:image" content={new URL(ogImage ?? '/og-default.png', Astro.site)} />`, `<meta property="og:url" content={...canonical...} />`, `<meta property="og:type" content={ogType} />`, `<meta name="twitter:card" content="summary_large_image" />`, plus `twitter:title`/`twitter:description`/`twitter:image` mirroring the `og:*` values.
-- `web/src/pages/index.astro` passes no OG overrides (site-wide defaults apply, `ogType="website"`). `web/src/pages/h/[id].astro` passes `title={h.headline}`, `description={h.stat_block ?? undefined}`, `ogImage={ogImageUrlFor(h)}` (see 1.3), `ogType="article"`.
-- Add a static fallback image at `web/public/og-default.png` (1200×630, site wordmark on the blue/red palette) for the index page and any permalink whose per-headline render fails or is still in flight — never leave `og:image` pointing at nothing.
+`Base.astro`'s `Props` extended with `description?`, `ogImage?`, `ogType?` (default `'website'`), `canonicalPath?`. The `<head>` now emits `<link rel="canonical">`, `og:site_name`, `og:title`, `og:description`, `og:image`, `og:url`, `og:type`, `twitter:card` (`summary_large_image`), the mirrored `twitter:*` fields, and an RSS autodiscovery `<link rel="alternate" type="application/rss+xml">`. All absolute URLs go through `new URL(path, Astro.site)` with a localhost fallback. Default description: "Parody Blue Jays headlines. Not affiliated with MLB or the Toronto Blue Jays."
 
-### 1.3 Dynamically-generated OG images — decided approach: in-process Satori render, cached in MinIO
+- `index.astro` passes no overrides (site-wide defaults, `ogType="website"`).
+- `h/[id].astro` passes `title={headline.headline}`, `description={headline.stat_block}`, `ogType="article"`, `canonicalPath={/h/${id}}`. `ogImage` is not overridden yet (points at the static `/og-default.png`) — § 1.3 will wire the per-headline card here once it lands.
+- Static fallback `web/public/og-default.png` shipped (1200×630, blue palette background, white "bluejays.space" wordmark) so `og:image` is never empty.
+
+### 1.3 Dynamically-generated OG images — shipped
+
+**Implemented exactly as the decided spec below.** `satori` + `@resvg/resvg-js` render in-process inside `web`, cached in the existing MinIO bucket under `og/{id}-{hash}.png` (content hash of `headline|stat_block|photo_ref`). The Satori typography risk the spec flagged ("check that Satori's flexbox-only engine turns out too limited against the real Fraunces/Space Mono typography") was validated before committing — the prototype rendered cleanly with both fonts at the intended sizes, no missing glyphs. Key implementation details:
+- **Render module** `web/src/lib/ogImage.ts`: lazy-loads the Fraunces 600 + Space Mono 400 `.woff` files (Satori takes TTF/OTF/WOFF, not woff2) from `@fontsource`, resolved from `process.cwd()` (not `import.meta.url`, which points into `dist/` in the built image).
+- **Route** `web/src/pages/api/og/[id].png.ts`: cache check → render → upload → serve, with a process-local in-flight `Map` deduplicating near-simultaneous renders for the same key. On render failure, 302s to `/og-default.png` so a crawler never sees a broken image. No UA gate on this route (publicly fetchable like `/api/images/*`).
+- **Crawler gate** in `h/[id].astro`: only crawlers (Discordbot, Bluesky Cardyb, Twitterbot, Slackbot, facebookexternalhit) get `og:image` pointed at the dynamic route; normal browser visits use the static fallback (no render needed for a human already reading the page).
 
 A static `og:image` (just the stored `photo_ref`) previews as a bare photo with no headline text — the thing actually read at a glance in an unfurl. Build a real per-headline card instead: headline text + stat block composited over the photo, parody label in the corner (per `SPEC.md`'s Parody Labeling section — this is the one case where the generated image, unlike the live-page card, carries the label). `karanshukla/navyfragen-app`'s `opengraph-service` is a useful reference for the *pattern*, not to be ported wholesale — its scale-specific parts don't apply here (see below).
 
@@ -38,18 +41,17 @@ A static `og:image` (just the stored `photo_ref`) previews as a bare photo with 
 **Caching, decided**: store generated PNGs in the existing MinIO bucket (already wired for photos, already has `web`'s `/api/images/*` proxy pattern to reuse) under key `og/{id}-{hash}.png`, where `hash` is a short SHA-256 (first 12 hex chars is plenty) of `` `${headline}|${stat_block}|${photo_ref}` ``. A content hash — not a bare TTL — makes invalidation exact: an admin edit changes the hash, so the old cached PNG is simply never looked up again (a stale orphan, cleaned up the same pass as `docs/backend-api-plan.md` item 3's general orphaned-image sweep — no separate cache-eviction mechanism needed). This sidesteps needing a new `updated_at` column on `headlines` purely for cache-busting.
 - `api/og/[id].png.ts` logic: compute the hash, check MinIO for `og/{id}-{hash}.png`, serve it if present; otherwise render via Satori/resvg, upload to that key, serve the bytes. Add a process-local in-flight `Map<string, Promise<Buffer>>` keyed on the same `{id}-{hash}` so two near-simultaneous crawler hits for a newly-published headline share one render instead of racing two.
 
-### 1.4 RSS feed
+### 1.4 RSS feed — shipped
 
-- Use the official `@astrojs/rss` package (`npm install @astrojs/rss` in `web/`) rather than hand-rolling XML.
-- `web/src/pages/feed.xml.ts`: `GET` handler returns `rss({ title: 'bluejays.space', description: <same default description as OG>, site: context.site, items: headlines.map(h => ({ title: h.headline, pubDate: h.published_at, link: \`/h/${h.id}\`, description: h.stat_block ?? undefined })) })`. Source the list from `getPublishedHeadlines`, capped to the most recent 50 (`ORDER BY published_at DESC LIMIT 50` — add this cap to the query or a new `getRecentPublishedHeadlines`-style variant; don't ship the whole table into every feed fetch).
+Uses `@astrojs/rss`. `web/src/pages/feed.xml.ts` is an SSR `GET` handler returning `rss({ title, description, site: context.site ?? localhost, items })`. Items sourced from `getRecentPublishedHeadlines(50)` — reuses the existing query (just a larger limit) rather than adding a new variant. Each item maps `title` → headline, `pubDate` → `published_at`, `link` → `/h/${id}`, `description` → `stat_block`. An RSS autodiscovery `<link rel="alternate">` is in `Base.astro`'s `<head>`.
 
-### 1.5 Sitemap
+### 1.5 Sitemap — shipped
 
-`@astrojs/sitemap`'s static integration only knows about file-based routes discovered at build time — it can't enumerate dynamic `/h/{id}` permalinks, whose set changes on every publish. **Decided: hand-write `web/src/pages/sitemap.xml.ts`** as an SSR `GET` route instead of using the integration: query `getPublishedHeadlines`, emit a `<urlset>` with one `<url>` for `/` and one per `/h/{id}`, using `SITE_URL` for every `<loc>`. `/admin` and its `/admin/api/*` routes are never included (they're not public content, separate from the `robots.txt` disallow below being defense-in-depth on top of Cloudflare Access).
+Hand-written SSR route (`web/src/pages/sitemap.xml.ts`, not the `@astrojs/sitemap` integration — that can't enumerate dynamic `/h/{id}` permalinks). Queries `getPublishedHeadlines`, emits a `<urlset>` with one `<url>` for `/` and one per `/h/{id}`, every `<loc>` built from `Astro.site` (SITE_URL). `/admin` and `/admin/api/*` are never included. Returns `Content-Type: application/xml`.
 
-### 1.6 `robots.txt`
+### 1.6 `robots.txt` — shipped
 
-Static file, `web/public/robots.txt`:
+Static file at `web/public/robots.txt`:
 ```
 User-agent: *
 Disallow: /admin

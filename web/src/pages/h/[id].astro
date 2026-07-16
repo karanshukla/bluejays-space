@@ -1,0 +1,45 @@
+---
+import Base from '../../layouts/Base.astro';
+import HeadlineCard from '../../components/HeadlineCard.astro';
+import { getHeadlineById } from '../../lib/db';
+
+export const prerender = false;
+
+const id = Number(Astro.params.id);
+if (!Number.isInteger(id) || id <= 0) {
+  return new Response('Not Found', { status: 404 });
+}
+
+const headline = await getHeadlineById(id);
+if (!headline) {
+  return new Response('Not Found', { status: 404 });
+}
+
+// Point the dynamic OG card only at known link-preview crawlers — a human
+// reading the page doesn't need the per-headline image rendered, and skipping
+// it avoids the Satori+resvg pass on ordinary browser visits.
+const crawlerUA = /Bluesky Cardyb|Discordbot|Twitterbot|Slackbot|facebookexternalhit/i;
+const isCrawler = crawlerUA.test(Astro.request.headers.get('user-agent') ?? '');
+const ogImage = isCrawler ? `/api/og/${id}.png` : undefined;
+---
+
+<Base
+  title={headline.headline}
+  description={headline.stat_block ?? undefined}
+  ogType="article"
+  canonicalPath={`/h/${id}`}
+  ogImage={ogImage}
+>
+  <main class="mx-auto max-w-2xl px-6 py-12">
+    <a
+      href="/"
+      class="font-mono text-xs font-bold tracking-wide text-blue uppercase hover:underline"
+    >
+      &larr; Back to the feed
+    </a>
+
+    <ul class="scrapbook-grid mt-8">
+      <HeadlineCard headline={headline} />
+    </ul>
+  </main>
+</Base>
