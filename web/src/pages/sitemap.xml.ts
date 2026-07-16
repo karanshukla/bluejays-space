@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getPublishedHeadlines } from '../lib/db';
 import { getSiteUrl } from '../lib/site';
+import { permalinkPath } from '../lib/slug';
 
 export const prerender = false;
 
@@ -10,7 +11,7 @@ export const GET: APIRoute = async () => {
 
   const urls = [`${origin}/`];
   for (const h of headlines) {
-    urls.push(`${origin}/h/${h.id}`);
+    urls.push(`${origin}${permalinkPath(h.id, h.headline)}`);
   }
 
   const body = `<?xml version="1.0" encoding="UTF-8"?>

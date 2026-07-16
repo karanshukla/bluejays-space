@@ -1,5 +1,6 @@
 ---
 import type { Headline } from '../lib/db';
+import { permalinkPath } from '../lib/slug';
 
 // Keyed off the headline id, not list position, so a card's tape stays put as
 // other headlines publish/unpublish around it.
@@ -7,14 +8,18 @@ export const TAPE_VARIANTS = ['tape-a', 'tape-b', 'tape-c', 'tape-d', 'tape-e', 
 
 interface Props {
   headline: Headline;
+  // On a permalink page, the focused card stays full-opacity; every other card
+  // is dimmed to draw the eye to the one being shared.
+  dimmed?: boolean;
 }
 
-const { headline: h } = Astro.props;
+const { headline: h, dimmed = false } = Astro.props;
 const photoAlt = h.player_ids?.[0] ? `${h.player_ids[0]}` : '';
 const tapeVariant = TAPE_VARIANTS[h.id % TAPE_VARIANTS.length];
+const url = permalinkPath(h.id, h.headline);
 ---
 
-<li>
+<li class={dimmed ? 'opacity-25 grayscale transition-all' : ''} data-headline-id={h.id}>
   <div
     class={`clipping ${tapeVariant} relative border border-paper-edge bg-card p-5 pt-7 shadow-[3px_4px_0_rgba(20,33,61,0.12),0_10px_24px_-8px_rgba(20,33,61,0.28)]`}
   >
@@ -54,5 +59,45 @@ const tapeVariant = TAPE_VARIANTS[h.id % TAPE_VARIANTS.length];
         </p>
       )
     }
+
+    <a
+      href={url}
+      class="focus-link absolute bottom-2 left-3 text-ink-soft/40 transition-colors hover:text-blue"
+      title="Open this headline"
+      aria-label="Open this headline"
+    >
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        ><circle cx="12" cy="12" r="3"></circle><circle cx="12" cy="12" r="9"></circle></svg
+      >
+    </a>
+
+    <button
+      type="button"
+      class="copy-link absolute right-3 bottom-2 text-ink-soft/40 transition-colors hover:text-blue"
+      data-url={url}
+      title="Copy link"
+      aria-label="Copy link to this headline"
+    >
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        ><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path
+          d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg
+      >
+    </button>
   </div>
 </li>

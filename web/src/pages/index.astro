@@ -26,4 +26,23 @@ const headlines = await getPublishedHeadlines();
       {headlines.map((h) => <HeadlineCard headline={h} />)}
     </ul>
   </main>
+
+  <script>
+    document.querySelectorAll<HTMLButtonElement>('.copy-link').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const path = btn.dataset.url;
+        if (!path) return;
+        try {
+          await navigator.clipboard.writeText(`${location.origin}${path}`);
+          const svg = btn.querySelector('svg');
+          if (svg) {
+            svg.style.color = 'var(--color-blue)';
+            setTimeout(() => (svg.style.color = ''), 1500);
+          }
+        } catch {
+          window.open(path, '_blank');
+        }
+      });
+    });
+  </script>
 </Base>

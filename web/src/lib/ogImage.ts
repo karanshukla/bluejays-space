@@ -44,6 +44,16 @@ export function ogCacheKey(headline: Headline): string {
   return `og/${headline.id}-${hash}.png`;
 }
 
+// Palette tokens mirrored from web/src/styles/global.css so the OG card reads
+// as the same scrapbook aesthetic as the live feed card.
+const PAPER = '#eef3fb';
+const CARD = '#ffffff';
+const INK = '#14213d';
+const INK_SOFT = '#3d5578';
+const PAPER_EDGE = '#b8cbe8';
+const BLUE = '#134a8e';
+const TAPE = '#1e4d8c';
+
 export async function renderOgPng(headline: Headline): Promise<Buffer> {
   const svg = await satori(
     {
@@ -54,51 +64,86 @@ export async function renderOgPng(headline: Headline): Promise<Buffer> {
           height: `${OG_HEIGHT}px`,
           display: 'flex',
           flexDirection: 'column',
+          alignItems: 'center',
           justifyContent: 'center',
-          padding: '80px',
-          backgroundColor: '#134a8e',
+          backgroundColor: PAPER,
+          padding: '40px',
         },
-        children: [
-          {
-            type: 'p',
-            props: {
-              style: {
-                fontSize: '60px',
-                fontWeight: 600,
-                color: 'white',
-                lineHeight: 1.2,
-                fontFamily: 'Fraunces',
-              },
-              children: headline.headline,
+        children: {
+          type: 'div',
+          props: {
+            style: {
+              display: 'flex',
+              flexDirection: 'column',
+              width: '900px',
+              padding: '64px 56px 48px',
+              backgroundColor: CARD,
+              border: `2px solid ${PAPER_EDGE}`,
+              boxShadow: '4px 6px 0 rgba(20,33,61,0.12), 0 14px 36px -8px rgba(20,33,61,0.28)',
             },
-          },
-          headline.stat_block
-            ? {
+            children: [
+              // Washi tape pinned across the top — diagonal blue/white stripe,
+              // same repeating-linear-gradient as the live .clipping::before.
+              {
+                type: 'div',
+                props: {
+                  style: {
+                    position: 'absolute',
+                    top: '-12px',
+                    left: '60px',
+                    width: '100px',
+                    height: '28px',
+                    backgroundImage: `repeating-linear-gradient(45deg, ${TAPE}, ${TAPE} 6px, white 6px, white 12px)`,
+                    opacity: 0.94,
+                    transform: 'rotate(-4deg)',
+                  },
+                },
+              },
+              {
                 type: 'p',
                 props: {
                   style: {
-                    fontSize: '26px',
-                    color: 'rgba(255,255,255,0.8)',
-                    fontFamily: 'Space Mono',
-                    marginTop: '24px',
+                    fontSize: '52px',
+                    fontWeight: 600,
+                    color: INK,
+                    lineHeight: 1.2,
+                    fontFamily: 'Fraunces',
                   },
-                  children: headline.stat_block,
+                  children: headline.headline,
                 },
-              }
-            : null,
-          {
-            type: 'p',
-            props: {
-              style: {
-                fontSize: '20px',
-                color: 'rgba(255,255,255,0.55)',
-                fontFamily: 'Space Mono',
-                marginTop: 'auto',
               },
-              children: 'bluejays.space \u00B7 parody \u00B7 not affiliated with MLB',
-            },
+              headline.stat_block
+                ? {
+                    type: 'p',
+                    props: {
+                      style: {
+                        fontSize: '24px',
+                        color: INK_SOFT,
+                        fontFamily: 'Space Mono',
+                        marginTop: '28px',
+                        paddingTop: '20px',
+                        borderTop: `2px dashed ${BLUE}66`,
+                      },
+                      children: headline.stat_block,
+                    },
+                  }
+                : null,
+              { type: 'div', props: { style: { height: '32px' } } },
+              {
+                type: 'p',
+                props: {
+                  style: {
+                    fontSize: '18px',
+                    color: `${INK_SOFT}99`,
+                    fontFamily: 'Space Mono',
+                    textAlign: 'center',
+                  },
+                  children: 'bluejays.space \u00B7 parody \u00B7 not affiliated with MLB',
+                },
+              },
+            ].filter((c) => c !== null),
           },
-        ].filter((c) => c !== null),
+        },
       },
     },
     { width: OG_WIDTH, height: OG_HEIGHT, fonts: loadFonts() }
