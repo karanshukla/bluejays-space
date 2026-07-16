@@ -1,6 +1,6 @@
 # Local development for the bluejays.space stack.
 #   docker compose up -d            -> db + minio + web (hot-reload dev)
-#   docker compose run --rm ingest  -> one-shot generation run (manual profile)
+#   docker compose run --rm ingest  -> one-shot draft-classification run (manual profile)
 #   docker compose down -v          -> tear down + drop the Postgres/MinIO volumes
 #
 # minio is a self-hosted S3-compatible object store standing in for Cloudflare
@@ -105,13 +105,7 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-bluejays}:${POSTGRES_PASSWORD:-bluejays}@db:5432/${POSTGRES_DB:-bluejays}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      GENERATION_MODEL: ${GENERATION_MODEL:-claude-haiku-4-5}
-      REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID:-}
-      REDDIT_CLIENT_SECRET: ${REDDIT_CLIENT_SECRET:-}
-      BLUESKY_IDENTIFIER: ${BLUESKY_IDENTIFIER:-}
-      BLUESKY_APP_PASSWORD: ${BLUESKY_APP_PASSWORD:-}
-      MLB_MCP_URL: ${MLB_MCP_URL:-}
-      MLB_MCP_AUTH_TOKEN: ${MLB_MCP_AUTH_TOKEN:-}
+      CLASSIFIER_MODEL: ${CLASSIFIER_MODEL:-claude-haiku-4-5}
       S3_ENDPOINT: http://minio:9000
       S3_REGION: us-east-1
       S3_BUCKET: ${S3_BUCKET:-bluejays-images}
