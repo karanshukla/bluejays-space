@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro';
 import rss from '@astrojs/rss';
 import { getRecentPublishedHeadlines } from '../lib/db';
 import { getSiteUrl } from '../lib/site';
+import { permalinkPath } from '../lib/slug';
 
 export const prerender = false;
 
@@ -15,7 +16,7 @@ export const GET: APIRoute = async () => {
     items: headlines.map((h) => ({
       title: h.headline,
       pubDate: h.published_at ? new Date(h.published_at) : undefined,
-      link: `/h/${h.id}`,
+      link: permalinkPath(h.id, h.headline),
       description: h.stat_block ?? undefined,
     })),
   });

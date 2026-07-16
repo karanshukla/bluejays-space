@@ -2,10 +2,14 @@
 import Base from '../../layouts/Base.astro';
 import HeadlineCard from '../../components/HeadlineCard.astro';
 import { getHeadlineById, getPublishedHeadlines } from '../../lib/db';
+import { permalinkPath } from '../../lib/slug';
 
 export const prerender = false;
 
-const id = Number(Astro.params.id);
+// The param is `{id}-{slug}` (e.g. "7-vladimir-guerrero-jr-hits-ball-into-orbit").
+// A bare id ("7") still works — redirect to the canonical slugged URL for SEO.
+const match = Astro.params.id?.match(/^(\d+)/);
+const id = match ? Number(match[1]) : NaN;
 if (!Number.isInteger(id) || id <= 0) {
   return new Response('Not Found', { status: 404 });
 }
@@ -13,6 +17,11 @@ if (!Number.isInteger(id) || id <= 0) {
 const headline = await getHeadlineById(id);
 if (!headline) {
   return new Response('Not Found', { status: 404 });
+}
+
+const canonical = permalinkPath(id, headline.headline);
+if (Astro.url.pathname !== canonical) {
+  return Astro.redirect(canonical, 301);
 }
 
 const headlines = await getPublishedHeadlines();
@@ -29,10 +38,10 @@ const ogImage = isCrawler ? `/api/og/${id}.png` : undefined;
   title={headline.headline}
   description={headline.stat_block ?? undefined}
   ogType="article"
-  canonicalPath={`/h/${id}`}
+  canonicalPath={canonical}
   ogImage={ogImage}
 >
-  <main class="mx-auto max-w-[1600px] px-6 py-12 sm:px-10">
+  <main class="permalink-overlay mx-auto max-w-[1600px] px-6 py-12 sm:px-10" data-home="/">
     <a
       href="/"
       class="font-mono text-xs font-bold tracking-wide text-blue uppercase hover:underline"
@@ -52,17 +61,21 @@ const ogImage = isCrawler ? `/api/og/${id}.png` : undefined;
         if (!path) return;
         try {
           await navigator.clipboard.writeText(`${location.origin}${path}`);
-          const original = btn.textContent;
-          btn.textContent = '✓';
-          btn.classList.add('text-blue');
-          setTimeout(() => {
-            btn.textContent = original;
-            btn.classList.remove('text-blue');
-          }, 1500);
+          const svg = btn.querySelector('svg');
+          if (svg) {
+            svg.style.color = 'var(--color-blue)';
+            setTimeout(() => (svg.style.color = ''), 1500);
+          }
         } catch {
           window.open(path, '_blank');
         }
       });
+    });
+
+    // Click on the empty space around the cards (not on a card itself) → home.
+    const overlay = document.querySelector('.permalink-overlay');
+    overlay?.addEventListener('click', (e) => {
+      if (e.target === overlay) window.location.href = '/';
     });
   </script>
 </Base>

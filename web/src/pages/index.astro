@@ -34,15 +34,12 @@ const headlines = await getPublishedHeadlines();
         if (!path) return;
         try {
           await navigator.clipboard.writeText(`${location.origin}${path}`);
-          const original = btn.textContent;
-          btn.textContent = '✓';
-          btn.classList.add('text-blue');
-          setTimeout(() => {
-            btn.textContent = original;
-            btn.classList.remove('text-blue');
-          }, 1500);
+          const svg = btn.querySelector('svg');
+          if (svg) {
+            svg.style.color = 'var(--color-blue)';
+            setTimeout(() => (svg.style.color = ''), 1500);
+          }
         } catch {
-          // clipboard API unavailable — fall back to navigating to the permalink
           window.open(path, '_blank');
         }
       });
