@@ -23,7 +23,7 @@ const headlines = await getPublishedHeadlines();
     }
 
     <ul class="scrapbook-grid mt-14">
-      {headlines.map((h) => <HeadlineCard headline={h} />)}
+      {headlines.map((h, i) => <HeadlineCard headline={h} eager={i < 4} />)}
     </ul>
   </main>
 
