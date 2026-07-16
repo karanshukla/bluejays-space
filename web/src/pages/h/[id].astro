@@ -50,7 +50,11 @@ const description = headline.stat_block
     </a>
 
     <ul class="scrapbook-grid mt-14">
-      {headlines.map((h) => <HeadlineCard headline={h} dimmed={h.id !== id} />)}
+      {
+        headlines.map((h, i) => (
+          <HeadlineCard headline={h} dimmed={h.id !== id} eager={h.id === id || i < 2} />
+        ))
+      }
     </ul>
   </main>
 

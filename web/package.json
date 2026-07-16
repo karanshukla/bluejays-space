@@ -35,6 +35,7 @@
     "jose": "^6.2.3",
     "pg": "^8.13.1",
     "satori": "^0.26.0",
+    "sharp": "^0.35.3",
     "svelte": "^5.56.5"
   },
   "devDependencies": {

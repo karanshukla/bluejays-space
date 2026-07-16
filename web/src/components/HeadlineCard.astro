@@ -12,9 +12,12 @@ interface Props {
   // On a permalink page, the focused card stays full-opacity; every other card
   // is dimmed to draw the eye to the one being shared.
   dimmed?: boolean;
+  // First few cards render above the fold on most breakpoints — skip
+  // lazy-loading for those so the browser doesn't delay their LCP candidate.
+  eager?: boolean;
 }
 
-const { headline: h, dimmed = false } = Astro.props;
+const { headline: h, dimmed = false, eager = false } = Astro.props;
 const photoAlt = h.player_ids?.[0] ? `${h.player_ids[0]}` : '';
 const tapeVariant = TAPE_VARIANTS[h.id % TAPE_VARIANTS.length];
 const url = permalinkPath(h.id, h.headline);
@@ -28,7 +31,15 @@ const siteHost = getSiteUrl().hostname;
     {
       h.photo_ref && (
         <div class="photo-mount border border-paper-edge">
-          <img src={`/api/images/${h.photo_ref}`} alt={photoAlt} />
+          <img
+            src={`/api/images/${h.photo_ref}`}
+            alt={photoAlt}
+            width="640"
+            height="480"
+            loading={eager ? 'eager' : 'lazy'}
+            decoding="async"
+            fetchpriority={eager ? 'high' : 'auto'}
+          />
         </div>
       )
     }
