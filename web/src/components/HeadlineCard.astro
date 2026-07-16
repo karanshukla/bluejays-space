@@ -19,7 +19,7 @@ const tapeVariant = TAPE_VARIANTS[h.id % TAPE_VARIANTS.length];
 const url = permalinkPath(h.id, h.headline);
 ---
 
-<li class={dimmed ? 'opacity-25 grayscale transition-all' : ''}>
+<li class={dimmed ? 'opacity-25 grayscale transition-all' : ''} data-headline-id={h.id}>
   <div
     class={`clipping ${tapeVariant} relative border border-paper-edge bg-card p-5 pt-7 shadow-[3px_4px_0_rgba(20,33,61,0.12),0_10px_24px_-8px_rgba(20,33,61,0.28)]`}
   >

@@ -41,15 +41,8 @@ const ogImage = isCrawler ? `/api/og/${id}.png` : undefined;
   canonicalPath={canonical}
   ogImage={ogImage}
 >
-  <main class="permalink-overlay mx-auto max-w-[1600px] px-6 py-12 sm:px-10" data-home="/">
-    <a
-      href="/"
-      class="font-mono text-xs font-bold tracking-wide text-blue uppercase hover:underline"
-    >
-      &larr; Back to the feed
-    </a>
-
-    <ul class="scrapbook-grid mt-8">
+  <main class="permalink-overlay mx-auto max-w-[1600px] px-6 py-12 sm:px-10" data-focus-id={id}>
+    <ul class="scrapbook-grid">
       {headlines.map((h) => <HeadlineCard headline={h} dimmed={h.id !== id} />)}
     </ul>
   </main>
@@ -72,10 +65,22 @@ const ogImage = isCrawler ? `/api/og/${id}.png` : undefined;
       });
     });
 
-    // Click on the empty space around the cards (not on a card itself) → home.
-    const overlay = document.querySelector('.permalink-overlay');
-    overlay?.addEventListener('click', (e) => {
-      if (e.target === overlay) window.location.href = '/';
+    // Scroll the focused card into view on load — especially important on
+    // mobile where the card could be anywhere in the feed.
+    const focusId = document.querySelector<HTMLElement>('.permalink-overlay')?.dataset.focusId;
+    if (focusId) {
+      document
+        .querySelector<HTMLLIElement>(`li[data-headline-id="${focusId}"]`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    // Click anywhere that isn't a card → back to the feed. closest() walks up
+    // from the click target, so clicks on the card's padding, tape, text, or
+    // buttons all correctly stay on the page; only the gaps between cards and
+    // the empty space around them trigger the navigation.
+    document.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.clipping')) window.location.href = '/';
     });
   </script>
 </Base>
