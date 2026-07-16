@@ -54,20 +54,9 @@ const desc = description ?? DEFAULT_DESCRIPTION;
     <link rel="alternate" type="application/rss+xml" title="bluejays.space" href="/feed.xml" />
   </head>
   <body class="min-h-screen text-ink antialiased">
-    <header class="flex justify-end px-6 py-4">
-      <a
-        href="https://handles.bluejays.space"
-        class="font-mono text-xs font-bold tracking-wide text-blue uppercase hover:underline"
-      >
-        Claim a free @handle.bluejays.space &rarr;
-      </a>
-    </header>
     <slot />
-    <footer class="mt-16 px-6 py-8 text-center font-mono text-xs text-ink-soft">
-      <div class="flex justify-end">
-        <a href="/admin" class="text-ink-soft/60 hover:underline">Admin</a>
-      </div>
-      <p class="mt-2">
+    <footer class="mt-16 px-6 py-6 text-center font-mono text-xs text-ink-soft">
+      <p>
         <strong>bluejays.space</strong> is a parody/satire site. Not affiliated with MLB or the Toronto
         Blue Jays.
       </p>
