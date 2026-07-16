@@ -1,5 +1,5 @@
 ---
-import Base from '../../layouts/Base.astro';
+import Base, { DEFAULT_DESCRIPTION } from '../../layouts/Base.astro';
 import HeadlineCard from '../../components/HeadlineCard.astro';
 import { getHeadlineById, getPublishedHeadlines } from '../../lib/db';
 import { permalinkPath } from '../../lib/slug';
@@ -32,11 +32,20 @@ const headlines = await getPublishedHeadlines();
 const crawlerUA = /Bluesky Cardyb|Discordbot|Twitterbot|Slackbot|facebookexternalhit/i;
 const isCrawler = crawlerUA.test(Astro.request.headers.get('user-agent') ?? '');
 const ogImage = isCrawler ? `/api/og/${id}.png` : undefined;
+
+// The OG card image already carries a small parody label baked in (see
+// SPEC.md's parody-labeling section), but the text description is a
+// separate surface some clients show instead of — or alongside — the image,
+// so it needs its own disclosure. A bare stat_block used to be the whole
+// description, silently dropping that disclosure whenever one existed.
+const description = headline.stat_block
+  ? `${headline.stat_block} — ${DEFAULT_DESCRIPTION}`
+  : undefined;
 ---
 
 <Base
   title={headline.headline}
-  description={headline.stat_block ?? undefined}
+  description={description}
   ogType="article"
   canonicalPath={canonical}
   ogImage={ogImage}
@@ -98,7 +107,10 @@ const ogImage = isCrawler ? `/api/og/${id}.png` : undefined;
         : null;
       if (focusedCard?.contains(target)) return;
 
-      window.location.href = '/';
+      // A plain navigation to '/' always lands at the top of the fresh page.
+      // The `restoreScroll` flag tells the feed to scroll back to wherever
+      // the user was (saved in sessionStorage as they scrolled) instead.
+      window.location.href = '/?restoreScroll=1';
     });
   </script>
 </Base>

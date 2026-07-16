@@ -44,5 +44,23 @@ const headlines = await getPublishedHeadlines();
         }
       });
     });
+
+    // Remember the feed's scroll position so tapping outside the focused card
+    // on a permalink page (see h/[id].astro) can restore it here, instead of
+    // that fresh navigation always landing at the top of the page.
+    window.addEventListener(
+      'scroll',
+      () => sessionStorage.setItem('feedScrollY', String(window.scrollY)),
+      { passive: true }
+    );
+
+    const params = new URLSearchParams(location.search);
+    if (params.has('restoreScroll')) {
+      const y = Number(sessionStorage.getItem('feedScrollY'));
+      if (Number.isFinite(y) && y > 0) window.scrollTo(0, y);
+      params.delete('restoreScroll');
+      const rest = params.toString();
+      history.replaceState(null, '', location.pathname + (rest ? `?${rest}` : ''));
+    }
   </script>
 </Base>
