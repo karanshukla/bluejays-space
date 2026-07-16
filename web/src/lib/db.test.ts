@@ -12,7 +12,7 @@ vi.mock('pg', () => ({
   },
 }));
 
-const { getHeadlineById } = await import('./db');
+const { getHeadlineById, createSubmittedHeadline } = await import('./db');
 
 beforeEach(() => {
   query.mockReset();
@@ -38,5 +38,35 @@ describe('getHeadlineById', () => {
     query.mockResolvedValue({ rows: [] });
     expect(await getHeadlineById(3)).toBeNull();
     expect(query).toHaveBeenCalledWith(expect.any(String), [3]);
+  });
+});
+
+describe('createSubmittedHeadline', () => {
+  it('inserts a draft row tagged as a public submission', async () => {
+    query.mockResolvedValue({ rows: [] });
+
+    await createSubmittedHeadline({
+      headline: 'Bo Bichette drafted by three teams simultaneously',
+      submitter_name: 'A Fan',
+      context_note: 'saw it on the subway',
+    });
+
+    expect(query).toHaveBeenCalledWith(expect.stringContaining("'submission'"), [
+      'Bo Bichette drafted by three teams simultaneously',
+      'saw it on the subway',
+      'A Fan',
+    ]);
+  });
+
+  it('accepts a submission with no name or context', async () => {
+    query.mockResolvedValue({ rows: [] });
+
+    await createSubmittedHeadline({
+      headline: 'Anonymous tip',
+      submitter_name: null,
+      context_note: null,
+    });
+
+    expect(query).toHaveBeenCalledWith(expect.any(String), ['Anonymous tip', null, null]);
   });
 });

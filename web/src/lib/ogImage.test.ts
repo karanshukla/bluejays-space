@@ -29,6 +29,8 @@ function makeHeadline(overrides: Partial<Headline> = {}): Headline {
     safety_status: null,
     safety_reason: null,
     classified_at: null,
+    source: 'admin',
+    submitter_name: null,
     created_at: '2026-01-01',
     published_at: '2026-01-01',
     ...overrides,

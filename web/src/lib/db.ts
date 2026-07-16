@@ -12,13 +12,18 @@ function getPool(): pg.Pool {
 export interface Headline {
   id: number;
   headline: string;
-  register: 1 | 2;
+  register: 1 | 2 | null;
   player_ids: string[] | null;
   stat_block: string | null;
   photo_ref: string | null;
   source_post_url: string | null;
   source_note: string | null;
   status: 'draft' | 'published' | 'discarded';
+  // Who authored the draft — 'submission' rows came in through the public
+  // /submit form and carry unverified text (and no photo yet), so the admin
+  // queue treats them as needing extra scrutiny.
+  source: 'admin' | 'submission';
+  submitter_name: string | null;
   // Auto-classification output written by the ingest classifier job.
   // category is plain text (taxonomy defined in the classifier prompt), not an
   // enum, so adding a tag needs no migration; safety_status mirrors the DB CHECK.
@@ -66,7 +71,7 @@ export async function getRecentPublishedHeadlines(limit = 20): Promise<Headline[
 
 export interface HeadlineEdit {
   headline: string;
-  register: 1 | 2;
+  register: 1 | 2 | null;
   stat_block: string | null;
   photo_ref: string | null;
   source_post_url: string | null;
@@ -119,7 +124,7 @@ export async function discardHeadline(id: number): Promise<void> {
 
 export interface HeadlineCreate {
   headline: string;
-  register: 1 | 2;
+  register: 1 | 2 | null;
   stat_block: string | null;
   photo_ref: string | null;
   source_post_url: string | null;
@@ -138,5 +143,25 @@ export async function createHeadline(input: HeadlineCreate): Promise<void> {
       input.source_post_url,
       input.source_note,
     ]
+  );
+}
+
+export interface HeadlineSubmission {
+  headline: string;
+  submitter_name: string | null;
+  context_note: string | null;
+}
+
+// Public /submit intake (issue #82). Deliberately narrower than
+// HeadlineCreate — no register, no photo (that hard rule needs a human's
+// judgment call on photo provenance, see photoImport.ts / CLAUDE.md), no
+// player tagging. Lands as a normal draft row so the existing classifier +
+// admin review + publish gate apply unchanged; only `source`/`submitter_name`
+// mark where it came from.
+export async function createSubmittedHeadline(input: HeadlineSubmission): Promise<void> {
+  await getPool().query(
+    `INSERT INTO headlines (headline, player_ids, source_note, submitter_name, source)
+     VALUES ($1, '{}', $2, $3, 'submission')`,
+    [input.headline, input.context_note, input.submitter_name]
   );
 }

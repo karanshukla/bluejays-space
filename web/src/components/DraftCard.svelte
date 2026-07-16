@@ -6,7 +6,7 @@
   let { draft }: Props = $props();
 
   let headline = $state(draft.headline);
-  let register = $state<1 | 2>(draft.register);
+  let register = $state<1 | 2 | null>(draft.register);
   let statBlock = $state(draft.stat_block ?? '');
   let photoRef = $state(draft.photo_ref ?? '');
 
@@ -42,7 +42,7 @@
     try {
       const form = new FormData();
       form.set('headline', headline);
-      form.set('register', String(register));
+      form.set('register', register === null ? '' : String(register));
       if (statBlock) form.set('stat_block', statBlock);
       if (photoRef) form.set('photo_ref', photoRef);
       if (sourcePostUrl) form.set('source_post_url', sourcePostUrl);
@@ -110,11 +110,21 @@
 
 <li bind:this={root} class="rounded-lg border border-paper-edge bg-card p-5 shadow-sm">
   <div class="mb-3 flex flex-wrap items-center gap-2">
-    <span
-      class={`rounded px-2 py-0.5 text-xs font-semibold ${register === 2 ? 'bg-amber-100 text-amber-800' : 'bg-blue/10 text-blue'}`}
-    >
-      Register {register}
-    </span>
+    {#if register}
+      <span
+        class={`rounded px-2 py-0.5 text-xs font-semibold ${register === 2 ? 'bg-amber-100 text-amber-800' : 'bg-blue/10 text-blue'}`}
+      >
+        Register {register}
+      </span>
+    {/if}
+    {#if draft.source === 'submission'}
+      <span
+        class="rounded bg-blue/10 px-2 py-0.5 text-xs font-semibold text-blue"
+        title="Came in through the public /submit form — unverified provenance, review with extra care"
+      >
+        Submitted{draft.submitter_name ? ` · ${draft.submitter_name}` : ' · anonymous'}
+      </span>
+    {/if}
     {#if draft.category}
       <span class="rounded bg-ink/5 px-2 py-0.5 text-xs font-medium text-ink-soft">
         {draft.category}
@@ -162,11 +172,12 @@
 
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <label class="block text-sm font-medium text-ink">
-        Register
+        Register <span class="font-normal text-ink-soft/70">(optional)</span>
         <select
           bind:value={register}
           class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
         >
+          <option value={null}>— unset —</option>
           <option value={1}>1 · real-event riff</option>
           <option value={2}>2 · fabricated scenario</option>
         </select>

@@ -11,10 +11,13 @@ export const POST: APIRoute = async ({ params, request }) => {
 
   const form = await request.formData();
   const headline = asNullableText(form.get('headline'));
-  const register = Number(form.get('register'));
-  if (!headline || (register !== 1 && register !== 2)) {
+  if (!headline) {
     return new Response('Missing required fields', { status: 400 });
   }
+  // Optional — see create.ts. Left blank (e.g. a submitted draft that never
+  // had one), it stays null rather than blocking the save.
+  const registerNum = Number(form.get('register'));
+  const register = registerNum === 1 || registerNum === 2 ? (registerNum as 1 | 2) : null;
 
   let photoRef: string | null;
   try {
