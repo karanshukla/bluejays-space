@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ogCacheKey } from './ogImage';
+import { ogCacheKey, tapeBackgroundFor } from './ogImage';
 import type { Headline } from './db';
 
 function makeHeadline(overrides: Partial<Headline> = {}): Headline {
@@ -58,5 +58,32 @@ describe('ogCacheKey', () => {
 
   it('produces a 12-hex-char hash segment', () => {
     expect(ogCacheKey(makeHeadline())).toMatch(/^og\/1-[0-9a-f]{12}\.png$/);
+  });
+});
+
+describe('tapeBackgroundFor', () => {
+  const RED = '#c8102e';
+  const BLUE_TAPE = '#1e4d8c';
+
+  it('maps each of the six variants (id % 6) to the feed-card tape colors', () => {
+    const [a, b, c, d, e, f] = [0, 1, 2, 3, 4, 5].map(tapeBackgroundFor);
+    expect(a).toContain(BLUE_TAPE);
+    expect(b).toContain(BLUE_TAPE);
+    expect(c).toContain(RED);
+    expect(f).toContain(RED);
+    expect(d).toBe(BLUE_TAPE);
+    expect(e).toBe(RED);
+  });
+
+  it('gives a solid strip (no gradient) only to the solid variants', () => {
+    const solids = [3, 4].map(tapeBackgroundFor);
+    const stripes = [0, 1, 2, 5].map(tapeBackgroundFor);
+    for (const bg of stripes) expect(bg).toContain('repeating-linear-gradient');
+    for (const bg of solids) expect(bg).not.toContain('repeating-linear-gradient');
+  });
+
+  it('wraps around for ids >= 6 (same tape for id 0 and id 6)', () => {
+    expect(tapeBackgroundFor(6)).toBe(tapeBackgroundFor(0));
+    expect(tapeBackgroundFor(11)).toBe(tapeBackgroundFor(5));
   });
 });
