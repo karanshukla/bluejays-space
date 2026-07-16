@@ -1,0 +1,58 @@
+---
+import type { Headline } from '../lib/db';
+
+// Keyed off the headline id, not list position, so a card's tape stays put as
+// other headlines publish/unpublish around it.
+export const TAPE_VARIANTS = ['tape-a', 'tape-b', 'tape-c', 'tape-d', 'tape-e', 'tape-f'];
+
+interface Props {
+  headline: Headline;
+}
+
+const { headline: h } = Astro.props;
+const photoAlt = h.player_ids?.[0] ? `${h.player_ids[0]}` : '';
+const tapeVariant = TAPE_VARIANTS[h.id % TAPE_VARIANTS.length];
+---
+
+<li>
+  <div
+    class={`clipping ${tapeVariant} relative border border-paper-edge bg-card p-5 pt-7 shadow-[3px_4px_0_rgba(20,33,61,0.12),0_10px_24px_-8px_rgba(20,33,61,0.28)]`}
+  >
+    {
+      h.photo_ref && (
+        <div class="photo-mount border border-paper-edge">
+          <img src={`/api/images/${h.photo_ref}`} alt={photoAlt} />
+        </div>
+      )
+    }
+
+    <p
+      class={`text-xl leading-snug font-semibold text-ink font-display ${h.photo_ref ? 'mt-4' : ''}`}
+    >
+      {h.headline}
+    </p>
+
+    {
+      h.stat_block && (
+        <p class="mt-3 border-t border-dashed border-blue/40 pt-3 font-mono text-xs text-ink-soft">
+          {h.stat_block}
+        </p>
+      )
+    }
+
+    {
+      h.source_note && (
+        <p class="mt-2 font-mono text-[0.65rem] text-ink-soft/70 italic">
+          Source:{' '}
+          {h.source_post_url ? (
+            <a href={h.source_post_url} class="not-italic hover:underline">
+              {h.source_note}
+            </a>
+          ) : (
+            h.source_note
+          )}
+        </p>
+      )
+    }
+  </div>
+</li>

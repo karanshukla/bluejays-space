@@ -8,6 +8,7 @@ export default defineConfig({
   output: 'server',
   adapter: node({ mode: 'standalone' }),
   integrations: [svelte()],
+  site: process.env.SITE_URL,
   server: { host: true },
   security: {
     // Disabled because @astrojs/node's standalone adapter derives the request
