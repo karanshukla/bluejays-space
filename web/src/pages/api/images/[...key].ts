@@ -18,7 +18,9 @@ export const GET: APIRoute = async ({ params }) => {
   return new Response(Buffer.concat(chunks), {
     headers: {
       'Content-Type': image.contentType ?? 'application/octet-stream',
-      'Cache-Control': 'public, max-age=86400',
+      // Safe to cache for a year: every upload gets a fresh timestamped key
+      // (photoImport.ts keyForSlug), so a given key's bytes never change.
+      'Cache-Control': 'public, max-age=31536000, immutable',
       'X-Content-Type-Options': 'nosniff',
     },
   });

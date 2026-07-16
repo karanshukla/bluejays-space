@@ -2,6 +2,7 @@
 import type { Headline } from '../lib/db';
 import { permalinkPath } from '../lib/slug';
 import { getSiteUrl } from '../lib/site';
+import { smallVariantKey } from '../lib/photoImport';
 
 // Keyed off the headline id, not list position, so a card's tape stays put as
 // other headlines publish/unpublish around it.
@@ -18,10 +19,12 @@ interface Props {
 }
 
 const { headline: h, dimmed = false, eager = false } = Astro.props;
-const photoAlt = h.player_ids?.[0] ? `${h.player_ids[0]}` : '';
 const tapeVariant = TAPE_VARIANTS[h.id % TAPE_VARIANTS.length];
 const url = permalinkPath(h.id, h.headline);
 const siteHost = getSiteUrl().hostname;
+// Only webp uploads (the resize path in photoImport.ts) have a small variant
+// stored alongside — the untouched-GIF path has just the one file.
+const hasSmallVariant = h.photo_ref?.endsWith('.webp') ?? false;
 ---
 
 <li data-headline-id={h.id}>
@@ -33,7 +36,13 @@ const siteHost = getSiteUrl().hostname;
         <div class="photo-mount border border-paper-edge">
           <img
             src={`/api/images/${h.photo_ref}`}
-            alt={photoAlt}
+            srcset={
+              hasSmallVariant
+                ? `/api/images/${smallVariantKey(h.photo_ref)} 640w, /api/images/${h.photo_ref} 1024w`
+                : undefined
+            }
+            sizes={hasSmallVariant ? '(min-width: 640px) 460px, 100vw' : undefined}
+            alt={h.headline}
             width="640"
             height="480"
             loading={eager ? 'eager' : 'lazy'}
@@ -44,11 +53,11 @@ const siteHost = getSiteUrl().hostname;
       )
     }
 
-    <p
+    <h2
       class={`text-xl leading-snug font-semibold text-ink font-display ${h.photo_ref ? 'mt-4' : ''}`}
     >
       {h.headline}
-    </p>
+    </h2>
 
     {
       h.stat_block && (

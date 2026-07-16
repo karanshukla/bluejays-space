@@ -50,7 +50,10 @@ export const GET: APIRoute = async ({ params }) => {
     return new Response(Buffer.concat(chunks), {
       headers: {
         'Content-Type': 'image/png',
-        'Cache-Control': 'public, max-age=86400',
+        // Safe to cache for a year: ogCacheKey hashes the content that affects
+        // the render (headline/stat_block/photo_ref), so a given key's bytes
+        // never change — an edit produces a new key instead.
+        'Cache-Control': 'public, max-age=31536000, immutable',
       },
     });
   }
@@ -60,7 +63,10 @@ export const GET: APIRoute = async ({ params }) => {
     return new Response(new Uint8Array(png), {
       headers: {
         'Content-Type': 'image/png',
-        'Cache-Control': 'public, max-age=86400',
+        // Safe to cache for a year: ogCacheKey hashes the content that affects
+        // the render (headline/stat_block/photo_ref), so a given key's bytes
+        // never change — an edit produces a new key instead.
+        'Cache-Control': 'public, max-age=31536000, immutable',
       },
     });
   } catch (err) {
