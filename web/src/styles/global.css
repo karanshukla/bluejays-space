@@ -88,9 +88,21 @@ body {
 }
 
 /* Gentle alternating tilt so cards read as pasted-in, not machine-aligned.
-   Straightens slightly on hover/focus as a small interactive touch. */
+   Straightens slightly on hover/focus as a small interactive touch. `dimmed`
+   (permalink page backdrop cards) lives on this same element rather than a
+   parent — a `filter` on an ancestor forces a full repaint of a
+   transform-animated child every frame instead of a cheap compositor layer,
+   which is what made the hover-straighten feel laggy here. */
 .clipping {
-  transition: transform 0.15s ease-out;
+  transition:
+    transform 0.12s ease-out,
+    opacity 0.15s ease-out,
+    filter 0.15s ease-out;
+  will-change: transform;
+}
+.clipping.dimmed {
+  opacity: 0.25;
+  filter: grayscale(1);
 }
 .scrapbook-grid > li:nth-child(4n + 1) .clipping {
   transform: rotate(-1.1deg);

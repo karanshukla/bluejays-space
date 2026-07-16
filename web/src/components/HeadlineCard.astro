@@ -1,6 +1,7 @@
 ---
 import type { Headline } from '../lib/db';
 import { permalinkPath } from '../lib/slug';
+import { getSiteUrl } from '../lib/site';
 
 // Keyed off the headline id, not list position, so a card's tape stays put as
 // other headlines publish/unpublish around it.
@@ -17,11 +18,12 @@ const { headline: h, dimmed = false } = Astro.props;
 const photoAlt = h.player_ids?.[0] ? `${h.player_ids[0]}` : '';
 const tapeVariant = TAPE_VARIANTS[h.id % TAPE_VARIANTS.length];
 const url = permalinkPath(h.id, h.headline);
+const siteHost = getSiteUrl().hostname;
 ---
 
-<li class={dimmed ? 'opacity-25 grayscale transition-all' : ''} data-headline-id={h.id}>
+<li data-headline-id={h.id}>
   <div
-    class={`clipping ${tapeVariant} border border-paper-edge bg-card p-5 pt-7 shadow-[3px_4px_0_rgba(20,33,61,0.12),0_10px_24px_-8px_rgba(20,33,61,0.28)]`}
+    class={`clipping ${tapeVariant} ${dimmed ? 'dimmed' : ''} border border-paper-edge bg-card p-5 pt-7 shadow-[3px_4px_0_rgba(20,33,61,0.12),0_10px_24px_-8px_rgba(20,33,61,0.28)]`}
   >
     {
       h.photo_ref && (
@@ -81,7 +83,7 @@ const url = permalinkPath(h.id, h.headline);
       </a>
 
       <span class="font-mono text-[0.6rem] font-bold tracking-widest text-ink-soft/30 uppercase">
-        Share
+        {siteHost}
       </span>
 
       <button
