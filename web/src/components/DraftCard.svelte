@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Headline } from '../lib/db';
+  import PhotoInput from './PhotoInput.svelte';
 
   type Props = { draft: Headline };
   let { draft }: Props = $props();
@@ -8,22 +9,6 @@
   let register = $state<1 | 2>(draft.register);
   let statBlock = $state(draft.stat_block ?? '');
   let photoRef = $state(draft.photo_ref ?? '');
-  // Decoupled from photoRef so typing into the field doesn't fire a failed
-  // MinIO round-trip on every keystroke (a burst of those took prod down once).
-  let previewRef = $state(draft.photo_ref ?? '');
-  // A freshly-uploaded photo's GET can fire before the write is reliably
-  // readable back — retry with backoff instead of needing a manual re-save.
-  let previewRetries = $state(0);
-  let previewBust = $state(0);
-  const MAX_PREVIEW_RETRIES = 4;
-
-  function retryPreview() {
-    if (previewRetries >= MAX_PREVIEW_RETRIES) return;
-    previewRetries += 1;
-    setTimeout(() => {
-      previewBust += 1;
-    }, 300 * previewRetries);
-  }
 
   let sourcePostUrl = $state(draft.source_post_url ?? '');
   let sourceNote = $state(draft.source_note ?? '');
@@ -69,9 +54,6 @@
       if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`);
       const data = await res.json();
       photoRef = data.photo_ref ?? '';
-      previewRef = photoRef;
-      previewRetries = 0;
-      previewBust = 0;
       savedAt = new Date().toLocaleTimeString();
     } catch (err) {
       error = err instanceof Error ? err.message : 'Save failed';
@@ -199,26 +181,13 @@
       </label>
     </div>
 
-    <label class="block text-sm font-medium text-ink">
-      Photo ref
-      <input
-        bind:value={photoRef}
-        onblur={() => {
-          previewRef = photoRef;
-          previewRetries = 0;
-          previewBust = 0;
-        }}
-        class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
+    <div>
+      <span class="block text-sm font-medium text-ink">Photo</span>
+      <PhotoInput
+        currentRef={photoRef || null}
+        onchange={(k) => (photoRef = k ?? '')}
       />
-    </label>
-    {#if previewRef}
-      <img
-        src={`/api/images/${previewRef}${previewBust ? `?r=${previewBust}` : ''}`}
-        onerror={retryPreview}
-        alt=""
-        class="h-32 w-auto rounded border border-paper-edge object-cover"
-      />
-    {/if}
+    </div>
 
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <label class="block text-sm font-medium text-ink">

@@ -1,6 +1,7 @@
 ---
 import Base from '../layouts/Base.astro';
 import DraftCard from '../components/DraftCard.svelte';
+import PhotoInput from '../components/PhotoInput.svelte';
 import { getDraftHeadlines, getRecentPublishedHeadlines } from '../lib/db';
 
 export const prerender = false;
@@ -76,11 +77,8 @@ const recentlyPublished = await getRecentPublishedHeadlines();
               />
             </label>
             <label class="block text-sm font-medium text-ink">
-              Photo ref
-              <input
-                name="photo_ref"
-                class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
-              />
+              Photo
+              <PhotoInput client:load name="photo_ref" />
             </label>
             <label class="block text-sm font-medium text-ink">
               Source post URL <span class="font-normal text-ink-soft/70">(register 1 only)</span>
