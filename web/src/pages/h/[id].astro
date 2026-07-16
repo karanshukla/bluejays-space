@@ -42,7 +42,13 @@ const ogImage = isCrawler ? `/api/og/${id}.png` : undefined;
   ogImage={ogImage}
 >
   <main class="permalink-overlay mx-auto max-w-[1600px] px-6 py-12 sm:px-10" data-focus-id={id}>
-    <ul class="scrapbook-grid">
+    <a href="/" class="block text-center transition-opacity hover:opacity-80">
+      <h1 class="text-5xl font-semibold tracking-tight text-ink font-display sm:text-6xl">
+        bluejays.space
+      </h1>
+    </a>
+
+    <ul class="scrapbook-grid mt-14">
       {headlines.map((h) => <HeadlineCard headline={h} dimmed={h.id !== id} />)}
     </ul>
   </main>
@@ -74,13 +80,25 @@ const ogImage = isCrawler ? `/api/og/${id}.png` : undefined;
         ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
-    // Click anywhere that isn't a card → back to the feed. closest() walks up
-    // from the click target, so clicks on the card's padding, tape, text, or
-    // buttons all correctly stay on the page; only the gaps between cards and
-    // the empty space around them trigger the navigation.
+    // Click anywhere that isn't the focused card → back to the feed. Checking
+    // against `.clipping` in general was a bug: every dimmed background card
+    // matches that selector too, so on a feed with more than a couple of
+    // headlines the greyed-out backdrop (the part users actually click,
+    // expecting a lightbox-style dismiss) covered almost the entire page and
+    // silently did nothing. Only the one focused card should count as "safe";
+    // every other card is backdrop. Links/buttons always keep their own
+    // behavior (open the other headline, copy its link) regardless of which
+    // card they're in.
     document.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
-      if (!target.closest('.clipping')) window.location.href = '/';
+      if (target.closest('a, button')) return;
+
+      const focusedCard = focusId
+        ? document.querySelector(`li[data-headline-id="${focusId}"] .clipping`)
+        : null;
+      if (focusedCard?.contains(target)) return;
+
+      window.location.href = '/';
     });
   </script>
 </Base>
