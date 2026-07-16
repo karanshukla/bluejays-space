@@ -53,6 +53,26 @@ const INK_SOFT = '#3d5578';
 const PAPER_EDGE = '#b8cbe8';
 const BLUE = '#134a8e';
 const TAPE = '#1e4d8c';
+const TAPE_ALT = '#c8102e';
+
+// Mirrors the six washi-tape variants in global.css (.tape-a..f), keyed the
+// same way as the feed card (HeadlineCard.astro: id % 6) so a headline's OG
+// preview wears the same tape color/pattern its card does. a/b blue stripe,
+// c/f red stripe, d solid blue, e solid red — an even blue/red mix with two
+// solid strips for variety, rather than every preview identical blue.
+export function tapeBackgroundFor(id: number): string {
+  switch (id % 6) {
+    case 2: // tape-c
+    case 5: // tape-f
+      return `repeating-linear-gradient(45deg, ${TAPE_ALT}, ${TAPE_ALT} 6px, white 6px, white 12px)`;
+    case 3: // tape-d, solid blue
+      return TAPE;
+    case 4: // tape-e, solid red
+      return TAPE_ALT;
+    default: // tape-a, tape-b, blue stripe
+      return `repeating-linear-gradient(45deg, ${TAPE}, ${TAPE} 6px, white 6px, white 12px)`;
+  }
+}
 
 export async function renderOgPng(headline: Headline): Promise<Buffer> {
   const svg = await satori(
@@ -82,8 +102,6 @@ export async function renderOgPng(headline: Headline): Promise<Buffer> {
               boxShadow: '4px 6px 0 rgba(20,33,61,0.12), 0 14px 36px -8px rgba(20,33,61,0.28)',
             },
             children: [
-              // Washi tape pinned across the top — diagonal blue/white stripe,
-              // same repeating-linear-gradient as the live .clipping::before.
               {
                 type: 'div',
                 props: {
@@ -93,7 +111,7 @@ export async function renderOgPng(headline: Headline): Promise<Buffer> {
                     left: '60px',
                     width: '100px',
                     height: '28px',
-                    backgroundImage: `repeating-linear-gradient(45deg, ${TAPE}, ${TAPE} 6px, white 6px, white 12px)`,
+                    backgroundImage: tapeBackgroundFor(headline.id),
                     opacity: 0.94,
                     transform: 'rotate(-4deg)',
                   },
