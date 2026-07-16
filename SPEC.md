@@ -4,7 +4,7 @@ This is the canonical product/design spec — the source of truth for *what* to 
 
 ## Concept
 
-An Onion-style parody headline site for Blue Jays fans, in the vein of FAX Sports. The LLM generates headline drafts; a human (Karan) reviews and tweaks before anything goes live. Headlines come in two registers:
+An Onion-style parody headline site for Blue Jays fans, in the vein of FAX Sports. A human (Karan) drafts each headline directly in the admin UI; an LLM screens every draft for topic and safety before it's eligible to publish. (Originally specced as LLM-generated, human-reviewed — see the "Superseded by decision" note under Architecture for why drafting moved to the admin. The two-register concept below is still the target voice either way.) Headlines come in two registers:
 
 **Real-event riffs** — grounded in an actual game/stat/moment (e.g. "Home Run Dragon found as lifeless as Trey Yesavage's pitching"). Low risk, straightforward fan commentary. Includes a lowest-risk subtype: reporting a true, independently checkable absurd fact (e.g. Googling "Jesus Sanchez" surfaces a Reddit meme photo of Jesús Sánchez as Jesus) — nothing fabricated or attributed, the joke is just that the true thing is funny. These should stay checkable, not just plausible.
 
@@ -53,7 +53,9 @@ Each card shows:
 - Parody label baked into the card graphic
 - Optional "inspired by" note if a specific real post/moment sparked it (register 1 only — register 2 has no real source to credit)
 
-#### Data Sources
+#### Data Sources (original generation pipeline — superseded, see Architecture)
+
+These were the fetch inputs for the original LLM-generation step (MLB Stats context + candidate posts + style reference, drafted into a headline unattended). That step is retired — headlines are now admin-authored, so nothing in the current app fetches from these sources. Kept for why the register concepts (real-fact grounding, "inspired by" sourcing) look the way they do; an admin doing the same real-fact-anchoring by hand can still use these as reference sources manually.
 
 | Source | Access | Notes |
 |---|---|---|
@@ -62,16 +64,16 @@ Each card shows:
 | Reddit | Free tier via PRAW | Recent posts/comments from r/Torontobluejays pulled the same way — lightweight fetch only, no classifier/vision/dedup pipeline like the old design |
 | Mastodon | Free, open public hashtag-timeline API, no auth needed | Recent hashtag posts (`#BlueJays`, `#TorontoBluejays`, `#GoJaysGo`) from a configurable instance (default `mastodon.social`), pulled the same way as Bluesky — text + image, candidate source material for register 1. Federated, so one instance's hashtag timeline is best-effort breadth, not a global index |
 | FAX Sports | mlbonfax.com — plain Wix blog, no auth wall, fetchable via HTTP | Recent posts pulled as a live tone/style reference for register 2 (their "Cancun," "Statfax," "Hot Stove" categories are useful signal for current voice). Content and style only — never credited or linked on the live site |
-| Player photos | MLB/team editorial-use photos, Wikimedia Commons (public domain/CC), reused fan-created images from a sourced Reddit/Bluesky/Mastodon post (e.g. an existing meme edit), or screenshots of actual posts being riffed on | Must be rights-cleared for the use case; never AI-generated. Reused fan images keep a "Source: Reddit/Bluesky/Mastodon" credit, same as the platforms' own convention |
+| Player photos | MLB/team editorial-use photos, Wikimedia Commons (public domain/CC), reused fan-created images from a sourced Reddit/Bluesky/Mastodon post (e.g. an existing meme edit), or screenshots of actual posts being riffed on | Must be rights-cleared for the use case; never AI-generated. Reused fan images keep a "Source: Reddit/Bluesky/Mastodon" credit, same as the platforms' own convention — **this row still applies**, admin photo import isn't limited to MLB/Wikimedia |
 
-Not included: PRAW-based classifier/dedup/staging pipeline, vision-model meme classification — the old scraping architecture is dropped, but a plain fetch of recent Reddit/Bluesky posts as generator input is back in scope. `alex-rimerman/statcast-mcp` is also dropped — established as non-functional; `guillochon/mlb-api-mcp` is the sole stats source. (Note: this has since been superseded — see `docs/ingestion-pipeline.md` for the correction that Statcast data is actually already available through `mlb-api-mcp` itself.)
+`alex-rimerman/statcast-mcp` was dropped as non-functional before the pipeline itself was retired; Statcast data was in fact already available through `mlb-api-mcp` — see `docs/archive/ingestion-pipeline.md` for that correction as historical detail.
 
 #### Content Management — Admin UI
 
 Headlines are DB-backed, not git-file-based (Astro Content Collections don't fit a login-and-publish workflow — those are for git-committed content, not live editing). A `headlines` table holds draft and published rows; the admin page is CRUD against it.
 
 - **Auth**: gate `/admin` behind Cloudflare Access, same pattern already in use for the Asher Remote MCP server — no custom auth to build
-- **Flow**: generation job writes drafts with `status: draft` → admin page lists drafts → edit text inline → publish flips `status: published` and sets a timestamp → public feed only queries published rows. Register-2 real-fact-anchored drafts (fabricated premise + a real connecting fact) should be visually flagged in the admin list for extra scrutiny — the connecting fact is the one part of an otherwise-fictional headline that's a genuine factual claim, and needs to actually be checked before publish, not just skimmed.
+- **Flow**: admin creates a draft (`status: draft`) directly in the admin UI → the classifier job assigns a topic category + safety verdict (auto-discarding `blocked` drafts) → admin page lists remaining drafts → edit text inline → publish flips `status: published` and sets a timestamp → public feed only queries published rows. Register-2 real-fact-anchored drafts (fabricated premise + a real connecting fact) should be visually flagged in the admin list for extra scrutiny — the connecting fact is the one part of an otherwise-fictional headline that's a genuine factual claim, and needs to actually be checked before publish, not just skimmed.
 - **Fields per row**: `headline`, `register` (1 or 2), `player_ids[]`, `stat_block`, `photo_ref`, `source_post_url` + `source_note` (register 1 only), `status`, `created_at`, `published_at`
 
 ### 3. Sharing & Discovery
@@ -90,13 +92,15 @@ Three Railway services + managed Postgres + Cloudflare in front. Everything auto
 
 | Service | Type | What it does |
 |---|---|---|
-| `bluejays-ingest` | Railway cron job (scheduled, not always-on) | Fetches Reddit + Bluesky candidate posts, pulls MLB Stats context, calls Claude for headline generation, writes draft rows to Postgres. No human in this loop. |
-| `bluejays-web` | Railway always-on service (Astro SSR, Node adapter) | Serves the public feed (published rows only) and the `/admin` review UI (draft rows) from the same app/deploy |
+| `bluejays-ingest` | Railway cron job (scheduled, not always-on) | Classifies existing draft headlines: assigns each a topic category + safety verdict via Claude (text + attached photo, vision), auto-discarding illegal/doxxing content and flagging the rest for admin review. Does not fetch content or write headlines itself — see note below. |
+| `bluejays-web` | Railway always-on service (Astro SSR, Node adapter) | Serves the public feed (published rows only), the `/admin` authoring/review UI (create, edit, publish draft rows), and photo import/proxy |
 | `bluejays-db` | Railway managed Postgres | `headlines` table (draft/published) + handle directory DIDs |
 
-Two services, not one, because the ingest/generation job is bursty and scheduled (runs every N hours, does its work, exits) while the web app needs to be always-on to serve traffic — different Railway deployment types, no reason to force them into one process.
+Two services, not one, because the classifier job is bursty and scheduled (runs periodically, does its work, exits) while the web app needs to be always-on to serve traffic — different Railway deployment types, no reason to force them into one process.
 
-### Data Flow
+> **Superseded by decision:** `bluejays-ingest` was originally specced as an autonomous fetch-and-generate pipeline (Reddit/Bluesky candidate posts + MLB Stats context → Claude headline drafting, the "Data Flow" and "Register Logic" design below). That pipeline was built, then retooled: headlines are now authored directly by the admin in `/admin` (see `web/src/pages/admin/api/headlines/create.ts`), and `ingest` only classifies them for topic + safety before human review. The original design is kept as historical context in `docs/archive/ingestion-pipeline.md`; see `docs/README.md` → "MVP status" for why it changed. The rest of this section describes the original design and is retained for that context — it does not describe what's currently deployed.
+
+### Data Flow (original design — superseded, see note above)
 
 ```
 Railway cron trigger (e.g. every 4-6h)
@@ -120,9 +124,11 @@ bluejays-web (always-on):
   /        → queries published rows only, renders public feed
 ```
 
+**Current data flow:** an admin authors a draft directly in `/admin` (headline, register, stat block, source note, photo — the photo either uploaded, pasted, or imported from a URL); `bluejays-ingest` periodically classifies any draft with `classified_at IS NULL`, writing back `category`/`safety_status`/`safety_reason` and auto-discarding `blocked` verdicts; the admin reviews (safety flag included) and publishes.
+
 ### Image Storage
 
-Don't hotlink Reddit/Bluesky-hosted images directly on the live site — their CDN URLs aren't guaranteed stable and a dead image on a published card looks broken, not funny. On generation, download the source image once and store it in object storage. The `photo_ref` field in the headlines table points at the stored object, not the original URL. Curated MLB/Wikimedia photos go through the same storage path so the admin UI and public site only ever deal with one kind of image reference.
+Don't hotlink externally-hosted images directly on the live site — a source CDN URL isn't guaranteed stable and a dead image on a published card looks broken, not funny. On admin photo import (upload, clipboard paste, or URL fetch), the source image is downloaded/re-encoded once and stored in object storage. The `photo_ref` field in the headlines table points at the stored object, not the original URL. Curated MLB/Wikimedia photos go through the same storage path so the admin UI and public site only ever deal with one kind of image reference.
 
 (Original spec called for Cloudflare R2 here. **Superseded by decision**: self-hosted MinIO instead — see `README.md` → Production (Railway) and `docs/README.md` for why.)
 
@@ -134,16 +140,18 @@ Don't hotlink Reddit/Bluesky-hosted images directly on the live site — their C
 
 ### Secrets (Railway env vars)
 
-- `ANTHROPIC_API_KEY` — Claude generation calls
-- `GENERATION_MODEL` — model string for the headline generator (e.g. `claude-haiku-4-5`), read at call time, not hardcoded — swap or A/B test without a code change or redeploy of logic
-- `REDDIT_CLIENT_ID` / `REDDIT_CLIENT_SECRET` — Reddit API auth
-- `BLUESKY_APP_PASSWORD` — atproto read access
+- `ANTHROPIC_API_KEY` — Claude classification calls (`ingest`); required, the job exits non-zero without it
+- `CLASSIFIER_MODEL` — model string for the classifier (e.g. `claude-haiku-4-5`), read at call time, not hardcoded — swap without a code change or redeploy of logic
 - `DATABASE_URL` — Postgres connection, shared by both services
 - Object storage credentials (bucket, access key, secret) — see `docs/README.md` for the current MinIO-based env vars
-- MLB Stats MCP server URL (deployed separately)
 - `SITE_URL` — the canonical production origin (`https://bluejays.space`), used to build absolute URLs for Open Graph/Twitter meta tags, the RSS feed, and the sitemap — none of those can be correct with only a relative path, and Astro/Railway don't infer it automatically at request time
+- `CF_ACCESS_TEAM` / `CF_ACCESS_AUD` — Cloudflare Access JWT verification for `/admin` (`web`)
 
-## Register Logic (Generation Detail)
+(The original design also used `GENERATION_MODEL`, `REDDIT_CLIENT_ID`/`REDDIT_CLIENT_SECRET`, `BLUESKY_APP_PASSWORD`, and an MLB Stats MCP server URL — all retired along with the fetch/generate pipeline, see the note under Architecture above.)
+
+## Register Logic (Generation Detail — original design, superseded)
+
+This section describes the original two-register generation design, retained as historical context (see the "Superseded by decision" note under Architecture). It does not describe the current classifier — see "LLM Usage" below for that.
 
 ```
 [MLB Stats context] + [recent Reddit/Bluesky posts, text+image] + [recent FAX Sports posts, live style reference]
@@ -160,25 +168,21 @@ Don't hotlink Reddit/Bluesky-hosted images directly on the live site — their C
               [status: published — visible on public feed]
 ```
 
-No autonomous posting. Every headline sits as a draft until it's published through the admin UI — this replaces a confidence-threshold/staging-table gate with something simpler and more reliable, since the person who has to stand behind the joke is reviewing every one of them anyway.
+No autonomous posting. Every headline sits as a draft until it's published through the admin UI — this replaces a confidence-threshold/staging-table gate with something simpler and more reliable, since the person who has to stand behind the joke is reviewing every one of them anyway. **This constraint still holds** in the current design — see [`docs/archive/admin-security.md`](./docs/archive/admin-security.md) and `CLAUDE.md` → Non-negotiable.
+
+The register 1/register 2 headline styles themselves are still the target voice for what an admin writes by hand in `/admin`; only the *generation* step (an LLM drafting the headline unattended) was retired, not the two-register concept.
 
 ## LLM Usage
 
-The LLM drafts; it does not publish. One generation step, not a classify+enrich split.
+The LLM classifies; it does not draft or publish. Headlines are authored directly by the admin in `/admin`. One classification step per draft, replacing the original single generation step described above.
 
-**Headline Generator**
-- Inputs: current team record/standings/recent-game data (MLB Stats MCP), candidate Reddit + Bluesky posts fetched by `bluejays-ingest` (text + image, not just aggregate flavor), recent FAX Sports posts as a live style reference, register instruction (1 or 2)
-- Task: draft a headline in the requested register, plus a suggested stat block and player tag. For register-2 real-fact-anchored headlines (fabricated premise + a real connecting fact), the generator needs a way to actually verify the connecting fact — not just recall it — since a wrong-but-plausible pairing (e.g. assuming a public figure's team affiliation instead of checking it) undermines the joke even though the core premise is already fake. Give the generation step search/lookup access for this subtype, don't rely on model memory alone.
-- Output: `{ headline, register, player_ids[], suggested_stat, source_note }`
-- `source_note` records what real event/stat/post inspired a register-1 headline. Register 2 leaves this empty — there's no real source to credit for a fabricated premise.
+**Draft Classifier** (`ingest/src/classify.js`)
+- Inputs: the draft's headline text, stat block, and source note, plus its attached photo when present (Claude vision)
+- Task: assign a topic category (`game-recap`, `trade-rumor`, `stat-line`, `injury`, `roster-move`, `fabrication`, `off-field`, `other`) and a safety verdict (`safe`, `review`, `blocked`) — see `ingest/src/classify.js` → `buildSystemPrompt()` for the full rubric, which is written to account for this being a parody site (fabricated scenarios and rough-on-the-field commentary about public figures are expected and safe; doxxing, threats, and sexualization of minors are always `blocked`)
+- Output: `{ category, safety_status, safety_reason }`, written back onto the draft row (`category`, `safety_status`, `safety_reason`, `classified_at`)
+- `blocked` verdicts are auto-discarded (`status = 'discarded'`) without admin action; `safe` and `review` just get flagged for the admin, who is the actual publish gate either way
 
-**Model**: configurable via `GENERATION_MODEL` env var, not hardcoded — default `claude-haiku-4-5` (cheap, good enough for a first drafting pass a human is going to edit anyway), swappable to Sonnet or any other Claude model without touching code.
-
-**Temperature**: split by register, not uniform.
-- Register 2 (fabricated-scenario): temperature maxed (`1.0`, the API ceiling — there's no "old unhinged LLM" mode past that, since the rambling/confabulating behavior of older models came from lacking RLHF tuning, not sampling temperature). Worth experimenting with since every draft is reviewed anyway before publish.
-- Register 1 (real-event riff): low/default temperature. High temperature actively works against this register's whole premise — it's supposed to accurately reflect the real stat/game context it was fed, and cranking randomness there just mangles the true part instead of the joke part.
-
-(See `docs/ingestion-pipeline.md` for a real gotcha found while speccing this: some current Claude model tiers removed the `temperature` parameter entirely, which breaks this register-2 knob if `GENERATION_MODEL` is ever swapped to one of them.)
+**Model**: configurable via `CLASSIFIER_MODEL` env var, not hardcoded — default `claude-haiku-4-5`, swappable without touching code. Structured output via `output_config.format` (JSON schema), no streaming — a short call per draft. Some Claude model tiers reject the `temperature` parameter entirely; the call retries once without it on a matching 400 if `CLASSIFIER_MODEL` is swapped to one of them (see `ingest/src/classify.js` → `isTemperatureError`).
 
 ## Frontend
 
@@ -202,25 +206,21 @@ The LLM drafts; it does not publish. One generation step, not a classify+enrich 
 | Image storage | Self-hosted MinIO (superseded from Cloudflare R2 — see above) | Downloaded copies of reused Reddit/Bluesky images + curated player photos — never hotlinked |
 | Auth (admin) | Cloudflare Access | Same pattern as the Asher Remote MCP server — gates `/admin`, no custom auth code |
 | DNS | Cloudflare | Wildcard subdomain for handle directory |
-| MLB Stats | `guillochon/mlb-api-mcp` | Team/game context for generation grounding — sole stats source |
-| Reddit | Free API tier | Lightweight fetch of candidate posts, `bluejays-ingest` only |
-| Bluesky | `@atproto/api` or HTTP | Lightweight fetch of candidate posts, `bluejays-ingest` only |
-| FAX Sports | Plain HTTP fetch of mlbonfax.com | Live style/tone reference for register 2, `bluejays-ingest` only |
-| LLM (headline generation) | Claude, model configurable via `GENERATION_MODEL` env var (default Haiku 4.5) | Drafting only — human edits every output before publish; model swappable without code changes |
+| LLM (draft classification) | Claude, model configurable via `CLASSIFIER_MODEL` env var (default Haiku 4.5) | Assigns topic category + safety verdict per draft (text + image); admin authors every headline directly, model swappable without code changes |
 | Photo sourcing | Curated library (MLB/Wikimedia) + reused fan images, both stored in object storage | No AI image generation |
+
+(`guillochon/mlb-api-mcp`, the Reddit and Bluesky fetch clients, and the FAX Sports scrape were part of the original generation pipeline and are retired — see the "Superseded by decision" note under Architecture.)
 
 ## Constraints & Risks
 
 | Risk | Mitigation |
 |---|---|
-| Reddit free tier (10k req/month) | Lightweight fetch only (no per-comment classifier calls) — cache aggressively, only poll new content since last run |
-| "FAX Sports" content used as live style reference but read as an affiliation claim | Fetched purely as generation input (style calibration) — never surfaced, credited, or linked on the live site. Basic scraping etiquette (reasonable poll interval, respect any robots.txt) |
-| Hotlinking Reddit/Bluesky-hosted images | Images are downloaded once at generation time and stored in object storage; `photo_ref` always points at the stored object, never at the source platform's CDN |
+| Hotlinking externally-hosted images | Images are downloaded once on admin photo import and stored in object storage; `photo_ref` always points at the stored object, never at a source CDN |
 | Fabricated statements about real, named players read as real news | Intentional, to a point — this is the core joke. Mitigated by keeping a genuine parody label at the site level (never zero disclosure) — including on the generated Open Graph preview image a shared permalink unfurls as, so the label travels with a link even off the live page — and by leaning on absurd-but-plausible details (the km/h-as-mph trick) as the actual tell, rather than escalating headline plausibility indefinitely |
 | Photo rights | Only editorial-use/public-domain/CC-sourced photos, never AI-generated; verify license per source before use |
-| LLM drafting something in poor taste or off-brand | Every headline passes a human edit step before storage — no autonomous publish |
-| "Funny" is subjective | Human review is the actual quality gate, not a classifier threshold |
-| LLM cost at scale | Default model (Haiku) is cheap; generation volume is naturally capped by the human review step anyway |
+| A headline in poor taste or off-brand | Every headline is admin-authored and passes classification (topic + safety verdict) before it's even eligible to publish — no autonomous publish |
+| "Funny" is subjective | Human authorship and review is the actual quality gate, not a classifier threshold — the classifier only screens for illegal/unsafe content, not for being funny |
+| LLM cost at scale | Default classifier model (Haiku) is cheap and only runs once per draft, not per generation attempt |
 
 ## Out of Scope (v1)
 

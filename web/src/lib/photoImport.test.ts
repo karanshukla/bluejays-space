@@ -1,7 +1,10 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const uploadImage = vi.fn();
 vi.mock('./storage', () => ({ uploadImage: (...args: unknown[]) => uploadImage(...args) }));
+
+const safeFetch = vi.fn();
+vi.mock('./urlSafety', () => ({ safeFetch: (...args: unknown[]) => safeFetch(...args) }));
 
 const chain = {
   rotate: vi.fn(() => chain),
@@ -11,7 +14,23 @@ const chain = {
 };
 vi.mock('sharp', () => ({ default: vi.fn(() => chain) }));
 
-const { resolvePhotoRef, storeImageBytes } = await import('./photoImport');
+const { resolvePhotoRef, storeImageBytes, isAllowedImageType } = await import('./photoImport');
+
+describe('isAllowedImageType', () => {
+  it('accepts common raster types', () => {
+    expect(isAllowedImageType('image/jpeg')).toBe(true);
+    expect(isAllowedImageType('image/png')).toBe(true);
+    expect(isAllowedImageType('image/webp')).toBe(true);
+    expect(isAllowedImageType('image/gif')).toBe(true);
+    expect(isAllowedImageType('image/avif; charset=binary')).toBe(true);
+  });
+
+  it('rejects SVG (XML that can carry <script>) and other non-raster types', () => {
+    expect(isAllowedImageType('image/svg+xml')).toBe(false);
+    expect(isAllowedImageType('text/html')).toBe(false);
+    expect(isAllowedImageType('application/pdf')).toBe(false);
+  });
+});
 
 describe('storeImageBytes', () => {
   beforeEach(() => {
@@ -39,19 +58,22 @@ describe('storeImageBytes', () => {
     await expect(storeImageBytes(buf, 'image/png', 'big.png')).rejects.toThrow('too large');
     expect(uploadImage).not.toHaveBeenCalled();
   });
+
+  it('rejects a disallowed content type (e.g. SVG) before touching storage', async () => {
+    const buf = Buffer.from([1]);
+    await expect(storeImageBytes(buf, 'image/svg+xml', 'evil.svg')).rejects.toThrow(
+      'unsupported image type'
+    );
+    expect(uploadImage).not.toHaveBeenCalled();
+  });
 });
 
 describe('resolvePhotoRef', () => {
-  const originalFetch = global.fetch;
-
   beforeEach(() => {
     uploadImage.mockReset();
+    safeFetch.mockReset();
     chain.toBuffer.mockReset();
     chain.toBuffer.mockResolvedValue(Buffer.from([1]));
-  });
-
-  afterEach(() => {
-    global.fetch = originalFetch;
   });
 
   it('passes through null unchanged', async () => {
@@ -67,12 +89,12 @@ describe('resolvePhotoRef', () => {
   });
 
   it('downloads and stores an http(s) URL, returning the webp key', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    safeFetch.mockResolvedValue({
       ok: true,
       status: 200,
       headers: new Headers({ 'content-type': 'image/jpeg' }),
       arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
-    }) as unknown as typeof fetch;
+    });
 
     const key = await resolvePhotoRef('https://www.sportsnet.ca/wp-content/uploads/photo.jpg');
     expect(key).toMatch(/^admin\/\d+-photo\.webp$/);
@@ -80,27 +102,47 @@ describe('resolvePhotoRef', () => {
   });
 
   it('throws when the URL fetch fails outright', async () => {
-    global.fetch = vi.fn().mockRejectedValue(new Error('network down'));
+    safeFetch.mockRejectedValue(new Error('network down'));
     await expect(resolvePhotoRef('https://example.com/photo.jpg')).rejects.toThrow(
       'could not reach that URL'
     );
     expect(uploadImage).not.toHaveBeenCalled();
   });
 
+  it('surfaces the SSRF-guard message unchanged when the URL resolves to a private address', async () => {
+    safeFetch.mockRejectedValue(new Error('that URL points to a private address'));
+    await expect(resolvePhotoRef('https://example.com/photo.jpg')).rejects.toThrow(
+      'private address'
+    );
+    expect(uploadImage).not.toHaveBeenCalled();
+  });
+
   it('throws when the URL returns a non-2xx status', async () => {
-    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 404 }) as unknown as typeof fetch;
+    safeFetch.mockResolvedValue({ ok: false, status: 404 });
     await expect(resolvePhotoRef('https://example.com/gone.jpg')).rejects.toThrow('HTTP 404');
     expect(uploadImage).not.toHaveBeenCalled();
   });
 
-  it('throws when the URL does not point at an image', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+  it('throws when the URL does not point at a supported image type', async () => {
+    safeFetch.mockResolvedValue({
       ok: true,
       status: 200,
       headers: new Headers({ 'content-type': 'text/html' }),
-    }) as unknown as typeof fetch;
+    });
     await expect(resolvePhotoRef('https://example.com/page.html')).rejects.toThrow(
-      'did not return an image'
+      'did not return a supported image type'
+    );
+    expect(uploadImage).not.toHaveBeenCalled();
+  });
+
+  it('rejects SVG even though it starts with "image/" (XSS risk)', async () => {
+    safeFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'image/svg+xml' }),
+    });
+    await expect(resolvePhotoRef('https://example.com/evil.svg')).rejects.toThrow(
+      'did not return a supported image type'
     );
     expect(uploadImage).not.toHaveBeenCalled();
   });

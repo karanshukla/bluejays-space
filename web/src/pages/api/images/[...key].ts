@@ -19,6 +19,7 @@ export const GET: APIRoute = async ({ params }) => {
     headers: {
       'Content-Type': image.contentType ?? 'application/octet-stream',
       'Cache-Control': 'public, max-age=86400',
+      'X-Content-Type-Options': 'nosniff',
     },
   });
 };

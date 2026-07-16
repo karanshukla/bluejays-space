@@ -1,10 +1,25 @@
 import sharp from 'sharp';
 import { uploadImage } from './storage';
+import { safeFetch } from './urlSafety';
 
 export const MAX_BYTES = 15 * 1024 * 1024;
 
 const MAX_WIDTH = 1280;
 const WEBP_QUALITY = 82;
+
+// Raster formats only — deliberately excludes image/svg+xml, which is XML
+// that browsers parse and execute <script> inside, unlike a real raster image.
+const ALLOWED_IMAGE_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/avif',
+]);
+
+export function isAllowedImageType(contentType: string): boolean {
+  return ALLOWED_IMAGE_TYPES.has(contentType.split(';')[0].trim().toLowerCase());
+}
 
 function isHttpUrl(value: string): boolean {
   return /^https?:\/\/[^\s]+$/i.test(value);
@@ -25,6 +40,7 @@ export async function storeImageBytes(
   contentType: string,
   slug: string
 ): Promise<string> {
+  if (!isAllowedImageType(contentType)) throw new Error(`unsupported image type: ${contentType}`);
   if (buf.byteLength > MAX_BYTES) throw new Error('image is too large');
   const key = keyForSlug(slug);
 
@@ -53,15 +69,16 @@ export async function resolvePhotoRef(value: string | null): Promise<string | nu
 
   let res: Response;
   try {
-    res = await fetch(value);
-  } catch {
+    res = await safeFetch(value);
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('private address')) throw err;
     throw new Error('could not reach that URL');
   }
   if (!res.ok) throw new Error(`could not fetch that URL (HTTP ${res.status})`);
 
   const contentType = res.headers.get('content-type') || '';
-  if (!contentType.startsWith('image/')) {
-    throw new Error(`URL did not return an image (got ${contentType || 'unknown content-type'})`);
+  if (!isAllowedImageType(contentType)) {
+    throw new Error(`URL did not return a supported image type (got ${contentType || 'unknown'})`);
   }
 
   const buf = Buffer.from(await res.arrayBuffer());
