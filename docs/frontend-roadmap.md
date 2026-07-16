@@ -1,10 +1,10 @@
 # Frontend follow-up — sharing, scale, and the polish `docs/archive/ui-plan.md` left open
 
-The admin island, self-hosted display font, and real alt text all shipped (see `docs/archive/ui-plan.md`). This doc covers what's next: the site's sharing/discovery foundation (permalinks, OG/Twitter tags, RSS, sitemap, robots.txt) has now shipped too — the dynamic per-headline OG image (§ 1.3) is the one remaining piece of that section. Below also covers what's left of the original visual/a11y punch list, feed pagination, and the handles site's UI, which nothing has touched yet.
+The admin island, self-hosted display font, and real alt text all shipped (see `docs/archive/ui-plan.md`). The entire sharing/discovery section (§ 1 — permalinks, OG/Twitter tags, RSS, sitemap, robots.txt, and the dynamic per-headline OG image) has now shipped. Below also covers what's left of the original visual/a11y punch list, feed pagination, and the handles site's UI, which nothing has touched yet.
 
-## 1. Sharing & discovery — foundation shipped, dynamic OG image still open
+## 1. Sharing & discovery — shipped
 
-§ 1.0, 1.1, 1.2, 1.4, 1.5, 1.6, and 1.7 have shipped. § 1.3 (the dynamic per-headline OG card) is the one open item — until it lands, shared permalinks unfurl with the static `og-default.png` fallback rather than a per-headline card. See `SPEC.md` → "Sharing & Discovery" and the Parody Labeling section for the product-level calls (permalinks/OG/RSS/sitemap in scope; the generated OG image carries the parody label; handles stays JSON+GitHub-PR, unrelated but resolved the same pass). What's below is the original spec, annotated with what shipped.
+All of § 1 has shipped: SITE_URL config (§ 1.0), permalinks (§ 1.1), OG/Twitter meta tags (§ 1.2), the dynamic per-headline OG image (§ 1.3), RSS (§ 1.4), sitemap (§ 1.5), robots.txt (§ 1.6), and favicon (§ 1.7). Individual headlines are now shareable with real preview cards. See `SPEC.md` → "Sharing & Discovery" and the Parody Labeling section for the product-level calls. What's below is the original spec, annotated with what shipped.
 
 ### 1.0 Prerequisite: canonical site URL — shipped
 
@@ -25,9 +25,12 @@ The admin island, self-hosted display font, and real alt text all shipped (see `
 - `h/[id].astro` passes `title={headline.headline}`, `description={headline.stat_block}`, `ogType="article"`, `canonicalPath={/h/${id}}`. `ogImage` is not overridden yet (points at the static `/og-default.png`) — § 1.3 will wire the per-headline card here once it lands.
 - Static fallback `web/public/og-default.png` shipped (1200×630, blue palette background, white "bluejays.space" wordmark) so `og:image` is never empty.
 
-### 1.3 Dynamically-generated OG images — decided approach: in-process Satori render, cached in MinIO — OPEN (the one remaining piece of § 1)
+### 1.3 Dynamically-generated OG images — shipped
 
-**This is the only open item in § 1.** Everything it depends on is now in place: `SITE_URL`, the permalink route, the `Base.astro` `ogImage` prop (wired but pointing at the static fallback), and the MinIO bucket. Until this lands, shared permalinks unfurl with `og-default.png` rather than a per-headline card.
+**Implemented exactly as the decided spec below.** `satori` + `@resvg/resvg-js` render in-process inside `web`, cached in the existing MinIO bucket under `og/{id}-{hash}.png` (content hash of `headline|stat_block|photo_ref`). The Satori typography risk the spec flagged ("check that Satori's flexbox-only engine turns out too limited against the real Fraunces/Space Mono typography") was validated before committing — the prototype rendered cleanly with both fonts at the intended sizes, no missing glyphs. Key implementation details:
+- **Render module** `web/src/lib/ogImage.ts`: lazy-loads the Fraunces 600 + Space Mono 400 `.woff` files (Satori takes TTF/OTF/WOFF, not woff2) from `@fontsource`, resolved from `process.cwd()` (not `import.meta.url`, which points into `dist/` in the built image).
+- **Route** `web/src/pages/api/og/[id].png.ts`: cache check → render → upload → serve, with a process-local in-flight `Map` deduplicating near-simultaneous renders for the same key. On render failure, 302s to `/og-default.png` so a crawler never sees a broken image. No UA gate on this route (publicly fetchable like `/api/images/*`).
+- **Crawler gate** in `h/[id].astro`: only crawlers (Discordbot, Bluesky Cardyb, Twitterbot, Slackbot, facebookexternalhit) get `og:image` pointed at the dynamic route; normal browser visits use the static fallback (no render needed for a human already reading the page).
 
 A static `og:image` (just the stored `photo_ref`) previews as a bare photo with no headline text — the thing actually read at a glance in an unfurl. Build a real per-headline card instead: headline text + stat block composited over the photo, parody label in the corner (per `SPEC.md`'s Parody Labeling section — this is the one case where the generated image, unlike the live-page card, carries the label). `karanshukla/navyfragen-app`'s `opengraph-service` is a useful reference for the *pattern*, not to be ported wholesale — its scale-specific parts don't apply here (see below).
 
