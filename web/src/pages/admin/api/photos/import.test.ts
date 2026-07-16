@@ -1,9 +1,14 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 
 const storeImageBytes = vi.fn();
-vi.mock('../../../../lib/photoImport', () => ({
-  storeImageBytes: (...args: unknown[]) => storeImageBytes(...args),
-  MAX_BYTES: 15 * 1024 * 1024,
+vi.mock('../../../../lib/photoImport', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../../lib/photoImport')>();
+  return { ...actual, storeImageBytes: (...args: unknown[]) => storeImageBytes(...args) };
+});
+
+const safeFetch = vi.fn();
+vi.mock('../../../../lib/urlSafety', () => ({
+  safeFetch: (...args: unknown[]) => safeFetch(...args),
 }));
 
 const { POST } = await import('./import');
@@ -17,10 +22,10 @@ async function callPost(body: FormData): Promise<Response> {
 }
 
 describe('POST /admin/api/photos/import', () => {
-  const originalFetch = global.fetch;
-
-  beforeEach(() => storeImageBytes.mockReset());
-  afterEach(() => (global.fetch = originalFetch));
+  beforeEach(() => {
+    storeImageBytes.mockReset();
+    safeFetch.mockReset();
+  });
 
   it('imports an uploaded file and returns its key', async () => {
     const file = new File([new Uint8Array([1, 2, 3])], 'cat.jpg', { type: 'image/jpeg' });
@@ -35,12 +40,12 @@ describe('POST /admin/api/photos/import', () => {
   });
 
   it('imports a URL and returns its key', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    safeFetch.mockResolvedValue({
       ok: true,
       status: 200,
       headers: new Headers({ 'content-type': 'image/png' }),
       arrayBuffer: async () => new Uint8Array([9]).buffer,
-    }) as unknown as typeof fetch;
+    });
     const form = new FormData();
     form.append('url', 'https://example.com/x.png');
     storeImageBytes.mockResolvedValue('admin/456-x.webp');
@@ -57,7 +62,18 @@ describe('POST /admin/api/photos/import', () => {
 
     const res = await callPost(form);
     expect(res.status).toBe(400);
-    expect(await res.text()).toMatch(/not an image/i);
+    expect(await res.text()).toMatch(/unsupported image type/i);
+    expect(storeImageBytes).not.toHaveBeenCalled();
+  });
+
+  it('rejects an SVG file (XSS risk) even though the browser reports an image/ type', async () => {
+    const file = new File([new Uint8Array([1])], 'evil.svg', { type: 'image/svg+xml' });
+    const form = new FormData();
+    form.append('file', file);
+
+    const res = await callPost(form);
+    expect(res.status).toBe(400);
+    expect(await res.text()).toMatch(/unsupported image type/i);
     expect(storeImageBytes).not.toHaveBeenCalled();
   });
 
@@ -68,13 +84,24 @@ describe('POST /admin/api/photos/import', () => {
   });
 
   it('returns 400 when a URL fetch fails, surfacing the message', async () => {
-    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 502 }) as unknown as typeof fetch;
+    safeFetch.mockResolvedValue({ ok: false, status: 502 });
     const form = new FormData();
     form.append('url', 'https://example.com/x.jpg');
 
     const res = await callPost(form);
     expect(res.status).toBe(400);
     expect(await res.text()).toMatch(/HTTP 502/);
+    expect(storeImageBytes).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when the URL resolves to a private address', async () => {
+    safeFetch.mockRejectedValue(new Error('that URL points to a private address'));
+    const form = new FormData();
+    form.append('url', 'http://169.254.169.254/latest/meta-data/');
+
+    const res = await callPost(form);
+    expect(res.status).toBe(400);
+    expect(await res.text()).toMatch(/private address/i);
     expect(storeImageBytes).not.toHaveBeenCalled();
   });
 });

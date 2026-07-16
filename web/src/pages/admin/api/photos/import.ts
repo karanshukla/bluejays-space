@@ -1,20 +1,22 @@
 import type { APIRoute } from 'astro';
-import { storeImageBytes, MAX_BYTES } from '../../../../lib/photoImport';
+import { storeImageBytes, isAllowedImageType, MAX_BYTES } from '../../../../lib/photoImport';
 import { asNullableText } from '../../../../lib/formHelpers';
+import { safeFetch } from '../../../../lib/urlSafety';
 
 export const prerender = false;
 
 async function importFromUrl(url: string): Promise<string> {
   let res: Response;
   try {
-    res = await fetch(url);
-  } catch {
+    res = await safeFetch(url);
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('private address')) throw err;
     throw new Error('could not reach that URL');
   }
   if (!res.ok) throw new Error(`could not fetch that URL (HTTP ${res.status})`);
   const contentType = res.headers.get('content-type') || '';
-  if (!contentType.startsWith('image/')) {
-    throw new Error(`URL did not return an image (got ${contentType || 'unknown content-type'})`);
+  if (!isAllowedImageType(contentType)) {
+    throw new Error(`URL did not return a supported image type (got ${contentType || 'unknown'})`);
   }
   const buf = Buffer.from(await res.arrayBuffer());
   if (buf.byteLength > MAX_BYTES) throw new Error('image is too large');
@@ -23,8 +25,8 @@ async function importFromUrl(url: string): Promise<string> {
 }
 
 async function importFromFile(file: File): Promise<string> {
-  if (!file.type.startsWith('image/')) {
-    throw new Error(`not an image (got ${file.type || 'unknown type'})`);
+  if (!isAllowedImageType(file.type)) {
+    throw new Error(`unsupported image type (got ${file.type || 'unknown'})`);
   }
   if (file.size > MAX_BYTES) throw new Error('image is too large');
   const buf = Buffer.from(await file.arrayBuffer());
