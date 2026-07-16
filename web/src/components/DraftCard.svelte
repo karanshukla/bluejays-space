@@ -183,10 +183,7 @@
 
     <div>
       <span class="block text-sm font-medium text-ink">Photo</span>
-      <PhotoInput
-        currentRef={photoRef || null}
-        onchange={(k) => (photoRef = k ?? '')}
-      />
+      <PhotoInput currentRef={photoRef || null} onchange={(k) => (photoRef = k ?? '')} />
     </div>
 
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
