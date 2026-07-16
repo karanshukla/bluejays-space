@@ -7,14 +7,17 @@ export const TAPE_VARIANTS = ['tape-a', 'tape-b', 'tape-c', 'tape-d', 'tape-e', 
 
 interface Props {
   headline: Headline;
+  // On a permalink page, the focused card stays full-opacity; every other card
+  // is dimmed to draw the eye to the one being shared.
+  dimmed?: boolean;
 }
 
-const { headline: h } = Astro.props;
+const { headline: h, dimmed = false } = Astro.props;
 const photoAlt = h.player_ids?.[0] ? `${h.player_ids[0]}` : '';
 const tapeVariant = TAPE_VARIANTS[h.id % TAPE_VARIANTS.length];
 ---
 
-<li>
+<li class={dimmed ? 'opacity-25 grayscale transition-all' : ''}>
   <div
     class={`clipping ${tapeVariant} relative border border-paper-edge bg-card p-5 pt-7 shadow-[3px_4px_0_rgba(20,33,61,0.12),0_10px_24px_-8px_rgba(20,33,61,0.28)]`}
   >
@@ -54,5 +57,15 @@ const tapeVariant = TAPE_VARIANTS[h.id % TAPE_VARIANTS.length];
         </p>
       )
     }
+
+    <button
+      type="button"
+      class="copy-link absolute right-3 bottom-2 font-mono text-xs text-ink-soft/40 transition-colors hover:text-blue"
+      data-url={`/h/${h.id}`}
+      title="Copy link"
+      aria-label="Copy link to this headline"
+    >
+      #
+    </button>
   </div>
 </li>

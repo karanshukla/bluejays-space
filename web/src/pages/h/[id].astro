@@ -1,7 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import HeadlineCard from '../../components/HeadlineCard.astro';
-import { getHeadlineById } from '../../lib/db';
+import { getHeadlineById, getPublishedHeadlines } from '../../lib/db';
 
 export const prerender = false;
 
@@ -14,6 +14,8 @@ const headline = await getHeadlineById(id);
 if (!headline) {
   return new Response('Not Found', { status: 404 });
 }
+
+const headlines = await getPublishedHeadlines();
 
 // Point the dynamic OG card only at known link-preview crawlers — a human
 // reading the page doesn't need the per-headline image rendered, and skipping
@@ -30,7 +32,7 @@ const ogImage = isCrawler ? `/api/og/${id}.png` : undefined;
   canonicalPath={`/h/${id}`}
   ogImage={ogImage}
 >
-  <main class="mx-auto max-w-2xl px-6 py-12">
+  <main class="mx-auto max-w-[1600px] px-6 py-12 sm:px-10">
     <a
       href="/"
       class="font-mono text-xs font-bold tracking-wide text-blue uppercase hover:underline"
@@ -39,7 +41,28 @@ const ogImage = isCrawler ? `/api/og/${id}.png` : undefined;
     </a>
 
     <ul class="scrapbook-grid mt-8">
-      <HeadlineCard headline={headline} />
+      {headlines.map((h) => <HeadlineCard headline={h} dimmed={h.id !== id} />)}
     </ul>
   </main>
+
+  <script>
+    document.querySelectorAll<HTMLButtonElement>('.copy-link').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const path = btn.dataset.url;
+        if (!path) return;
+        try {
+          await navigator.clipboard.writeText(`${location.origin}${path}`);
+          const original = btn.textContent;
+          btn.textContent = '✓';
+          btn.classList.add('text-blue');
+          setTimeout(() => {
+            btn.textContent = original;
+            btn.classList.remove('text-blue');
+          }, 1500);
+        } catch {
+          window.open(path, '_blank');
+        }
+      });
+    });
+  </script>
 </Base>

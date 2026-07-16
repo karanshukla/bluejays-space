@@ -26,4 +26,26 @@ const headlines = await getPublishedHeadlines();
       {headlines.map((h) => <HeadlineCard headline={h} />)}
     </ul>
   </main>
+
+  <script>
+    document.querySelectorAll<HTMLButtonElement>('.copy-link').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const path = btn.dataset.url;
+        if (!path) return;
+        try {
+          await navigator.clipboard.writeText(`${location.origin}${path}`);
+          const original = btn.textContent;
+          btn.textContent = '✓';
+          btn.classList.add('text-blue');
+          setTimeout(() => {
+            btn.textContent = original;
+            btn.classList.remove('text-blue');
+          }, 1500);
+        } catch {
+          // clipboard API unavailable — fall back to navigating to the permalink
+          window.open(path, '_blank');
+        }
+      });
+    });
+  </script>
 </Base>
