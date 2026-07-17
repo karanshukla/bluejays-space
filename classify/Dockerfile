@@ -1,5 +1,5 @@
-# Production image for bluejays-ingest (Node cron job).
-# Railway builds this from ingest/ (set the service's root directory to ingest/)
+# Production image for bluejays-classify (Node cron job).
+# Railway builds this from classify/ (set the service's root directory to classify/)
 # and runs it on a cron trigger. Runs once and exits: classifies unclassified
 # draft headlines (text + image via Claude vision) and writes the verdict back.
 FROM node:26-alpine

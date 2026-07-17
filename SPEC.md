@@ -92,20 +92,20 @@ Three Railway services + managed Postgres + Cloudflare in front. Everything auto
 
 | Service | Type | What it does |
 |---|---|---|
-| `bluejays-ingest` | Railway cron job (scheduled, not always-on) | Classifies existing draft headlines: assigns each a topic category + safety verdict via Claude (text + attached photo, vision), auto-discarding illegal/doxxing content and flagging the rest for admin review. Does not fetch content or write headlines itself — see note below. |
+| `bluejays-classify` | Railway cron job (scheduled, not always-on) | Classifies existing draft headlines: assigns each a topic category + safety verdict via Claude (text + attached photo, vision), auto-discarding illegal/doxxing content and flagging the rest for admin review. Does not fetch content or write headlines itself — see note below. |
 | `bluejays-web` | Railway always-on service (Astro SSR, Node adapter) | Serves the public feed (published rows only), the `/admin` authoring/review UI (create, edit, publish draft rows), and photo import/proxy |
 | `bluejays-db` | Railway managed Postgres | `headlines` table (draft/published) + handle directory DIDs |
 
 Two services, not one, because the classifier job is bursty and scheduled (runs periodically, does its work, exits) while the web app needs to be always-on to serve traffic — different Railway deployment types, no reason to force them into one process.
 
-> **Superseded by decision:** `bluejays-ingest` was originally specced as an autonomous fetch-and-generate pipeline (Reddit/Bluesky candidate posts + MLB Stats context → Claude headline drafting, the "Data Flow" and "Register Logic" design below). That pipeline was built, then retooled: headlines are now authored directly by the admin in `/admin` (see `web/src/pages/admin/api/headlines/create.ts`), and `ingest` only classifies them for topic + safety before human review. The original design is kept as historical context in `docs/archive/ingestion-pipeline.md`; see `docs/README.md` → "MVP status" for why it changed. The rest of this section describes the original design and is retained for that context — it does not describe what's currently deployed.
+> **Superseded by decision:** `bluejays-classify` was originally specced as an autonomous fetch-and-generate pipeline (Reddit/Bluesky candidate posts + MLB Stats context → Claude headline drafting, the "Data Flow" and "Register Logic" design below). That pipeline was built, then retooled: headlines are now authored directly by the admin in `/admin` (see `web/src/pages/admin/api/headlines/create.ts`), and `classify` only classifies them for topic + safety before human review. The original design is kept as historical context in `docs/archive/ingestion-pipeline.md`; see `docs/README.md` → "MVP status" for why it changed. The rest of this section describes the original design and is retained for that context — it does not describe what's currently deployed.
 
 ### Data Flow (original design — superseded, see note above)
 
 ```
 Railway cron trigger (e.g. every 4-6h)
   ↓
-bluejays-ingest run:
+bluejays-classify run:
   1. fetch_reddit() — PRAW, r/Torontobluejays, filtered against seen_ids
   2. fetch_bluesky() — atproto, #BlueJays / #TorontoBluejays, filtered against seen_ids
   3. fetch_faxsports() — plain HTTP fetch of recent mlbonfax.com posts, used as live style reference (not a joke source, no player/team overlap needed)
@@ -124,7 +124,7 @@ bluejays-web (always-on):
   /        → queries published rows only, renders public feed
 ```
 
-**Current data flow:** an admin authors a draft directly in `/admin` (headline, register, stat block, source note, photo — the photo either uploaded, pasted, or imported from a URL); `bluejays-ingest` periodically classifies any draft with `classified_at IS NULL`, writing back `category`/`safety_status`/`safety_reason` and auto-discarding `blocked` verdicts; the admin reviews (safety flag included) and publishes.
+**Current data flow:** an admin authors a draft directly in `/admin` (headline, register, stat block, source note, photo — the photo either uploaded, pasted, or imported from a URL); `bluejays-classify` periodically classifies any draft with `classified_at IS NULL`, writing back `category`/`safety_status`/`safety_reason` and auto-discarding `blocked` verdicts; the admin reviews (safety flag included) and publishes.
 
 ### Image Storage
 
@@ -136,11 +136,11 @@ Don't hotlink externally-hosted images directly on the live site — a source CD
 
 - Cloudflare sits in front of `bluejays-web`'s Railway domain, same as the Asher Remote MCP setup
 - `/admin` path gated by Cloudflare Access; public feed paths are open
-- No auth needed on `bluejays-ingest` — it's a scheduled job with no public HTTP surface, just DB write access
+- No auth needed on `bluejays-classify` — it's a scheduled job with no public HTTP surface, just DB write access
 
 ### Secrets (Railway env vars)
 
-- `ANTHROPIC_API_KEY` — Claude classification calls (`ingest`); required, the job exits non-zero without it
+- `ANTHROPIC_API_KEY` — Claude classification calls (`classify`); required, the job exits non-zero without it
 - `CLASSIFIER_MODEL` — model string for the classifier (e.g. `claude-haiku-4-5`), read at call time, not hardcoded — swap without a code change or redeploy of logic
 - `DATABASE_URL` — Postgres connection, shared by both services
 - Object storage credentials (bucket, access key, secret) — see `docs/README.md` for the current MinIO-based env vars
@@ -176,13 +176,13 @@ The register 1/register 2 headline styles themselves are still the target voice 
 
 The LLM classifies; it does not draft or publish. Headlines are authored directly by the admin in `/admin`. One classification step per draft, replacing the original single generation step described above.
 
-**Draft Classifier** (`ingest/src/classify.js`)
+**Draft Classifier** (`classify/src/classify.js`)
 - Inputs: the draft's headline text, stat block, and source note, plus its attached photo when present (Claude vision)
-- Task: assign a topic category (`game-recap`, `trade-rumor`, `stat-line`, `injury`, `roster-move`, `fabrication`, `off-field`, `other`) and a safety verdict (`safe`, `review`, `blocked`) — see `ingest/src/classify.js` → `buildSystemPrompt()` for the full rubric, which is written to account for this being a parody site (fabricated scenarios and rough-on-the-field commentary about public figures are expected and safe; doxxing, threats, and sexualization of minors are always `blocked`)
+- Task: assign a topic category (`game-recap`, `trade-rumor`, `stat-line`, `injury`, `roster-move`, `fabrication`, `off-field`, `other`) and a safety verdict (`safe`, `review`, `blocked`) — see `classify/src/classify.js` → `buildSystemPrompt()` for the full rubric, which is written to account for this being a parody site (fabricated scenarios and rough-on-the-field commentary about public figures are expected and safe; doxxing, threats, and sexualization of minors are always `blocked`)
 - Output: `{ category, safety_status, safety_reason }`, written back onto the draft row (`category`, `safety_status`, `safety_reason`, `classified_at`)
 - `blocked` verdicts are auto-discarded (`status = 'discarded'`) without admin action; `safe` and `review` just get flagged for the admin, who is the actual publish gate either way
 
-**Model**: configurable via `CLASSIFIER_MODEL` env var, not hardcoded — default `claude-haiku-4-5`, swappable without touching code. Structured output via `output_config.format` (JSON schema), no streaming — a short call per draft. Some Claude model tiers reject the `temperature` parameter entirely; the call retries once without it on a matching 400 if `CLASSIFIER_MODEL` is swapped to one of them (see `ingest/src/classify.js` → `isTemperatureError`).
+**Model**: configurable via `CLASSIFIER_MODEL` env var, not hardcoded — default `claude-haiku-4-5`, swappable without touching code. Structured output via `output_config.format` (JSON schema), no streaming — a short call per draft. Some Claude model tiers reject the `temperature` parameter entirely; the call retries once without it on a matching 400 if `CLASSIFIER_MODEL` is swapped to one of them (see `classify/src/classify.js` → `isTemperatureError`).
 
 ## Frontend
 

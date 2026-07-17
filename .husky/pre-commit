@@ -3,7 +3,7 @@
 # Auto-fix staged files with Prettier + oxlint, per service (each has its own
 # .oxlintrc.json). Falls through harmlessly if a service has no staged files.
 (cd web && npx lint-staged --allow-empty)
-(cd ingest && npx lint-staged --allow-empty)
+(cd classify && npx lint-staged --allow-empty)
 
 # TypeScript/Astro type check — catches errors auto-fix can't resolve.
 echo "Typecheck: web..."

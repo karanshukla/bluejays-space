@@ -93,7 +93,7 @@ The admin page (`admin.astro` + `DraftCard.svelte`) shipped originally as functi
 ## 5. Remaining items from the archived UI plan, not yet re-verified
 
 `docs/archive/ui-plan.md` flagged three things as still-open when the island/font/alt-text work landed; none of them were touched since, so they carry forward as-is:
-- The Pudding-style visual/spacing pass, done against real photographed content (not stub text) — hasn't happened, since ingest was still stub-only when that doc was written and real drafts are only just starting to flow now that generation is real.
+- The Pudding-style visual/spacing pass, done against real photographed content (not stub text) — hasn't happened, since classify was still stub-only when that doc was written and real drafts are only just starting to flow now that generation is real.
 - A full WCAG contrast audit specifically on the register/fact-anchored badges in `DraftCard.svelte` (currently `bg-amber-100`/`text-amber-800` for the register-2 badge, `bg-red/10`/`text-red` for the fact-anchored badge — the redesign kept these utility classes rather than moving to palette tokens, so the audit is against the same Tailwind colors as before) — never actually run against a contrast checker, just asserted as "worth checking."
 - A deliberate mobile walkthrough with real (non-stub) content, since register-2 copy and real photos stress-test wrapping/truncation differently than placeholder text.
 

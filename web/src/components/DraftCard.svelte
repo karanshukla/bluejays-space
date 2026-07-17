@@ -22,7 +22,7 @@
   const isFactAnchored = $derived(register === 2 && !!sourceNote);
   const isPublished = $derived(draft.status === 'published');
 
-  // Auto-classification display (read-only — the ingest job writes these).
+  // Auto-classification display (read-only — the classify job writes these).
   // safety_status colors: review = amber nudge, blocked = red (rare, since the
   // job auto-discards blocked drafts; shown only in the race window).
   const safetyBadgeClass = $derived.by(() => {

@@ -24,7 +24,7 @@ export interface Headline {
   // them as needing extra scrutiny.
   source: 'admin' | 'submission';
   submitter_name: string | null;
-  // Auto-classification output written by the ingest classifier job.
+  // Auto-classification output written by the classify job.
   // category is plain text (taxonomy defined in the classifier prompt), not an
   // enum, so adding a tag needs no migration; safety_status mirrors the DB CHECK.
   category: string | null;
@@ -156,7 +156,7 @@ export interface HeadlineSubmission {
 
 // Public /submit intake (issue #82). Just the fields the classifier and the
 // public card actually use: headline, stat_block, photo_ref (the classifier
-// reads all three, see ingest/src/classify.js), and source_note (extra
+// reads all three, see classify/src/classify.js), and source_note (extra
 // context for the classifier, also shown on the card). No register, no
 // source_post_url, no player tagging. Lands as a normal draft row so the
 // existing classifier + admin review + publish gate apply unchanged;

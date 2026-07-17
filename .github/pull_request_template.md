@@ -10,7 +10,7 @@ Closes #
 
 <!-- Which package(s) does this touch? -->
 - [ ] web
-- [ ] ingest
+- [ ] classify
 - [ ] handles
 - [ ] docs / SPEC.md
 

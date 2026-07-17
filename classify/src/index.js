@@ -1,5 +1,5 @@
-// bluejays-ingest — draft classifier job. Runs once and exits.
-// Dev: `docker compose run --rm ingest`. Selects draft rows the classifier
+// bluejays-classify — draft classifier job. Runs once and exits.
+// Dev: `docker compose run --rm classify`. Selects draft rows the classifier
 // hasn't seen yet (classified_at IS NULL), assigns each a topic category and a
 // safety verdict via Claude (text + attached image, vision), and writes the
 // result back. Blocked (illegal/doxxing) drafts are auto-discarded; everything
@@ -72,7 +72,7 @@ async function saveClassification(pool, id, result) {
 
 async function runClassification(pool) {
   const drafts = await getUnclassifiedDrafts(pool);
-  console.log(`[ingest] ${drafts.length} unclassified draft(s) to process`);
+  console.log(`[classify] ${drafts.length} unclassified draft(s) to process`);
   if (drafts.length === 0) return;
 
   let processed = 0;
@@ -101,25 +101,25 @@ async function runClassification(pool) {
     } catch (err) {
       // One draft failing must not abort the run; leave it unclassified so the
       // next run retries it.
-      console.error(`[ingest] draft #${draft.id} failed: ${err.message}`);
+      console.error(`[classify] draft #${draft.id} failed: ${err.message}`);
     }
   }
 
-  console.log(`[ingest] classified ${processed}/${drafts.length} (${blocked} auto-discarded)`);
+  console.log(`[classify] classified ${processed}/${drafts.length} (${blocked} auto-discarded)`);
 }
 
 async function main() {
-  console.log('[ingest] starting classification run');
-  console.log('[ingest] config:', configSummary());
+  console.log('[classify] starting classification run');
+  console.log('[classify] config:', configSummary());
 
   if (!process.env.DATABASE_URL) {
-    console.log('[ingest] DATABASE_URL not set, nothing to do');
-    console.log('[ingest] done');
+    console.log('[classify] DATABASE_URL not set, nothing to do');
+    console.log('[classify] done');
     return;
   }
 
   if (!process.env.ANTHROPIC_API_KEY) {
-    console.warn('[ingest] ANTHROPIC_API_KEY not set — cannot classify, exiting');
+    console.warn('[classify] ANTHROPIC_API_KEY not set — cannot classify, exiting');
     process.exitCode = 1;
     return;
   }
@@ -131,12 +131,12 @@ async function main() {
     await pool.end();
   }
 
-  console.log('[ingest] done');
+  console.log('[classify] done');
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   main().catch((err) => {
-    console.error('[ingest] failed:', err);
+    console.error('[classify] failed:', err);
     process.exitCode = 1;
   });
 }

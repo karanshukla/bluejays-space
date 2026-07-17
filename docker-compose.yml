@@ -1,12 +1,12 @@
 # Local development for the bluejays.space stack.
 #   docker compose up -d            -> db + minio + web (hot-reload dev)
-#   docker compose run --rm ingest  -> one-shot draft-classification run (manual profile)
+#   docker compose run --rm classify -> one-shot draft-classification run (manual profile)
 #   docker compose down -v          -> tear down + drop the Postgres/MinIO volumes
 #
 # minio is a self-hosted S3-compatible object store standing in for Cloudflare
 # R2 — same API, no external account needed. Console: http://localhost:9001
 # (login with MINIO_ROOT_USER/MINIO_ROOT_PASSWORD, both default to dev-only
-# values below). The bucket itself is created at runtime by ingest/web, not
+# values below). The bucket itself is created at runtime by classify/web, not
 # provisioned here.
 #
 # The handles/ Go service has its own Dockerfile and is deployed separately;
@@ -98,8 +98,8 @@ services:
     entrypoint: ['/bin/sh', '/app/docker-entrypoint-dev.sh']
     command: sh -c "npx astro build && npx astro preview --host 0.0.0.0"
 
-  ingest:
-    build: ./ingest
+  classify:
+    build: ./classify
     # Not started by `compose up` — run explicitly via the manual profile.
     profiles: ['manual']
     environment:

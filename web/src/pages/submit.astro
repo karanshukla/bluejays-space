@@ -28,14 +28,14 @@ const errorMessage: Record<string, string> = {
       Submit a headline
     </h1>
     <p class="mt-4 text-center text-sm text-ink-soft">
-      Got a bit? Send it in. Every submission goes into the same review queue as everything else on
-      the site. Nothing publishes until a human's read it.
+      Got a bit? Feeling a little down on the Jays? Submit something you think is funny. All
+      submissions are human reviewed, and may take some time to appear.
     </p>
 
     {
       sent && (
         <p class="mt-8 rounded-lg border border-paper-edge bg-card p-4 text-center text-sm font-medium text-ink">
-          Thanks, it's in the queue for review.
+          Thanks for submitting and contributing! It's in the queue for review.
         </p>
       )
     }
@@ -66,7 +66,7 @@ const errorMessage: Record<string, string> = {
       </label>
 
       <label class="block text-sm font-medium text-ink">
-        Stat block <span class="font-normal text-ink-soft/70">(optional)</span>
+        Stat block/Subtitle <span class="font-normal text-ink-soft/70">(optional)</span>
         <input
           name="stat_block"
           maxlength={STAT_BLOCK_MAX}

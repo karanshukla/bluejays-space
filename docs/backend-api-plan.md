@@ -10,7 +10,7 @@ What exists today, and what's still missing, across the two data-owning services
 | `/admin/api/headlines/[id]/publish` | POST | Flips `status` to `published`, sets `published_at = now()`. From `draft` only. |
 | `/admin/api/headlines/[id]/unpublish` | POST | Flips `status` back to `draft`, clears `published_at`. From `published` only. |
 | `/admin/api/headlines/[id]/discard` | POST | Soft-deletes: sets `status = 'discarded'`. From any non-discarded status — works directly on a published row too, not just drafts. |
-| `/admin/api/headlines/create` | POST (form) | Inserts a new `draft` row by hand, bypassing `ingest` entirely — for a headline written from scratch rather than generated. See `web/src/lib/db.ts` `createHeadline`. |
+| `/admin/api/headlines/create` | POST (form) | Inserts a new `draft` row by hand, bypassing `classify` entirely — for a headline written from scratch rather than generated. See `web/src/lib/db.ts` `createHeadline`. |
 | `/api/images/[...key]` | GET | Proxies a MinIO object by key. Public, unauthenticated (by design — published photos are public content). |
 
 Both mutating routes live under `/admin/*` specifically so one Cloudflare Access app + one middleware matcher covers them — see `docs/archive/admin-security.md`. Keep that invariant for anything added below: **new mutating routes go under `/admin/api/...`, not `/api/...`.**
@@ -32,13 +32,13 @@ Both mutating routes live under `/admin/*` specifically so one Cloudflare Access
 ### 3. Orphaned MinIO images
 
 Nothing cleans up a stored image when an admin edit replaces `photo_ref` with a different key, or blanks it outright. MinIO will accumulate objects with no `headlines` row pointing at them. Discarding a row (item 2, now shipped) does *not* itself orphan an image — `discardHeadline` only flips `status`, it doesn't touch `photo_ref`, so the reference to the stored object survives on the now-hidden row. The dynamic OG image cache (`og/{id}-{hash}.png`, see `frontend-roadmap.md` § 1.3) produces the same kind of orphan by design — an admin edit changes the content hash, so the old PNG is never looked up again. Not urgent at current volume (a few drafts/day), but worth a plan before it's a "why is the bucket 4GB" surprise:
-- Simplest fix: a scheduled Railway job (or a step tacked onto `bluejays-ingest`'s run) that lists MinIO keys, diffs against `SELECT DISTINCT photo_ref FROM headlines WHERE photo_ref IS NOT NULL` (this correctly still counts discarded rows' photos as referenced, matching the point above), and deletes anything not referenced and older than some grace period (a few days, so mid-edit races don't delete something about to be re-referenced).
+- Simplest fix: a scheduled Railway job (or a step tacked onto `bluejays-classify`'s run) that lists MinIO keys, diffs against `SELECT DISTINCT photo_ref FROM headlines WHERE photo_ref IS NOT NULL` (this correctly still counts discarded rows' photos as referenced, matching the point above), and deletes anything not referenced and older than some grace period (a few days, so mid-edit races don't delete something about to be re-referenced).
 
 ### 4. Health checks
 
 Railway can health-check a service, but nothing in `web` or `handles` exposes a dedicated endpoint — Railway would be hitting `/` (which now does a real DB query via `getPublishedHeadlines`) as its liveness signal, which means a slow/hung DB pool shows up as the *public feed* looking down, not a clean health-check failure. Add a trivial `/healthz` route in `web` (checks `pool.query('SELECT 1')`, nothing else) and point Railway's health check at that instead of `/`. `handles` doesn't hit any external dependency per-request (it's an in-memory map + async GitHub calls), so `/` is already a fine health check there.
 
-### 5. `ingest` has no retry/backoff on external fetch failures
+### 5. `classify` has no retry/backoff on external fetch failures
 
 `claude.js` has a specific, well-reasoned retry for the temperature-param 400 (see the archived ingestion-pipeline doc). Nothing equivalent exists for a Reddit/Bluesky/FAX-fetch transient failure (`reddit.js`, `bluesky.js`, `fax.js`) — a single failed `fetch` currently either throws (killing the whole run, including the unrelated register-2 draft that didn't need that source) or is swallowed silently depending on the call site. Worth an audit pass: each fetch source failing should degrade gracefully (log + return an empty list, same as "no new candidate posts" already does) rather than take down the run, since register 2 doesn't need Reddit/Bluesky at all and shouldn't fail because of them.
 
@@ -52,7 +52,7 @@ Railway can health-check a service, but nothing in `web` or `handles` exposes a 
 
 ### 7. No pagination / filtering on `getPublishedHeadlines` or `getDraftHeadlines`
 
-Both currently `SELECT *` with no `LIMIT`. Fine at today's volume; becomes a real problem once ingest has been running for months (one register-2 + occasionally one register-1 draft per cron tick, times however many ticks/day, accumulates fast on the admin side even after publish/discard workflows exist). **Public-feed side: decided** — see `docs/frontend-roadmap.md` § 2 (`?page=N`, 30/page, `getPublishedHeadlines(limit, offset)`). Admin drafts/recently-published lists aren't part of that decision — `getDraftHeadlines` and `getRecentPublishedHeadlines` can stay unpaginated longer since a single operator's own review queue is bounded by how fast they clear it, but the same `LIMIT`/`OFFSET` shape should be reached for if that queue ever grows past a comfortable single-page admin view.
+Both currently `SELECT *` with no `LIMIT`. Fine at today's volume; becomes a real problem once classify has been running for months (one register-2 + occasionally one register-1 draft per cron tick, times however many ticks/day, accumulates fast on the admin side even after publish/discard workflows exist). **Public-feed side: decided** — see `docs/frontend-roadmap.md` § 2 (`?page=N`, 30/page, `getPublishedHeadlines(limit, offset)`). Admin drafts/recently-published lists aren't part of that decision — `getDraftHeadlines` and `getRecentPublishedHeadlines` can stay unpaginated longer since a single operator's own review queue is bounded by how fast they clear it, but the same `LIMIT`/`OFFSET` shape should be reached for if that queue ever grows past a comfortable single-page admin view.
 
 ### 8. Schema application: automatic-on-boot shipped; a real migration tool is the long-term follow-up
 

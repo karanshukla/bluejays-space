@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS handles (
 
 -- Headline feed ("The Scrapbook") — draft/publish workflow.
 -- Drafts originate from the admin create-form (user-submission intake is a
--- planned follow-up) and are classified by bluejays-ingest: it assigns a topic
+-- planned follow-up) and are classified by bluejays-classify: it assigns a topic
 -- category and a safety verdict (text + image, via Claude vision), auto-
 -- discarding only illegal/doxxing content and flagging the rest for review.
 -- Karan reviews/edits in /admin and flips status to 'published'. The public
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS headlines (
     source_post_url  text,          -- register 1 only
     source_note      text,          -- register 1 only
     status           text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'discarded')),
-    -- Auto-classification output (written by the ingest classifier job).
+    -- Auto-classification output (written by the classify job).
     -- NULL until first classified; re-set to NULL by web if a draft is edited
     -- so the job re-runs on the new content.
     category         text,          -- topic tag: game-recap | trade-rumor | ...
@@ -79,7 +79,7 @@ ALTER TABLE headlines ADD CONSTRAINT headlines_safety_status_check
 -- old generator relied on is dead. Safe to re-run.
 DROP TABLE IF EXISTS seen_posts;
 
--- Ingest classifier selects draft rows it hasn't seen yet (classified_at NULL).
+-- Classify job selects draft rows it hasn't seen yet (classified_at NULL).
 -- Must come AFTER the ADD COLUMN classified_at migration above so the column
 -- exists on already-initialized volumes.
 CREATE INDEX IF NOT EXISTS headlines_unclassified_idx
