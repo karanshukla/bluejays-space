@@ -27,14 +27,16 @@ if (Astro.url.pathname !== canonical) {
 
 const headlines = await getPublishedHeadlines();
 
-// Covers the platforms SPEC.md names for sharing (Bluesky/Discord/Slack) plus
-// the other common link-unfurl bots. iMessage deliberately isn't listed: its
-// preview fetcher doesn't send a distinctly-identifiable User-Agent, so there's
-// no reliable string to match — it falls back to the static default image.
-const crawlerUA =
-  /Bluesky Cardyb|Discordbot|Twitterbot|Slackbot|facebookexternalhit|WhatsApp|TelegramBot|LinkedInBot|redditbot|SkypeUriPreview/i;
-const isCrawler = crawlerUA.test(Astro.request.headers.get('user-agent') ?? '');
-const ogImage = isCrawler ? `/api/og/${id}.png` : undefined;
+// Always point at the per-headline dynamic image rather than gating on a
+// User-Agent allowlist — that list can never cover every unfurl bot (Pinterest,
+// KakaoTalk, Viber, Mastodon instances, iMessage's non-identifying fetcher,
+// whatever ships next), and under-matching silently falls back to the generic
+// site image instead of the real headline. The route itself (api/og/[id].png.ts)
+// is content-hash-cached in MinIO and immutable, so serving the real image to
+// every visitor costs nothing extra: a human's browser never fetches an
+// unrendered <meta> image, and any bot that does hit it gets a cache hit after
+// the first render for that headline's current content.
+const ogImage = `/api/og/${id}.png`;
 
 const description = headline.stat_block
   ? `${headline.stat_block} - ${DEFAULT_DESCRIPTION}`
