@@ -199,7 +199,7 @@
 
     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <label class="block text-sm font-medium text-ink">
-        Source post URL <span class="font-normal text-ink-soft/70">(R1 only)</span>
+        Source post URL
         <input
           bind:value={sourcePostUrl}
           class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
@@ -207,7 +207,7 @@
       </label>
 
       <label class="block text-sm font-medium text-ink">
-        Source note <span class="font-normal text-ink-soft/70">(R1 only)</span>
+        Source note
         <input
           bind:value={sourceNote}
           class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
