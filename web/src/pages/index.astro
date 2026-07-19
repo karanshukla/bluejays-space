@@ -1,6 +1,7 @@
 ---
 import Base from '../layouts/Base.astro';
 import HeadlineCard from '../components/HeadlineCard.astro';
+import SiteHeader from '../components/SiteHeader.astro';
 import { getPublishedHeadlines } from '../lib/db';
 
 export const prerender = false;
@@ -10,9 +11,7 @@ const headlines = await getPublishedHeadlines();
 
 <Base title="bluejays.space">
   <main class="mx-auto max-w-[1600px] px-6 py-12 sm:px-10">
-    <h1 class="text-center text-5xl font-semibold tracking-tight text-ink font-display sm:text-6xl">
-      bluejays.space
-    </h1>
+    <SiteHeader />
 
     {
       headlines.length === 0 && (

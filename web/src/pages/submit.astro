@@ -1,5 +1,6 @@
 ---
 import Base from '../layouts/Base.astro';
+import SiteHeader from '../components/SiteHeader.astro';
 import PhotoInput from '../components/PhotoInput.svelte';
 import {
   HEADLINE_MAX,
@@ -24,9 +25,10 @@ const errorMessage: Record<string, string> = {
   description="Send in a Blue Jays headline idea for review."
 >
   <main class="mx-auto max-w-xl px-6 py-16">
-    <h1 class="text-center text-4xl font-semibold tracking-tight text-ink font-display">
+    <SiteHeader />
+    <h2 class="mt-6 text-center text-3xl font-semibold tracking-tight text-ink font-display">
       Submit a headline
-    </h1>
+    </h2>
     <p class="mt-4 text-center text-sm text-ink-soft">
       Got a bit? Feeling a little down on the Jays? Submit something you think is funny. All
       submissions are human reviewed, and may take some time to appear.

@@ -117,7 +117,7 @@ describe('loadPhotoDataUrl', () => {
     });
     const url = await loadPhotoDataUrl('admin/photo.webp');
     expect(url).toBe(`data:image/png;base64,${Buffer.from([9, 9, 9]).toString('base64')}`);
-    expect(sharpChain.resize).toHaveBeenCalledWith(220, 220, { fit: 'cover' });
+    expect(sharpChain.resize).toHaveBeenCalledWith(280, 280, { fit: 'cover' });
   });
 });
 

@@ -8,6 +8,21 @@ import { smallVariantKey } from '../lib/photoImport';
 // other headlines publish/unpublish around it.
 export const TAPE_VARIANTS = ['tape-a', 'tape-b', 'tape-c', 'tape-d', 'tape-e', 'tape-f'];
 
+// Subtle per-card photo crop offsets so the scrapbook doesn't look like every
+// photo was mounted dead-center. Kept close to center (35-65%) so cover-crop
+// never clips a face badly. A prime-multiplied index (vs. TAPE_VARIANTS'
+// plain h.id % n) keeps tape rotation and photo offset from lining up in a
+// visible pattern across consecutive ids.
+export const PHOTO_POSITION_VARIANTS = [
+  '50% 35%',
+  '35% 50%',
+  '65% 40%',
+  '40% 65%',
+  '60% 45%',
+  '45% 60%',
+  '55% 30%',
+];
+
 interface Props {
   headline: Headline;
   // On a permalink page, the focused card stays full-opacity; every other card
@@ -20,6 +35,7 @@ interface Props {
 
 const { headline: h, dimmed = false, eager = false } = Astro.props;
 const tapeVariant = TAPE_VARIANTS[h.id % TAPE_VARIANTS.length];
+const photoPosition = PHOTO_POSITION_VARIANTS[(h.id * 7) % PHOTO_POSITION_VARIANTS.length];
 const url = permalinkPath(h.id, h.headline);
 const siteHost = getSiteUrl().hostname;
 // Only webp uploads (the resize path in photoImport.ts) have a small variant
@@ -48,6 +64,7 @@ const hasSmallVariant = h.photo_ref?.endsWith('.webp') ?? false;
             loading={eager ? 'eager' : 'lazy'}
             decoding="async"
             fetchpriority={eager ? 'high' : 'auto'}
+            style={`object-position: ${photoPosition};`}
           />
         </div>
       )

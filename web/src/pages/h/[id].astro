@@ -1,6 +1,7 @@
 ---
 import Base, { DEFAULT_DESCRIPTION } from '../../layouts/Base.astro';
 import HeadlineCard from '../../components/HeadlineCard.astro';
+import SiteHeader from '../../components/SiteHeader.astro';
 import { getHeadlineById, getPublishedHeadlines } from '../../lib/db';
 import { permalinkPath } from '../../lib/slug';
 
@@ -50,11 +51,7 @@ const description = headline.stat_block
   articlePublishedTime={headline.published_at ?? undefined}
 >
   <main class="permalink-overlay mx-auto max-w-[1600px] px-6 py-12 sm:px-10" data-focus-id={id}>
-    <a href="/" class="block text-center transition-opacity hover:opacity-80">
-      <h1 class="text-5xl font-semibold tracking-tight text-ink font-display sm:text-6xl">
-        bluejays.space
-      </h1>
-    </a>
+    <SiteHeader />
 
     <ul class="scrapbook-grid mt-14">
       {

@@ -76,10 +76,15 @@ export function tapeBackgroundFor(id: number): string {
   }
 }
 
-const CARD_WIDTH = 900;
-const CARD_PADDING_X = 56;
-const PHOTO_SIZE = 220;
-const PHOTO_TEXT_GAP = 36;
+// Card fills almost the whole canvas (a slim margin, not the large gutter the
+// original 900px card left) so the headline/photo read as the dominant
+// content instead of a small island of text in a sea of paper background.
+const OUTER_PADDING = 28;
+const CARD_WIDTH = OG_WIDTH - OUTER_PADDING * 2;
+const CARD_HEIGHT = OG_HEIGHT - OUTER_PADDING * 2;
+const CARD_PADDING_X = 64;
+const PHOTO_SIZE = 280;
+const PHOTO_TEXT_GAP = 40;
 // Explicit width, not just flexGrow: 1 — Satori's flex children default to
 // not shrinking below their content's natural width (same as browsers' flex
 // min-width:auto default), so without a hard width the headline text
@@ -137,11 +142,11 @@ function buildTextChildren(headline: Headline, headlineFontSize: number) {
           type: 'p',
           props: {
             style: {
-              fontSize: '22px',
+              fontSize: '28px',
               color: INK_SOFT,
               fontFamily: 'Space Mono',
-              marginTop: '20px',
-              paddingTop: '16px',
+              marginTop: '24px',
+              paddingTop: '20px',
               borderTop: `2px dashed ${BLUE}66`,
             },
             children: headline.stat_block,
@@ -189,7 +194,7 @@ export async function renderOgPng(headline: Headline): Promise<Buffer> {
                   marginLeft: `${PHOTO_TEXT_GAP}px`,
                   width: `${TEXT_COLUMN_WIDTH}px`,
                 },
-                children: buildTextChildren(headline, 40),
+                children: buildTextChildren(headline, 50),
               },
             },
           ],
@@ -199,7 +204,7 @@ export async function renderOgPng(headline: Headline): Promise<Buffer> {
         type: 'div',
         props: {
           style: { display: 'flex', flexDirection: 'column' },
-          children: buildTextChildren(headline, 52),
+          children: buildTextChildren(headline, 64),
         },
       };
 
@@ -215,7 +220,7 @@ export async function renderOgPng(headline: Headline): Promise<Buffer> {
           alignItems: 'center',
           justifyContent: 'center',
           backgroundColor: PAPER,
-          padding: '40px',
+          padding: `${OUTER_PADDING}px`,
         },
         children: {
           type: 'div',
@@ -223,8 +228,10 @@ export async function renderOgPng(headline: Headline): Promise<Buffer> {
             style: {
               display: 'flex',
               flexDirection: 'column',
+              justifyContent: 'center',
               width: `${CARD_WIDTH}px`,
-              padding: '64px 56px 48px',
+              height: `${CARD_HEIGHT}px`,
+              padding: `48px ${CARD_PADDING_X}px`,
               backgroundColor: CARD,
               border: `2px solid ${PAPER_EDGE}`,
               boxShadow: '4px 6px 0 rgba(20,33,61,0.12), 0 14px 36px -8px rgba(20,33,61,0.28)',
@@ -246,12 +253,12 @@ export async function renderOgPng(headline: Headline): Promise<Buffer> {
                 },
               },
               contentNode,
-              { type: 'div', props: { style: { height: '32px' } } },
+              { type: 'div', props: { style: { height: '36px' } } },
               {
                 type: 'p',
                 props: {
                   style: {
-                    fontSize: '18px',
+                    fontSize: '20px',
                     color: `${INK_SOFT}99`,
                     fontFamily: 'Space Mono',
                     textAlign: 'center',
@@ -291,7 +298,7 @@ export async function renderDefaultOgPng(): Promise<Buffer> {
           alignItems: 'center',
           justifyContent: 'center',
           backgroundColor: PAPER,
-          padding: '40px',
+          padding: `${OUTER_PADDING}px`,
         },
         children: {
           type: 'div',
@@ -300,8 +307,10 @@ export async function renderDefaultOgPng(): Promise<Buffer> {
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
+              justifyContent: 'center',
               width: `${CARD_WIDTH}px`,
-              padding: '84px 56px 56px',
+              height: `${CARD_HEIGHT}px`,
+              padding: `48px ${CARD_PADDING_X}px`,
               backgroundColor: CARD,
               border: `2px solid ${PAPER_EDGE}`,
               boxShadow: '4px 6px 0 rgba(20,33,61,0.12), 0 14px 36px -8px rgba(20,33,61,0.28)',
@@ -326,7 +335,7 @@ export async function renderDefaultOgPng(): Promise<Buffer> {
                 type: 'p',
                 props: {
                   style: {
-                    fontSize: '72px',
+                    fontSize: '96px',
                     fontWeight: 600,
                     color: INK,
                     fontFamily: 'Fraunces',
@@ -335,12 +344,12 @@ export async function renderDefaultOgPng(): Promise<Buffer> {
                   children: 'bluejays.space',
                 },
               },
-              { type: 'div', props: { style: { height: '28px' } } },
+              { type: 'div', props: { style: { height: '32px' } } },
               {
                 type: 'p',
                 props: {
                   style: {
-                    fontSize: '28px',
+                    fontSize: '34px',
                     color: INK_SOFT,
                     fontFamily: 'Space Mono',
                     textAlign: 'center',
@@ -348,12 +357,12 @@ export async function renderDefaultOgPng(): Promise<Buffer> {
                   children: 'The best Blue Jays misinformation on the web',
                 },
               },
-              { type: 'div', props: { style: { height: '56px' } } },
+              { type: 'div', props: { style: { height: '64px' } } },
               {
                 type: 'p',
                 props: {
                   style: {
-                    fontSize: '18px',
+                    fontSize: '20px',
                     color: `${INK_SOFT}99`,
                     fontFamily: 'Space Mono',
                     textAlign: 'center',
