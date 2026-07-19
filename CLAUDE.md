@@ -51,6 +51,10 @@ All of the above run in CI (`.github/workflows/ci.yml`) on every push/PR, plus a
 - **Object storage**: self-hosted MinIO (S3-compatible), not Cloudflare R2, despite what an older version of the spec said — see `README.md` → Production (Railway) for why.
 - **Dockerfiles**: `web/Dockerfile` has a `builder` stage (full devDependencies, used by `docker-compose.yml` for local dev) and a `runtime` stage (clean `--omit=dev` install, used by Railway/production with no explicit `--target`). If you touch dependencies, verify both paths still work — this exact split was added after a naive `npm prune` broke local dev by stripping devDependencies the dev-compose workflow still needed.
 
+## Code comments
+
+Don't add comments above functions or inline unless the WHY is genuinely non-obvious (a hidden constraint, a subtle invariant, a workaround for a specific bug). Well-named identifiers should make the WHAT self-evident. Before reaching for a comment, check whether the explanation can instead be expressed through abstraction or encapsulation — e.g. business logic embedded in a route or component should move to a self-commenting, domain-named function in a service layer rather than being explained in a comment. Favor human-readable, domain-driven names and logical flow over prose explanations, while keeping code legible to agents working in this repo.
+
 ## What's real vs. stubbed right now
 
 MVP is complete — see `docs/README.md` for the full status and what's next.
