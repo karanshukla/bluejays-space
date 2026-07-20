@@ -28,7 +28,7 @@
     "@astrojs/rss": "^4.0.19",
     "@astrojs/svelte": "^9.0.1",
     "@aws-sdk/client-s3": "^3.1089.0",
-    "@fontsource/fraunces": "^5.2.9",
+    "@fontsource/fraunces": "^5.3.0",
     "@fontsource/space-mono": "^5.2.9",
     "@resvg/resvg-js": "^2.6.2",
     "astro": "^7.1.0",
