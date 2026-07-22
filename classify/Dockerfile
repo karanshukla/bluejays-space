@@ -2,7 +2,7 @@
 # Railway builds this from classify/ (set the service's root directory to classify/)
 # and runs it on a cron trigger. Runs once and exits: classifies unclassified
 # draft headlines (text + image via Claude vision) and writes the verdict back.
-FROM node:26-alpine
+FROM node:24-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 COPY package.json package-lock.json* ./
