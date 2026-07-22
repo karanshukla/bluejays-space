@@ -122,7 +122,7 @@
   {/if}
 
   {#if key}
-    <div class="relative">
+    <div class="relative flex justify-center">
       <img
         src={`/api/images/${key}${previewBust ? `?r=${previewBust}` : ''}`}
         onerror={retryPreview}
