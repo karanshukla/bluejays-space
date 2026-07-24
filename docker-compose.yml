@@ -117,6 +117,25 @@ services:
       minio:
         condition: service_healthy
 
+  notify:
+    # Run-once Go cron job (like classify): emails NOTIFY_TO via SMTP2GO when
+    # draft headlines are waiting in the /admin review queue. Not started by
+    # `compose up` — run explicitly:  docker compose run --rm notify
+    build: ./notify
+    profiles: ['manual']
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-bluejays}:${POSTGRES_PASSWORD:-bluejays}@db:5432/${POSTGRES_DB:-bluejays}
+      NOTIFY_TO: ${NOTIFY_TO:-}
+      SMTP2GO_USERNAME: ${SMTP2GO_USERNAME:-}
+      SMTP2GO_KEY: ${SMTP2GO_KEY:-}
+      SMTP2GO_HOST: ${SMTP2GO_HOST:-mail.smtp2go.com}
+      SMTP2GO_PORT: ${SMTP2GO_PORT:-587}
+      NOTIFY_FROM: ${NOTIFY_FROM:-bluejays.space <noreply@bluejays.space>}
+      SITE_URL: ${SITE_URL:-http://localhost:4321}
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   pgdata:
   miniodata:

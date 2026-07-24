@@ -1,0 +1,14 @@
+# Build context excludes — keep the Go build lean.
+*_test.go
+*.exe
+*.test
+*.out
+notify
+/notify
+README.md
+.git
+.gitignore
+.env
+.env.*
+Dockerfile
+.dockerignore
