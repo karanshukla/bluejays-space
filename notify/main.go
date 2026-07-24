@@ -8,18 +8,26 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"database/sql"
 	"fmt"
 	"html"
 	"log"
+	"net"
 	"net/mail"
 	"net/smtp"
 	"os"
+	"runtime/debug"
 	"strings"
 	"time"
 
 	_ "github.com/lib/pq"
 )
+
+// smtpTimeout bounds the entire SMTP exchange (dial, TLS handshake, auth,
+// DATA). net/smtp has no built-in timeout, so a stalled or firewalled server
+// would otherwise hang the cron run forever with nothing ever logged.
+const smtpTimeout = 20 * time.Second
 
 // mimeBoundary is fixed (not random) on purpose: RFC 2046 only requires it be
 // unlikely to appear in the body, and a constant value makes the generated
@@ -207,9 +215,50 @@ func sendMail(c config, msg []byte) error {
 	if err != nil {
 		return fmt.Errorf("invalid NOTIFY_TO %q: %w", c.notifyTo, err)
 	}
+
 	addr := c.smtpHost + ":" + c.smtpPort
+	conn, err := net.DialTimeout("tcp", addr, smtpTimeout)
+	if err != nil {
+		return fmt.Errorf("dialing %s: %w", addr, err)
+	}
+	defer conn.Close()
+	if err := conn.SetDeadline(time.Now().Add(smtpTimeout)); err != nil {
+		return fmt.Errorf("setting smtp connection deadline: %w", err)
+	}
+
+	client, err := smtp.NewClient(conn, c.smtpHost)
+	if err != nil {
+		return fmt.Errorf("creating smtp client: %w", err)
+	}
+	defer client.Close()
+
+	if ok, _ := client.Extension("STARTTLS"); ok {
+		if err := client.StartTLS(&tls.Config{ServerName: c.smtpHost}); err != nil {
+			return fmt.Errorf("smtp starttls: %w", err)
+		}
+	}
+
 	auth := smtp.PlainAuth("", c.smtpUser, c.smtpKey, c.smtpHost)
-	return smtp.SendMail(addr, auth, fromAddr.Address, []string{toAddr.Address}, msg)
+	if err := client.Auth(auth); err != nil {
+		return fmt.Errorf("smtp auth: %w", err)
+	}
+	if err := client.Mail(fromAddr.Address); err != nil {
+		return fmt.Errorf("smtp MAIL FROM: %w", err)
+	}
+	if err := client.Rcpt(toAddr.Address); err != nil {
+		return fmt.Errorf("smtp RCPT TO: %w", err)
+	}
+	w, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("smtp DATA: %w", err)
+	}
+	if _, err := w.Write(msg); err != nil {
+		return fmt.Errorf("writing smtp message body: %w", err)
+	}
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("closing smtp message writer: %w", err)
+	}
+	return client.Quit()
 }
 
 func run(c config) error {
@@ -235,6 +284,7 @@ func run(c config) error {
 	if err != nil {
 		return fmt.Errorf("building message: %w", err)
 	}
+	log.Printf("[notify] sending digest for %d draft(s) to %s via %s:%s", len(drafts), c.notifyTo, c.smtpHost, c.smtpPort)
 	if err := sendMail(c, msg); err != nil {
 		return fmt.Errorf("sending mail: %w", err)
 	}
@@ -244,6 +294,12 @@ func run(c config) error {
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lmsgprefix)
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[notify] panic: %v\n%s", r, debug.Stack())
+			os.Exit(1)
+		}
+	}()
 
 	c, err := loadConfig()
 	if err != nil {
