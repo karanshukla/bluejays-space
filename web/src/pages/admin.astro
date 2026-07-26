@@ -60,17 +60,6 @@ const recentlyPublished = await getRecentPublishedHeadlines();
               ></textarea>
             </label>
             <label class="block text-sm font-medium text-ink">
-              Register <span class="font-normal text-ink-soft/70">(optional)</span>
-              <select
-                name="register"
-                class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
-              >
-                <option value="">(unset)</option>
-                <option value="1">1 · real-event riff</option>
-                <option value="2">2 · fabricated scenario</option>
-              </select>
-            </label>
-            <label class="block text-sm font-medium text-ink">
               Stat block
               <input
                 name="stat_block"
@@ -82,14 +71,18 @@ const recentlyPublished = await getRecentPublishedHeadlines();
               <PhotoInput client:load name="photo_ref" />
             </label>
             <label class="block text-sm font-medium text-ink">
-              Source post URL <span class="font-normal text-ink-soft/70">(register 1 only)</span>
+              Source post URL <span class="font-normal text-ink-soft/70"
+                >(if riffing a specific real post)</span
+              >
               <input
                 name="source_post_url"
                 class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
               />
             </label>
             <label class="block text-sm font-medium text-ink">
-              Source note <span class="font-normal text-ink-soft/70">(register 1 only)</span>
+              Source note <span class="font-normal text-ink-soft/70"
+                >(extra context for the classifier)</span
+              >
               <input
                 name="source_note"
                 class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"

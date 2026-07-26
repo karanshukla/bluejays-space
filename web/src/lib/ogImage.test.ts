@@ -18,8 +18,6 @@ function makeHeadline(overrides: Partial<Headline> = {}): Headline {
   return {
     id: 1,
     headline: 'Vlad walks it off',
-    register: 1,
-    player_ids: ['vladimir-guerrero-jr'],
     stat_block: '.382 AVG',
     photo_ref: 'photos/vlad.jpg',
     source_post_url: null,
