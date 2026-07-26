@@ -22,7 +22,7 @@ export const CATEGORIES = [
   'stat-line', // a stat or record is the punchline
   'injury', // IL/injury/recovery angle
   'roster-move', // call-up/option/DFA/lineup change
-  'fabrication', // invented scenario, no real event (register 2 main)
+  'fabrication', // invented scenario, no real event
   'off-field', // personality/lifestyle/drama
   'other',
 ];

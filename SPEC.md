@@ -74,7 +74,7 @@ Headlines are DB-backed, not git-file-based (Astro Content Collections don't fit
 
 - **Auth**: gate `/admin` behind Cloudflare Access, same pattern already in use for the Asher Remote MCP server — no custom auth to build
 - **Flow**: admin creates a draft (`status: draft`) directly in the admin UI → the classifier job assigns a topic category + safety verdict (auto-discarding `blocked` drafts) → admin page lists remaining drafts → edit text inline → publish flips `status: published` and sets a timestamp → public feed only queries published rows. Register-2 real-fact-anchored drafts (fabricated premise + a real connecting fact) should be visually flagged in the admin list for extra scrutiny — the connecting fact is the one part of an otherwise-fictional headline that's a genuine factual claim, and needs to actually be checked before publish, not just skimmed.
-- **Fields per row**: `headline`, `register` (1 or 2), `player_ids[]`, `stat_block`, `photo_ref`, `source_post_url` + `source_note` (register 1 only), `status`, `created_at`, `published_at`
+- **Fields per row**: `headline`, `stat_block`, `photo_ref`, `source_post_url` + `source_note` (optional), `status`, `created_at`, `published_at`
 
 ### 3. Sharing & Discovery
 
@@ -112,7 +112,7 @@ bluejays-classify run:
   4. fetch_mlb_context() — MLB Stats MCP only: record, standings, recent games (Statcast MCP dropped — non-functional)
   5. for each register:
        generate_headline(context, candidate_posts, style_reference, register, temperature)
-       → { headline, register, player_ids[], stat_block, source_post_url, source_note }
+       → { headline, stat_block, source_post_url, source_note }
   6. if register 1 headline reuses a fetched image → download + store to object storage,
      save the storage ref (not a hotlink to Reddit/Bluesky's CDN)
   7. insert draft row(s) into headlines table

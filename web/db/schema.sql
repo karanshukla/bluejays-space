@@ -24,12 +24,10 @@ CREATE TABLE IF NOT EXISTS handles (
 CREATE TABLE IF NOT EXISTS headlines (
     id               serial PRIMARY KEY,
     headline         text NOT NULL,
-    register         smallint NOT NULL CHECK (register IN (1, 2)),
-    player_ids       text[],
     stat_block       text,
     photo_ref        text,
-    source_post_url  text,          -- register 1 only
-    source_note      text,          -- register 1 only
+    source_post_url  text,
+    source_note      text,
     status           text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'discarded')),
     -- Auto-classification output (written by the classify job).
     -- NULL until first classified; re-set to NULL by web if a draft is edited
@@ -86,13 +84,16 @@ CREATE INDEX IF NOT EXISTS headlines_unclassified_idx
     ON headlines (created_at)
     WHERE status = 'draft' AND classified_at IS NULL;
 
--- Migration: relax register to optional. It was a generation-style tag (real
--- event riff vs. fabricated scenario) from the retired auto-generation
--- pipeline; admin-authored and (now) publicly-submitted drafts have no
--- mechanical need to set it. Postgres CHECK constraints pass on NULL, so
--- dropping NOT NULL is enough to allow it, the (1, 2) check still applies
--- to any non-null value. Safe to re-run.
-ALTER TABLE headlines ALTER COLUMN register DROP NOT NULL;
+-- Migration: drop register and player_ids. Both were leftovers from the
+-- retired auto-generation pipeline (issue #101): register tagged real-event
+-- riff (1) vs. fabricated scenario (2), and player_ids was a text[] for a
+-- never-built player-tagging feature. Neither is set by any current UI or
+-- read anywhere. CREATE TABLE IF NOT EXISTS above only omits them on a fresh
+-- init, so these ALTERs drop them from an already-initialized dev volume or
+-- the live production DB. Safe to re-run — DROP COLUMN IF EXISTS is a no-op
+-- once the column is gone.
+ALTER TABLE headlines DROP COLUMN IF EXISTS register;
+ALTER TABLE headlines DROP COLUMN IF EXISTS player_ids;
 
 -- Migration: public headline submissions (issue #82). submitter_name is a
 -- free-text display credit, no account system backs it, it's just what

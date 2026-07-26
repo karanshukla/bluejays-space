@@ -11,11 +11,6 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   if (!headline) {
     return new Response('Missing required fields', { status: 400 });
   }
-  // Optional: register is a leftover generation-style tag (real-event riff vs.
-  // fabricated scenario), not a field an admin (or a public submitter) needs
-  // to set to author a headline. Left blank on the form, it stays null.
-  const registerNum = Number(form.get('register'));
-  const register = registerNum === 1 || registerNum === 2 ? (registerNum as 1 | 2) : null;
 
   let photoRef: string | null;
   try {
@@ -29,7 +24,6 @@ export const POST: APIRoute = async ({ request, redirect }) => {
 
   await createHeadline({
     headline,
-    register,
     stat_block: asNullableText(form.get('stat_block')),
     photo_ref: photoRef,
     source_post_url: asNullableText(form.get('source_post_url')),

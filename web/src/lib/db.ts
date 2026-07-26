@@ -12,8 +12,6 @@ function getPool(): pg.Pool {
 export interface Headline {
   id: number;
   headline: string;
-  register: 1 | 2 | null;
-  player_ids: string[] | null;
   stat_block: string | null;
   photo_ref: string | null;
   source_post_url: string | null;
@@ -71,7 +69,6 @@ export async function getRecentPublishedHeadlines(limit = 20): Promise<Headline[
 
 export interface HeadlineEdit {
   headline: string;
-  register: 1 | 2 | null;
   stat_block: string | null;
   photo_ref: string | null;
   source_post_url: string | null;
@@ -81,21 +78,13 @@ export interface HeadlineEdit {
 export async function updateHeadline(id: number, edit: HeadlineEdit): Promise<void> {
   await getPool().query(
     `UPDATE headlines
-     SET headline = $2, register = $3, stat_block = $4, photo_ref = $5, source_post_url = $6, source_note = $7,
+     SET headline = $2, stat_block = $3, photo_ref = $4, source_post_url = $5, source_note = $6,
          -- Content changed, so the previous classification is stale. Clear all
          -- four fields (not just classified_at) so no stale badge lingers before
          -- the job re-runs; classified_at NULL makes the classifier pick it up.
          category = NULL, safety_status = NULL, safety_reason = NULL, classified_at = NULL
      WHERE id = $1`,
-    [
-      id,
-      edit.headline,
-      edit.register,
-      edit.stat_block,
-      edit.photo_ref,
-      edit.source_post_url,
-      edit.source_note,
-    ]
+    [id, edit.headline, edit.stat_block, edit.photo_ref, edit.source_post_url, edit.source_note]
   );
 }
 
@@ -124,7 +113,6 @@ export async function discardHeadline(id: number): Promise<void> {
 
 export interface HeadlineCreate {
   headline: string;
-  register: 1 | 2 | null;
   stat_block: string | null;
   photo_ref: string | null;
   source_post_url: string | null;
@@ -133,16 +121,9 @@ export interface HeadlineCreate {
 
 export async function createHeadline(input: HeadlineCreate): Promise<void> {
   await getPool().query(
-    `INSERT INTO headlines (headline, register, player_ids, stat_block, photo_ref, source_post_url, source_note)
-     VALUES ($1, $2, '{}', $3, $4, $5, $6)`,
-    [
-      input.headline,
-      input.register,
-      input.stat_block,
-      input.photo_ref,
-      input.source_post_url,
-      input.source_note,
-    ]
+    `INSERT INTO headlines (headline, stat_block, photo_ref, source_post_url, source_note)
+     VALUES ($1, $2, $3, $4, $5)`,
+    [input.headline, input.stat_block, input.photo_ref, input.source_post_url, input.source_note]
   );
 }
 
@@ -157,14 +138,13 @@ export interface HeadlineSubmission {
 // Public /submit intake (issue #82). Just the fields the classifier and the
 // public card actually use: headline, stat_block, photo_ref (the classifier
 // reads all three, see classify/src/classify.js), and source_note (extra
-// context for the classifier, also shown on the card). No register, no
-// source_post_url, no player tagging. Lands as a normal draft row so the
-// existing classifier + admin review + publish gate apply unchanged;
-// `source`/`submitter_name` just mark where it came from.
+// context for the classifier, also shown on the card). Lands as a normal
+// draft row so the existing classifier + admin review + publish gate apply
+// unchanged; `source`/`submitter_name` just mark where it came from.
 export async function createSubmittedHeadline(input: HeadlineSubmission): Promise<void> {
   await getPool().query(
-    `INSERT INTO headlines (headline, player_ids, stat_block, photo_ref, source_note, submitter_name, source)
-     VALUES ($1, '{}', $2, $3, $4, $5, 'submission')`,
+    `INSERT INTO headlines (headline, stat_block, photo_ref, source_note, submitter_name, source)
+     VALUES ($1, $2, $3, $4, $5, 'submission')`,
     [input.headline, input.stat_block, input.photo_ref, input.source_note, input.submitter_name]
   );
 }
