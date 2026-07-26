@@ -45,7 +45,7 @@ services:
       - '5432:5432'
     volumes:
       # Auto-loads on first volume init only.
-      - ./web/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./web/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro,Z
       - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-bluejays} -d ${POSTGRES_DB:-bluejays}']
@@ -87,7 +87,7 @@ services:
       disable: true # prod image's strict healthcheck isn't useful in dev
     volumes:
       # Hot-reload: bind-mount source over the copied image tree.
-      - ./web:/app
+      - ./web:/app:Z
       # Keep the container's installed node_modules, don't shadow with host's.
       - /app/node_modules
     # Build once then serve the built server. `astro dev` (hot-reload) can hang
