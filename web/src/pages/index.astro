@@ -2,17 +2,17 @@
 import Base from '../layouts/Base.astro';
 import HeadlineCard from '../components/HeadlineCard.astro';
 import SiteHeader from '../components/SiteHeader.astro';
-import { getPublishedHeadlinesPage } from '../lib/db';
+import { getPublishedHeadlinesPaged } from '../lib/db';
 
 export const prerender = false;
 
 // First page renders server-side for SEO and no-JS visitors; subsequent pages
 // are fetched as an HTML fragment from /feed-fragment and injected by the
-// IntersectionObserver below. See feed-fragment.astro for the cursor scheme.
-const rows = await getPublishedHeadlinesPage();
-const oldest = rows[rows.length - 1];
-const nextBefore = oldest?.published_at ?? '';
-const nextBeforeId = oldest ? String(oldest.id) : '';
+// IntersectionObserver below. Pagination is plain page numbers (OFFSET), shared
+// with the admin tab — see getPublishedHeadlinesPaged in lib/db.ts.
+const { rows, totalPages } = await getPublishedHeadlinesPaged({ page: 1 });
+// 0 = last page reached; the observer treats that as "done".
+const nextPage = totalPages > 1 ? 2 : 0;
 ---
 
 <Base title="bluejays.space">
@@ -27,17 +27,12 @@ const nextBeforeId = oldest ? String(oldest.id) : '';
       )
     }
 
-    <ul
-      class="scrapbook-grid mt-14"
-      id="feed"
-      data-next-before={nextBefore}
-      data-next-before-id={nextBeforeId}
-    >
+    <ul class="scrapbook-grid mt-14" id="feed" data-next-page={nextPage}>
       {rows.map((h, i) => <HeadlineCard headline={h} eager={i < 4} />)}
     </ul>
 
-    <!-- Sentinel the observer watches. data-next-* on #feed drive the next
-         fetch; when a fragment comes back empty-handed the observer stops. -->
+    <!-- Sentinel the observer watches. data-next-page on #feed drives the next
+         fetch; when it reaches 0 the observer stops (last page). -->
     <div id="feed-sentinel" class="h-px w-full" aria-hidden="true"></div>
     <noscript>
       <p class="mt-8 text-center font-mono text-xs text-ink-soft">
@@ -84,10 +79,10 @@ const nextBeforeId = oldest ? String(oldest.id) : '';
 
     // --- Infinite scroll (issue #123) -------------------------------------
     // Watch a sentinel at the bottom of the feed. When it intersects, fetch the
-    // next page as an HTML fragment from /feed-fragment (same HeadlineCard as
-    // the first page, so there's one card template), splice its <li>s into #feed,
-    // and adopt its data-next-* as the new cursor. Stop when a page comes back
-    // with no rows. Re-binds the copy-link handler to newly injected cards.
+    // next page as an HTML fragment from /feed-fragment?page=N (same HeadlineCard
+    // as the first page, so there's one card template), splice its <li>s into
+    // #feed, and adopt its data-next-page as the new page number. Stops when the
+    // fragment reports page 0 (last page). Re-binds copy-link to injected cards.
     const feed = document.getElementById('feed');
     const sentinel = document.getElementById('feed-sentinel');
     if (feed && sentinel && 'IntersectionObserver' in window) {
@@ -117,16 +112,14 @@ const nextBeforeId = oldest ? String(oldest.id) : '';
 
       const loadMore = async () => {
         if (loading || done) return;
-        const before = feed.dataset.nextBefore;
-        const beforeId = feed.dataset.nextBeforeId;
-        if (!before || !beforeId) {
+        const nextPage = Number(feed.dataset.nextPage);
+        if (!nextPage) {
           done = true;
           return;
         }
         loading = true;
         try {
-          const params = new URLSearchParams({ before, beforeId });
-          const res = await fetch(`/feed-fragment?${params}`);
+          const res = await fetch(`/feed-fragment?page=${nextPage}`);
           if (!res.ok) return;
           const html = await res.text();
           const tmp = document.createElement('template');
@@ -140,10 +133,9 @@ const nextBeforeId = oldest ? String(oldest.id) : '';
             return;
           }
           for (const card of cards) feed.appendChild(card);
-          // Adopt the fragment's cursor for the next fetch; empty = last page.
-          feed.dataset.nextBefore = list.dataset.nextBefore ?? '';
-          feed.dataset.nextBeforeId = list.dataset.nextBeforeId ?? '';
-          if (!feed.dataset.nextBefore || !feed.dataset.nextBeforeId) done = true;
+          // Adopt the fragment's next-page number; 0 = last page, stop.
+          feed.dataset.nextPage = list.dataset.nextPage ?? '0';
+          if (!Number(feed.dataset.nextPage)) done = true;
           bindCopyLink(feed);
         } catch {
           // Network errors shouldn't kill the observer — just skip this round.

@@ -5,36 +5,22 @@
 // first page uses, so there is exactly one card template in the codebase — no
 // hand-maintained JS string that has to stay in sync with HeadlineCard.astro.
 //
-// The cursor for the *next* page is the oldest row shown here (published_at,id);
-// it's echoed back as data-next-* on this list so the client can read it off the
-// fetched fragment without a second JSON round-trip. Empty values = last page,
-// which the observer uses to stop.
+// Pagination is by ?page=N (OFFSET), shared with the admin Published tab — see
+// getPublishedHeadlinesPaged for why page numbers beat the old keyset cursor.
+// The fragment echoes the next page number (or 0 when this is the last page) as
+// data-next-page so the observer knows whether to fetch again.
 import HeadlineCard from '../components/HeadlineCard.astro';
-import { getPublishedHeadlinesPage } from '../lib/db';
+import { getPublishedHeadlinesPaged } from '../lib/db';
 
 export const prerender = false;
 
-const before = Astro.url.searchParams.get('before');
-const beforeIdRaw = Astro.url.searchParams.get('beforeId');
-const beforeId = beforeIdRaw ? Number(beforeIdRaw) : null;
+const page = Math.max(1, Number(Astro.url.searchParams.get('page')) || 1);
+const { rows, page: current, totalPages } = await getPublishedHeadlinesPaged({ page });
 
-// Cursor must be a complete (timestamp, id) pair — a bare value on either side
-// can't form a stable boundary, so treat a partial cursor as "start at top".
-const cursorOk = !!before && Number.isInteger(beforeId) && beforeId! > 0;
-const rows = await getPublishedHeadlinesPage({
-  before: cursorOk ? before : null,
-  beforeId: cursorOk ? beforeId : null,
-});
-
-const oldest = rows[rows.length - 1];
-const nextBefore = oldest?.published_at ?? '';
-const nextBeforeId = oldest ? String(oldest.id) : '';
+// 0 = last page reached; the observer treats that as "done".
+const nextPage = current < totalPages ? current + 1 : 0;
 ---
 
-<ul
-  class="scrapbook-grid feed-fragment"
-  data-next-before={nextBefore}
-  data-next-before-id={nextBeforeId}
->
+<ul class="scrapbook-grid feed-fragment" data-next-page={nextPage}>
   {rows.map((h) => <HeadlineCard headline={h} />)}
 </ul>
