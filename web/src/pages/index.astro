@@ -2,7 +2,6 @@
 import Base from '../layouts/Base.astro';
 import HeadlineCard from '../components/HeadlineCard.astro';
 import SiteHeader from '../components/SiteHeader.astro';
-import SiteStats from '../components/SiteStats.astro';
 import { getPublishedHeadlinesPaged } from '../lib/db';
 
 export const prerender = false;
@@ -10,10 +9,8 @@ export const prerender = false;
 // First page renders server-side for SEO and no-JS visitors; subsequent pages
 // are fetched as an HTML fragment from /feed-fragment and injected by the
 // IntersectionObserver below. Pagination is plain page numbers (OFFSET), shared
-// with the admin tab — see getPublishedHeadlinesPaged in lib/db.ts. `total`
-// (the published-headline count) feeds the bottom stat scrap — free, no extra
-// query, the paged call already computes it.
-const { rows, totalPages, total } = await getPublishedHeadlinesPaged({ page: 1 });
+// with the admin tab — see getPublishedHeadlinesPaged in lib/db.ts.
+const { rows, totalPages } = await getPublishedHeadlinesPaged({ page: 1 });
 // 0 = last page reached; the observer treats that as "done".
 const nextPage = totalPages > 1 ? 2 : 0;
 ---
@@ -42,10 +39,6 @@ const nextPage = totalPages > 1 ? 2 : 0;
         Showing the latest headlines. Enable JavaScript for infinite scroll.
       </p>
     </noscript>
-
-    <!-- Pinned stat scrap fills the empty band below the feed (issue #124).
-         Placed after the sentinel so infinite-scroll appends stay above it. -->
-    <SiteStats publishedCount={total} />
   </main>
 
   <script>
