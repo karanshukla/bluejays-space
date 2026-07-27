@@ -2,7 +2,7 @@
 import Base, { DEFAULT_DESCRIPTION } from '../../layouts/Base.astro';
 import HeadlineCard from '../../components/HeadlineCard.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
-import { getHeadlineById, getPublishedHeadlines } from '../../lib/db';
+import { getHeadlineById, getPublishedHeadlinesPage } from '../../lib/db';
 import { permalinkPath } from '../../lib/slug';
 
 export const prerender = false;
@@ -25,7 +25,15 @@ if (Astro.url.pathname !== canonical) {
   return Astro.redirect(canonical, 301);
 }
 
-const headlines = await getPublishedHeadlines();
+// Dimmed backdrop: previously loaded *all* published rows (issue #123). Now
+// capped to the first page — enough to fill the viewport as a backdrop, without
+// pulling the full history on every permalink view. The focused card is always
+// included: if it's older than the first page (rare, but possible for an old
+// permalink), prepend it so it still renders focused rather than vanishing.
+const backdrop = await getPublishedHeadlinesPage();
+const headlines = backdrop.some((h) => h.id === id)
+  ? backdrop
+  : [headline, ...backdrop.filter((h) => h.id !== id)];
 
 // Always point at the per-headline dynamic image rather than gating on a
 // User-Agent allowlist — that list can never cover every unfurl bot (Pinterest,

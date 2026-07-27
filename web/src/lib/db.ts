@@ -58,13 +58,100 @@ export async function getDraftHeadlines(): Promise<Headline[]> {
   return rows;
 }
 
-// Capped window for the admin unpublish UI, not the full publish history.
+// Capped window for the admin unpublish UI, not the full publish history. Also
+// backs the RSS feed (feed.xml.ts). Kept as a simple capped query — sitemap.xml
+// needs the full unpaginated set and uses getPublishedHeadlines for that.
 export async function getRecentPublishedHeadlines(limit = 20): Promise<Headline[]> {
   const { rows } = await getPool().query<Headline>(
     `SELECT * FROM headlines WHERE status = 'published' ORDER BY published_at DESC LIMIT $1`,
     [limit]
   );
   return rows;
+}
+
+// Page sizes for the two paginated views.
+export const FEED_PAGE_SIZE = 12;
+export const ADMIN_PAGE_SIZE = 12;
+
+// Keyset (cursor) pagination for the public feed's infinite scroll (issue #123).
+// The cursor is the (published_at, id) of the oldest row already shown; the next
+// page is everything strictly older, with id as a tiebreaker so rows sharing a
+// timestamp are never skipped or repeated at the page boundary. Keyset over
+// OFFSET because the feed is ordered by published_at DESC and new headlines
+// publish between page loads — OFFSET would skip or repeat rows as the set
+// shifts, while the compound cursor stays stable. Omit the cursor for page one.
+//
+// The cursor clause is built dynamically (rather than `WHERE $1 IS NULL OR …`)
+// because Postgres does not guarantee OR short-circuits: if it evaluated the
+// ROW comparison with a NULL cursor, every row would test NULL and drop out.
+export async function getPublishedHeadlinesPage({
+  before,
+  beforeId,
+  limit = FEED_PAGE_SIZE,
+}: {
+  before?: string | null;
+  beforeId?: number | null;
+  limit?: number;
+} = {}): Promise<Headline[]> {
+  const params: (string | number)[] = [];
+  let cursorClause = '';
+  if (before && beforeId != null) {
+    params.push(before, beforeId);
+    cursorClause = `AND (published_at < $1::timestamptz
+                        OR (published_at = $1::timestamptz AND id < $2::int))`;
+  }
+  params.push(limit);
+  const { rows } = await getPool().query<Headline>(
+    `SELECT * FROM headlines
+     WHERE status = 'published' ${cursorClause}
+     ORDER BY published_at DESC, id DESC
+     LIMIT $${params.length}`,
+    params
+  );
+  return rows;
+}
+
+export interface PublishedHeadlinesPage {
+  rows: Headline[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+// OFFSET pagination for the admin Published tab (issue #122). Keyset is a poor
+// fit there because the admin browses the history in both directions with page
+// numbers; OFFSET's drift under inserts is a non-issue at admin traffic volumes.
+export async function getPublishedHeadlinesPaged({
+  page = 1,
+  pageSize = ADMIN_PAGE_SIZE,
+}: {
+  page?: number;
+  pageSize?: number;
+} = {}): Promise<PublishedHeadlinesPage> {
+  const safePage = Math.max(1, Math.floor(page));
+  const offset = (safePage - 1) * pageSize;
+  const [data, count] = await Promise.all([
+    getPool().query<Headline>(
+      `SELECT * FROM headlines
+       WHERE status = 'published'
+       ORDER BY published_at DESC, id DESC
+       LIMIT $1 OFFSET $2`,
+      [pageSize, offset]
+    ),
+    // COUNT(*) returns bigint, which pg serializes as a string.
+    getPool().query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM headlines WHERE status = 'published'`
+    ),
+  ]);
+  const total = Number(count.rows[0]?.count ?? 0);
+  return {
+    rows: data.rows,
+    page: safePage,
+    pageSize,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  };
 }
 
 export interface HeadlineEdit {

@@ -2,11 +2,17 @@
 import Base from '../layouts/Base.astro';
 import HeadlineCard from '../components/HeadlineCard.astro';
 import SiteHeader from '../components/SiteHeader.astro';
-import { getPublishedHeadlines } from '../lib/db';
+import { getPublishedHeadlinesPage } from '../lib/db';
 
 export const prerender = false;
 
-const headlines = await getPublishedHeadlines();
+// First page renders server-side for SEO and no-JS visitors; subsequent pages
+// are fetched as an HTML fragment from /feed-fragment and injected by the
+// IntersectionObserver below. See feed-fragment.astro for the cursor scheme.
+const rows = await getPublishedHeadlinesPage();
+const oldest = rows[rows.length - 1];
+const nextBefore = oldest?.published_at ?? '';
+const nextBeforeId = oldest ? String(oldest.id) : '';
 ---
 
 <Base title="bluejays.space">
@@ -14,16 +20,30 @@ const headlines = await getPublishedHeadlines();
     <SiteHeader />
 
     {
-      headlines.length === 0 && (
+      rows.length === 0 && (
         <p class="mt-16 text-center font-mono text-sm text-ink-soft">
           No headlines published yet. Check back soon.
         </p>
       )
     }
 
-    <ul class="scrapbook-grid mt-14">
-      {headlines.map((h, i) => <HeadlineCard headline={h} eager={i < 4} />)}
+    <ul
+      class="scrapbook-grid mt-14"
+      id="feed"
+      data-next-before={nextBefore}
+      data-next-before-id={nextBeforeId}
+    >
+      {rows.map((h, i) => <HeadlineCard headline={h} eager={i < 4} />)}
     </ul>
+
+    <!-- Sentinel the observer watches. data-next-* on #feed drive the next
+         fetch; when a fragment comes back empty-handed the observer stops. -->
+    <div id="feed-sentinel" class="h-px w-full" aria-hidden="true"></div>
+    <noscript>
+      <p class="mt-8 text-center font-mono text-xs text-ink-soft">
+        Showing the latest headlines. Enable JavaScript for infinite scroll.
+      </p>
+    </noscript>
   </main>
 
   <script>
@@ -60,6 +80,85 @@ const headlines = await getPublishedHeadlines();
       params.delete('restoreScroll');
       const rest = params.toString();
       history.replaceState(null, '', location.pathname + (rest ? `?${rest}` : ''));
+    }
+
+    // --- Infinite scroll (issue #123) -------------------------------------
+    // Watch a sentinel at the bottom of the feed. When it intersects, fetch the
+    // next page as an HTML fragment from /feed-fragment (same HeadlineCard as
+    // the first page, so there's one card template), splice its <li>s into #feed,
+    // and adopt its data-next-* as the new cursor. Stop when a page comes back
+    // with no rows. Re-binds the copy-link handler to newly injected cards.
+    const feed = document.getElementById('feed');
+    const sentinel = document.getElementById('feed-sentinel');
+    if (feed && sentinel && 'IntersectionObserver' in window) {
+      let loading = false;
+      let done = false;
+
+      const bindCopyLink = (root: ParentNode) => {
+        root.querySelectorAll<HTMLButtonElement>('.copy-link').forEach((btn) => {
+          if (btn.dataset.bound) return;
+          btn.dataset.bound = '1';
+          btn.addEventListener('click', async () => {
+            const path = btn.dataset.url;
+            if (!path) return;
+            try {
+              await navigator.clipboard.writeText(`${location.origin}${path}`);
+              const svg = btn.querySelector('svg');
+              if (svg) {
+                svg.style.color = 'var(--color-blue)';
+                setTimeout(() => (svg.style.color = ''), 1500);
+              }
+            } catch {
+              window.open(path, '_blank');
+            }
+          });
+        });
+      };
+
+      const loadMore = async () => {
+        if (loading || done) return;
+        const before = feed.dataset.nextBefore;
+        const beforeId = feed.dataset.nextBeforeId;
+        if (!before || !beforeId) {
+          done = true;
+          return;
+        }
+        loading = true;
+        try {
+          const params = new URLSearchParams({ before, beforeId });
+          const res = await fetch(`/feed-fragment?${params}`);
+          if (!res.ok) return;
+          const html = await res.text();
+          const tmp = document.createElement('template');
+          tmp.innerHTML = html;
+          const frag = tmp.content;
+          const list = frag.querySelector<HTMLUListElement>('ul.feed-fragment');
+          if (!list) return;
+          const cards = Array.from(list.children) as HTMLLIElement[];
+          if (cards.length === 0) {
+            done = true;
+            return;
+          }
+          for (const card of cards) feed.appendChild(card);
+          // Adopt the fragment's cursor for the next fetch; empty = last page.
+          feed.dataset.nextBefore = list.dataset.nextBefore ?? '';
+          feed.dataset.nextBeforeId = list.dataset.nextBeforeId ?? '';
+          if (!feed.dataset.nextBefore || !feed.dataset.nextBeforeId) done = true;
+          bindCopyLink(feed);
+        } catch {
+          // Network errors shouldn't kill the observer — just skip this round.
+        } finally {
+          loading = false;
+        }
+      };
+
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (entries.some((e) => e.isIntersecting)) loadMore();
+        },
+        { rootMargin: '600px 0px' }
+      );
+      observer.observe(sentinel);
     }
   </script>
 </Base>

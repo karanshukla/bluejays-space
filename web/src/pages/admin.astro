@@ -2,119 +2,258 @@
 import Base from '../layouts/Base.astro';
 import DraftCard from '../components/DraftCard.svelte';
 import PhotoInput from '../components/PhotoInput.svelte';
-import { getDraftHeadlines, getRecentPublishedHeadlines } from '../lib/db';
+import { getDraftHeadlines, getPublishedHeadlinesPaged, ADMIN_PAGE_SIZE } from '../lib/db';
 
 export const prerender = false;
 
+// --- Tab + page state lives in the URL so it survives the location.reload()
+// that publish/unpublish already trigger, and so a tab is shareable. ---
+type Tab = 'drafts' | 'published' | 'new';
+const VALID_TABS: Tab[] = ['drafts', 'published', 'new'];
+const tabParam = Astro.url.searchParams.get('tab') as Tab | null;
+const tab: Tab = VALID_TABS.includes(tabParam!) ? tabParam! : 'drafts';
+
+// Drafts are always fetched (count shown in the tab badge regardless of tab);
+// the Published tab also needs its paginated slice. These are cheap queries and
+// keeping the header count accurate matters more than skipping one DB call.
 const drafts = await getDraftHeadlines();
-const recentlyPublished = await getRecentPublishedHeadlines();
+const published =
+  tab === 'published'
+    ? await getPublishedHeadlinesPaged({
+        page: Number(Astro.url.searchParams.get('page')) || 1,
+        pageSize: ADMIN_PAGE_SIZE,
+      })
+    : null;
+
+const draftsHref = '/admin?tab=drafts';
+const publishedHref = '/admin?tab=published';
+const newHref = '/admin?tab=new';
+
+// Older/Newer preserve the tab across pagination.
+const publishedPage = published?.page ?? 1;
+const publishedTotalPages = published?.totalPages ?? 1;
+const olderHref = `/admin?tab=published&page=${Math.min(publishedTotalPages, publishedPage + 1)}`;
+const newerHref = `/admin?tab=published&page=${Math.max(1, publishedPage - 1)}`;
 ---
 
 <Base title="Admin · bluejays.space">
-  <main class="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-    <header class="mb-8 border-b border-paper-edge pb-4">
+  <main class="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
+    <header class="mb-6 border-b border-paper-edge pb-4">
       <a href="/" class="font-mono text-sm text-ink-soft transition-colors hover:text-blue">
         &larr; bluejays.space
       </a>
-      <h1 class="mt-2 text-3xl font-semibold text-ink font-display">Drafts</h1>
+      <h1 class="mt-2 text-3xl font-semibold text-ink font-display">Admin</h1>
       <p class="mt-1 text-sm text-ink-soft font-mono">
         {drafts.length} draft{drafts.length === 1 ? '' : 's'} awaiting review. Only published rows appear
         on the public feed.
       </p>
     </header>
 
-    <div class="admin-layout">
-      <section class="admin-main space-y-6">
-        {
-          drafts.length === 0 && (
+    {/* Tab bar — plain anchors, active via aria-current. No JS needed. */}
+    <nav class="mb-8 flex gap-1 border-b border-paper-edge" aria-label="Admin sections">
+      <a href={draftsHref} aria-current={tab === 'drafts' ? 'page' : undefined} class="admin-tab">
+        Drafts
+        <span class="admin-tab-badge">{drafts.length}</span>
+      </a>
+      <a
+        href={publishedHref}
+        aria-current={tab === 'published' ? 'page' : undefined}
+        class="admin-tab"
+      >
+        Published
+      </a>
+      <a href={newHref} aria-current={tab === 'new' ? 'page' : undefined} class="admin-tab">
+        New
+      </a>
+    </nav>
+
+    {
+      tab === 'drafts' && (
+        <section class="space-y-6">
+          {drafts.length === 0 ? (
             <div class="rounded-lg border border-dashed border-paper-edge bg-card p-8 text-center">
               <p class="text-ink-soft font-mono text-sm">
-                No drafts right now. Write one from scratch.
+                No drafts right now. Open the{' '}
+                <a href={newHref} class="text-blue hover:underline">
+                  New
+                </a>{' '}
+                tab to write one.
               </p>
             </div>
-          )
-        }
+          ) : (
+            <ul class="space-y-6">
+              {drafts.map((draft) => (
+                <DraftCard client:load draft={draft} />
+              ))}
+            </ul>
+          )}
+        </section>
+      )
+    }
 
-        <ul class="space-y-6">
-          {drafts.map((draft) => <DraftCard client:load draft={draft} />)}
-        </ul>
-      </section>
+    {
+      tab === 'published' && published && (
+        <section class="space-y-6">
+          <p class="text-sm text-ink-soft">
+            Unpublish to pull one back off the public feed for another edit.
+            {published.total > 0 && (
+              <>
+                {' '}
+                Showing {(published.page - 1) * published.pageSize + 1}–
+                {Math.min(published.total, published.page * published.pageSize)} of{' '}
+                {published.total}.
+              </>
+            )}
+          </p>
 
-      <aside class="admin-rail space-y-8">
-        <details class="group rounded-lg border border-paper-edge bg-card p-5">
-          <summary
-            class="flex cursor-pointer items-center justify-between text-lg font-semibold text-ink font-display"
-          >
-            <span>New headline</span>
-            <span class="text-ink-soft transition-transform group-open:rotate-90">›</span>
-          </summary>
-          <p class="mt-2 text-sm text-ink-soft">Goes to draft first.</p>
-          <form class="mt-4 space-y-3" method="POST" action="/admin/api/headlines/create">
-            <label class="block text-sm font-medium text-ink">
-              Headline
-              <textarea
-                name="headline"
-                required
-                rows="2"
-                class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-base text-ink"
-              ></textarea>
-            </label>
-            <label class="block text-sm font-medium text-ink">
-              Stat block
-              <input
-                name="stat_block"
-                class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink font-mono text-sm"
-              />
-            </label>
-            <label class="block text-sm font-medium text-ink">
-              Photo
-              <PhotoInput client:load name="photo_ref" />
-            </label>
-            <label class="block text-sm font-medium text-ink">
-              Source post URL <span class="font-normal text-ink-soft/70"
-                >(if riffing a specific real post)</span
-              >
-              <input
-                name="source_post_url"
-                class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
-              />
-            </label>
-            <label class="block text-sm font-medium text-ink">
-              Source note <span class="font-normal text-ink-soft/70"
-                >(extra context for the classifier)</span
-              >
-              <input
-                name="source_note"
-                class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
-              />
-            </label>
-            <button
-              type="submit"
-              class="rounded bg-blue px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
-            >
-              Add draft
-            </button>
-          </form>
-        </details>
-
-        {
-          recentlyPublished.length > 0 && (
-            <div class="space-y-4">
-              <h2 class="border-b border-paper-edge pb-2 text-lg font-semibold text-ink font-display">
-                Recently published
-              </h2>
-              <p class="text-sm text-ink-soft">
-                Unpublish to pull one back off the public feed for another edit.
-              </p>
-              <ul class="space-y-6">
-                {recentlyPublished.map((draft) => (
-                  <DraftCard client:load draft={draft} />
-                ))}
-              </ul>
+          {published.rows.length === 0 ? (
+            <div class="rounded-lg border border-dashed border-paper-edge bg-card p-8 text-center">
+              <p class="text-ink-soft font-mono text-sm">Nothing published yet.</p>
             </div>
-          )
-        }
-      </aside>
-    </div>
+          ) : (
+            <ul class="space-y-6">
+              {published.rows.map((draft) => (
+                <DraftCard client:load draft={draft} />
+              ))}
+            </ul>
+          )}
+
+          {publishedTotalPages > 1 && (
+            <nav class="flex items-center justify-between pt-2" aria-label="Published pages">
+              <a
+                href={olderHref}
+                aria-disabled={publishedPage >= publishedTotalPages ? 'true' : undefined}
+                class={`admin-page-link ${publishedPage >= publishedTotalPages ? 'pointer-events-none opacity-40' : ''}`}
+              >
+                &larr; Older
+              </a>
+              <span class="font-mono text-xs text-ink-soft">
+                {publishedPage} / {publishedTotalPages}
+              </span>
+              <a
+                href={newerHref}
+                aria-disabled={publishedPage <= 1 ? 'true' : undefined}
+                class={`admin-page-link ${publishedPage <= 1 ? 'pointer-events-none opacity-40' : ''}`}
+              >
+                Newer &rarr;
+              </a>
+            </nav>
+          )}
+        </section>
+      )
+    }
+
+    {
+      tab === 'new' && (
+        <section>
+          <div class="rounded-lg border border-paper-edge bg-card p-6">
+            <h2 class="mb-1 text-lg font-semibold text-ink font-display">New headline</h2>
+            <p class="mb-4 text-sm text-ink-soft">Goes to draft first.</p>
+            <form class="space-y-3" method="POST" action="/admin/api/headlines/create">
+              <label class="block text-sm font-medium text-ink">
+                Headline
+                <textarea
+                  name="headline"
+                  required
+                  rows="2"
+                  class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-base text-ink"
+                />
+              </label>
+              <label class="block text-sm font-medium text-ink">
+                Stat block
+                <input
+                  name="stat_block"
+                  class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink font-mono text-sm"
+                />
+              </label>
+              <label class="block text-sm font-medium text-ink">
+                Photo
+                <PhotoInput client:load name="photo_ref" />
+              </label>
+              <label class="block text-sm font-medium text-ink">
+                Source post URL{' '}
+                <span class="font-normal text-ink-soft/70">(if riffing a specific real post)</span>
+                <input
+                  name="source_post_url"
+                  class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
+                />
+              </label>
+              <label class="block text-sm font-medium text-ink">
+                Source note{' '}
+                <span class="font-normal text-ink-soft/70">(extra context for the classifier)</span>
+                <input
+                  name="source_note"
+                  class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
+                />
+              </label>
+              <button
+                type="submit"
+                class="rounded bg-blue px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+              >
+                Add draft
+              </button>
+            </form>
+          </div>
+        </section>
+      )
+    }
   </main>
 </Base>
+
+<style is:global>
+  /* Tab bar. Replaces the old two-column admin-layout (sidebar + rail) with a
+     single tabbed column so each task — review drafts, edit published posts, or
+     write a new one — gets the full content width. Issue #122. */
+  .admin-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.6rem 1rem;
+    margin-bottom: -1px;
+    border: 1px solid transparent;
+    border-radius: 0.375rem 0.375rem 0 0;
+    font-family: var(--font-display, inherit);
+    font-weight: 600;
+    color: var(--color-ink-soft, #5b6478);
+    text-decoration: none;
+    transition:
+      color 0.12s ease-out,
+      background-color 0.12s ease-out;
+  }
+  .admin-tab:hover {
+    color: var(--color-ink, #14213d);
+    background-color: color-mix(in srgb, var(--color-blue, #1d4ed8) 6%, transparent);
+  }
+  .admin-tab[aria-current='page'] {
+    color: var(--color-ink, #14213d);
+    background-color: var(--color-card, #fbf7ee);
+    border-color: var(--color-paper-edge, #e4dcc8);
+    border-bottom-color: var(--color-card, #fbf7ee);
+  }
+  .admin-tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0 0.4rem;
+    border-radius: 9999px;
+    background-color: color-mix(in srgb, var(--color-ink, #14213d) 12%, transparent);
+    color: var(--color-ink-soft, #5b6478);
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+
+  .admin-page-link {
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 0.8rem;
+    color: var(--color-blue, #1d4ed8);
+    text-decoration: none;
+    padding: 0.4rem 0.6rem;
+    border-radius: 0.375rem;
+  }
+  .admin-page-link:hover {
+    background-color: color-mix(in srgb, var(--color-blue, #1d4ed8) 8%, transparent);
+  }
+</style>

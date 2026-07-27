@@ -1,0 +1,40 @@
+---
+// Infinite-scroll fragment (issue #123). The browser's IntersectionObserver
+// fetches this page as the user nears the bottom of the feed; it returns the
+// next batch of cards rendered through the *same* HeadlineCard component the
+// first page uses, so there is exactly one card template in the codebase — no
+// hand-maintained JS string that has to stay in sync with HeadlineCard.astro.
+//
+// The cursor for the *next* page is the oldest row shown here (published_at,id);
+// it's echoed back as data-next-* on this list so the client can read it off the
+// fetched fragment without a second JSON round-trip. Empty values = last page,
+// which the observer uses to stop.
+import HeadlineCard from '../components/HeadlineCard.astro';
+import { getPublishedHeadlinesPage } from '../lib/db';
+
+export const prerender = false;
+
+const before = Astro.url.searchParams.get('before');
+const beforeIdRaw = Astro.url.searchParams.get('beforeId');
+const beforeId = beforeIdRaw ? Number(beforeIdRaw) : null;
+
+// Cursor must be a complete (timestamp, id) pair — a bare value on either side
+// can't form a stable boundary, so treat a partial cursor as "start at top".
+const cursorOk = !!before && Number.isInteger(beforeId) && beforeId! > 0;
+const rows = await getPublishedHeadlinesPage({
+  before: cursorOk ? before : null,
+  beforeId: cursorOk ? beforeId : null,
+});
+
+const oldest = rows[rows.length - 1];
+const nextBefore = oldest?.published_at ?? '';
+const nextBeforeId = oldest ? String(oldest.id) : '';
+---
+
+<ul
+  class="scrapbook-grid feed-fragment"
+  data-next-before={nextBefore}
+  data-next-before-id={nextBeforeId}
+>
+  {rows.map((h) => <HeadlineCard headline={h} />)}
+</ul>
