@@ -208,26 +208,7 @@ body {
   filter: saturate(1.08) contrast(1.03);
 }
 
-/* --- Admin two-column layout: main draft queue on the left, right rail holds
-   the create-from-scratch form and recently-published list. Stacks below the
-   laptop breakpoint where a single column reads better. --- */
-.admin-layout {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 2rem;
-}
-
-@media (min-width: 1024px) {
-  .admin-layout {
-    grid-template-columns: minmax(0, 1fr) 22rem;
-    align-items: start;
-  }
-  .admin-main {
-    grid-column: 1;
-  }
-  .admin-rail {
-    grid-column: 2;
-    position: sticky;
-    top: 2rem;
-  }
-}
+/* Admin layout lives in admin.astro's component-scoped <style> now: the old
+   two-column main+rail grid was replaced by a single tabbed column (issue
+   #122), so there are no global .admin-layout / .admin-main / .admin-rail rules
+   to keep here. */
