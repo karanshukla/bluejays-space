@@ -1,0 +1,61 @@
+---
+// A pinned "stat scrap" that fills the empty band below the feed (issue #124).
+// Reuses the global .clipping + .tape-b classes so it reads as one more clipping
+// on the board, not a bolted-on widget. The one real number — publishedCount —
+// comes straight from the getPublishedHeadlinesPaged call index.astro already
+// makes for the first page; everything else is deadpan parody in the site voice.
+// Zero JS, same as the rest of the public feed.
+interface Props {
+  publishedCount: number;
+}
+const { publishedCount } = Astro.props;
+---
+
+<!-- Anchored below the feed sentinel so infinite-scroll appends always stay
+     above it and it pins the bottom of the page. The surrounding mt gives it
+     breathing room from the ragged masonry edge above. -->
+<div class="site-stats-wrap mt-16 mb-4 flex justify-center px-4">
+  <div
+    class="clipping tape-b site-stats border border-paper-edge bg-card p-6 pt-7 shadow-[3px_4px_0_rgba(20,33,61,0.12),0_10px_24px_-8px_rgba(20,33,61,0.28)]"
+  >
+    <p class="text-center text-xs font-bold tracking-[0.25em] text-ink-soft font-mono uppercase">
+      The Record, to date
+    </p>
+
+    <dl class="mt-4 space-y-2 font-mono text-sm text-ink">
+      <div class="flex items-baseline justify-between gap-6">
+        <dt class="text-ink-soft">Headlines published</dt>
+        <dd class="font-bold tabular-nums">{publishedCount}</dd>
+      </div>
+      <div class="flex items-baseline justify-between gap-6">
+        <dt class="text-ink-soft">Days of misinformation</dt>
+        <dd class="font-bold">&infin;</dd>
+      </div>
+      <div class="flex items-baseline justify-between gap-6">
+        <dt class="text-ink-soft">Retractions issued</dt>
+        <dd class="font-bold tabular-nums">0</dd>
+      </div>
+      <div class="flex items-baseline justify-between gap-6">
+        <dt class="text-ink-soft">Jays accuracy</dt>
+        <dd class="font-bold tabular-nums">100%</dd>
+      </div>
+    </dl>
+
+    <p
+      class="mt-4 border-t border-dashed border-blue/40 pt-2 text-center font-mono text-[0.65rem] italic text-ink-soft/70"
+    >
+      *accuracy not guaranteed, encouraged, or verified
+    </p>
+  </div>
+</div>
+
+<style>
+  /* A fixed tilt so the card reads as pinned-crooked like the feed clippings
+     above it. The global .clipping:hover rule still straightens it on hover.
+     Not using nth-child tilt — this isn't a grid child, and it should lean a
+     touch more than the feed cards to sit as its own pinned note. */
+  .site-stats {
+    transform: rotate(-1.4deg);
+    max-width: 22rem;
+  }
+</style>
