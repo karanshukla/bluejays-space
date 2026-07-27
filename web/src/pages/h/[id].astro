@@ -2,7 +2,7 @@
 import Base, { DEFAULT_DESCRIPTION } from '../../layouts/Base.astro';
 import HeadlineCard from '../../components/HeadlineCard.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
-import { getHeadlineById, getPublishedHeadlinesPage } from '../../lib/db';
+import { getHeadlineById, getPublishedHeadlinesPaged } from '../../lib/db';
 import { permalinkPath } from '../../lib/slug';
 
 export const prerender = false;
@@ -30,7 +30,7 @@ if (Astro.url.pathname !== canonical) {
 // pulling the full history on every permalink view. The focused card is always
 // included: if it's older than the first page (rare, but possible for an old
 // permalink), prepend it so it still renders focused rather than vanishing.
-const backdrop = await getPublishedHeadlinesPage();
+const { rows: backdrop } = await getPublishedHeadlinesPaged({ page: 1 });
 const headlines = backdrop.some((h) => h.id === id)
   ? backdrop
   : [headline, ...backdrop.filter((h) => h.id !== id)];

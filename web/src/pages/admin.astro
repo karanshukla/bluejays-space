@@ -2,7 +2,7 @@
 import Base from '../layouts/Base.astro';
 import DraftCard from '../components/DraftCard.svelte';
 import PhotoInput from '../components/PhotoInput.svelte';
-import { getDraftHeadlines, getPublishedHeadlinesPaged, ADMIN_PAGE_SIZE } from '../lib/db';
+import { getDraftHeadlines, getPublishedHeadlinesPaged, PAGE_SIZE } from '../lib/db';
 
 export const prerender = false;
 
@@ -21,7 +21,7 @@ const published =
   tab === 'published'
     ? await getPublishedHeadlinesPaged({
         page: Number(Astro.url.searchParams.get('page')) || 1,
-        pageSize: ADMIN_PAGE_SIZE,
+        pageSize: PAGE_SIZE,
       })
     : null;
 
@@ -29,11 +29,14 @@ const draftsHref = '/admin?tab=drafts';
 const publishedHref = '/admin?tab=published';
 const newHref = '/admin?tab=new';
 
-// Older/Newer preserve the tab across pagination.
+// Pagination nav. The list is ordered published_at DESC (latest first), so
+// page 1 is newest and higher pages are older. Newer (lower page) goes on the
+// left, Older (higher page) on the right — matching the reading order: you
+// start at the top of the history and page rightward into the past.
 const publishedPage = published?.page ?? 1;
 const publishedTotalPages = published?.totalPages ?? 1;
-const olderHref = `/admin?tab=published&page=${Math.min(publishedTotalPages, publishedPage + 1)}`;
 const newerHref = `/admin?tab=published&page=${Math.max(1, publishedPage - 1)}`;
+const olderHref = `/admin?tab=published&page=${Math.min(publishedTotalPages, publishedPage + 1)}`;
 ---
 
 <Base title="Admin · bluejays.space">
@@ -121,21 +124,21 @@ const newerHref = `/admin?tab=published&page=${Math.max(1, publishedPage - 1)}`;
           {publishedTotalPages > 1 && (
             <nav class="flex items-center justify-between pt-2" aria-label="Published pages">
               <a
-                href={olderHref}
-                aria-disabled={publishedPage >= publishedTotalPages ? 'true' : undefined}
-                class={`admin-page-link ${publishedPage >= publishedTotalPages ? 'pointer-events-none opacity-40' : ''}`}
+                href={newerHref}
+                aria-disabled={publishedPage <= 1 ? 'true' : undefined}
+                class={`admin-page-link ${publishedPage <= 1 ? 'pointer-events-none opacity-40' : ''}`}
               >
-                &larr; Older
+                &larr; Newer
               </a>
               <span class="font-mono text-xs text-ink-soft">
                 {publishedPage} / {publishedTotalPages}
               </span>
               <a
-                href={newerHref}
-                aria-disabled={publishedPage <= 1 ? 'true' : undefined}
-                class={`admin-page-link ${publishedPage <= 1 ? 'pointer-events-none opacity-40' : ''}`}
+                href={olderHref}
+                aria-disabled={publishedPage >= publishedTotalPages ? 'true' : undefined}
+                class={`admin-page-link ${publishedPage >= publishedTotalPages ? 'pointer-events-none opacity-40' : ''}`}
               >
-                Newer &rarr;
+                Older &rarr;
               </a>
             </nav>
           )}

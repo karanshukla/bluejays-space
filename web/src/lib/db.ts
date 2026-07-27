@@ -69,47 +69,9 @@ export async function getRecentPublishedHeadlines(limit = 20): Promise<Headline[
   return rows;
 }
 
-// Page sizes for the two paginated views.
-export const FEED_PAGE_SIZE = 12;
-export const ADMIN_PAGE_SIZE = 12;
-
-// Keyset (cursor) pagination for the public feed's infinite scroll (issue #123).
-// The cursor is the (published_at, id) of the oldest row already shown; the next
-// page is everything strictly older, with id as a tiebreaker so rows sharing a
-// timestamp are never skipped or repeated at the page boundary. Keyset over
-// OFFSET because the feed is ordered by published_at DESC and new headlines
-// publish between page loads — OFFSET would skip or repeat rows as the set
-// shifts, while the compound cursor stays stable. Omit the cursor for page one.
-//
-// The cursor clause is built dynamically (rather than `WHERE $1 IS NULL OR …`)
-// because Postgres does not guarantee OR short-circuits: if it evaluated the
-// ROW comparison with a NULL cursor, every row would test NULL and drop out.
-export async function getPublishedHeadlinesPage({
-  before,
-  beforeId,
-  limit = FEED_PAGE_SIZE,
-}: {
-  before?: string | null;
-  beforeId?: number | null;
-  limit?: number;
-} = {}): Promise<Headline[]> {
-  const params: (string | number)[] = [];
-  let cursorClause = '';
-  if (before && beforeId != null) {
-    params.push(before, beforeId);
-    cursorClause = `AND (published_at < $1::timestamptz
-                        OR (published_at = $1::timestamptz AND id < $2::int))`;
-  }
-  params.push(limit);
-  const { rows } = await getPool().query<Headline>(
-    `SELECT * FROM headlines
-     WHERE status = 'published' ${cursorClause}
-     ORDER BY published_at DESC, id DESC
-     LIMIT $${params.length}`,
-    params
-  );
-  return rows;
-}
+// Single page size for both paginated views: the public feed's infinite scroll
+// (issue #123) and the admin Published tab (issue #122).
+export const PAGE_SIZE = 12;
 
 export interface PublishedHeadlinesPage {
   rows: Headline[];
@@ -119,12 +81,22 @@ export interface PublishedHeadlinesPage {
   totalPages: number;
 }
 
-// OFFSET pagination for the admin Published tab (issue #122). Keyset is a poor
-// fit there because the admin browses the history in both directions with page
-// numbers; OFFSET's drift under inserts is a non-issue at admin traffic volumes.
+// OFFSET pagination for the public feed's infinite scroll (issue #123) and the
+// admin Published tab (issue #122). Both use plain page numbers: ?page=2 on the
+// feed-fragment endpoint and /admin?tab=published&page=2 in the admin UI. An
+// earlier version used a (published_at, id) keyset cursor, but that passed the
+// oldest row's published_at through the URL as a Date .toString() — pg returns
+// timestamptz as a JS Date, whose default string form Postgres can't reparse,
+// so the fragment query 500'd on prod and scroll silently stopped. Page numbers
+// are simpler, shareable, and the only round-tripped value is an integer.
+//
+// OFFSET can drift by a row if a headline publishes between two page loads (the
+// new row lands on page 1, pushing an older one into page 2's window). At this
+// site's traffic that's a cosmetic non-issue, and bidirectional page-number
+// browsing matters more than perfect ordering stability.
 export async function getPublishedHeadlinesPaged({
   page = 1,
-  pageSize = ADMIN_PAGE_SIZE,
+  pageSize = PAGE_SIZE,
 }: {
   page?: number;
   pageSize?: number;
