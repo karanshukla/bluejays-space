@@ -6,16 +6,11 @@ import { getDraftHeadlines, getPublishedHeadlinesPaged, PAGE_SIZE } from '../lib
 
 export const prerender = false;
 
-// --- Tab + page state lives in the URL so it survives the location.reload()
-// that publish/unpublish already trigger, and so a tab is shareable. ---
 type Tab = 'drafts' | 'published' | 'new';
 const VALID_TABS: Tab[] = ['drafts', 'published', 'new'];
 const tabParam = Astro.url.searchParams.get('tab') as Tab | null;
 const tab: Tab = VALID_TABS.includes(tabParam!) ? tabParam! : 'drafts';
 
-// Drafts are always fetched (count shown in the tab badge regardless of tab);
-// the Published tab also needs its paginated slice. These are cheap queries and
-// keeping the header count accurate matters more than skipping one DB call.
 const drafts = await getDraftHeadlines();
 const published =
   tab === 'published'
@@ -29,10 +24,6 @@ const draftsHref = '/admin?tab=drafts';
 const publishedHref = '/admin?tab=published';
 const newHref = '/admin?tab=new';
 
-// Pagination nav. The list is ordered published_at DESC (latest first), so
-// page 1 is newest and higher pages are older. Newer (lower page) goes on the
-// left, Older (higher page) on the right — matching the reading order: you
-// start at the top of the history and page rightward into the past.
 const publishedPage = published?.page ?? 1;
 const publishedTotalPages = published?.totalPages ?? 1;
 const newerHref = `/admin?tab=published&page=${Math.max(1, publishedPage - 1)}`;
@@ -52,7 +43,6 @@ const olderHref = `/admin?tab=published&page=${Math.min(publishedTotalPages, pub
       </p>
     </header>
 
-    {/* Tab bar — plain anchors, active via aria-current. No JS needed. */}
     <nav class="mb-8 flex gap-1 border-b border-paper-edge" aria-label="Admin sections">
       <a href={draftsHref} aria-current={tab === 'drafts' ? 'page' : undefined} class="admin-tab">
         Drafts
@@ -204,10 +194,7 @@ const olderHref = `/admin?tab=published&page=${Math.min(publishedTotalPages, pub
 </Base>
 
 <style is:global>
-  /* Tab bar. Replaces the old two-column admin-layout (sidebar + rail) with a
-     single tabbed column so each task — review drafts, edit published posts, or
-     write a new one — gets the full content width. Issue #122. */
-  .admin-tab {
+  s .admin-tab {
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
