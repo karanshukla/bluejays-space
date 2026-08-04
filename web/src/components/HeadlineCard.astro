@@ -31,9 +31,16 @@ interface Props {
   // First few cards render above the fold on most breakpoints — skip
   // lazy-loading for those so the browser doesn't delay their LCP candidate.
   eager?: boolean;
+  // SEO: the headline's heading level. <h2> everywhere on the homepage feed
+  // (the site name is the <h1> there), but <h1> for the focused card on a
+  // permalink page — that card's headline is the page's actual topic, so it
+  // should be the page's only <h1>. Same classes either way, so it's a pure
+  // semantic change with no visual difference.
+  headingLevel?: 'h1' | 'h2';
 }
 
-const { headline: h, dimmed = false, eager = false } = Astro.props;
+const { headline: h, dimmed = false, eager = false, headingLevel = 'h2' } = Astro.props;
+const HeadingTag = headingLevel;
 const tapeVariant = TAPE_VARIANTS[h.id % TAPE_VARIANTS.length];
 const photoPosition = PHOTO_POSITION_VARIANTS[(h.id * 7) % PHOTO_POSITION_VARIANTS.length];
 const url = permalinkPath(h.id, h.headline);
@@ -70,11 +77,11 @@ const hasSmallVariant = h.photo_ref?.endsWith('.webp') ?? false;
       )
     }
 
-    <h2
+    <HeadingTag
       class={`text-xl leading-snug font-semibold text-ink font-display ${h.photo_ref ? 'mt-4' : ''}`}
     >
       {h.headline}
-    </h2>
+    </HeadingTag>
 
     {
       h.stat_block && (
