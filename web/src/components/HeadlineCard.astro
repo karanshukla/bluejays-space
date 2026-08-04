@@ -10,9 +10,11 @@ export const TAPE_VARIANTS = ['tape-a', 'tape-b', 'tape-c', 'tape-d', 'tape-e', 
 
 // Subtle per-card photo crop offsets so the scrapbook doesn't look like every
 // photo was mounted dead-center. Kept close to center (35-65%) so cover-crop
-// never clips a face badly. A prime-multiplied index (vs. TAPE_VARIANTS'
-// plain h.id % n) keeps tape rotation and photo offset from lining up in a
-// visible pattern across consecutive ids.
+// never clips a face badly. The index multiplier (5) must be coprime with the
+// array length (7) for every variant to actually be reached — the original
+// (id * 7) % 7 collapsed to 0 for every id, so every photo cropped at index 0
+// and the "randomness" did nothing. 5 is also a different prime than TAPE_VARIANTS'
+// divisor (6), so tape rotation and photo offset don't sync into a pattern.
 export const PHOTO_POSITION_VARIANTS = [
   '50% 35%',
   '35% 50%',
@@ -35,7 +37,7 @@ interface Props {
 
 const { headline: h, dimmed = false, eager = false } = Astro.props;
 const tapeVariant = TAPE_VARIANTS[h.id % TAPE_VARIANTS.length];
-const photoPosition = PHOTO_POSITION_VARIANTS[(h.id * 7) % PHOTO_POSITION_VARIANTS.length];
+const photoPosition = PHOTO_POSITION_VARIANTS[(h.id * 5) % PHOTO_POSITION_VARIANTS.length];
 const url = permalinkPath(h.id, h.headline);
 const siteHost = getSiteUrl().hostname;
 // Only webp uploads (the resize path in photoImport.ts) have a small variant
