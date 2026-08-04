@@ -2,7 +2,6 @@
 import Base from '../layouts/Base.astro';
 import HeadlineCard from '../components/HeadlineCard.astro';
 import SiteHeader from '../components/SiteHeader.astro';
-import SubmitCallout from '../components/SubmitCallout.astro';
 import { getPublishedHeadlinesPaged } from '../lib/db';
 
 export const prerender = false;
@@ -19,8 +18,6 @@ const nextPage = totalPages > 1 ? 2 : 0;
 <Base title="bluejays.space">
   <main class="mx-auto max-w-[1600px] px-6 py-12 sm:px-10">
     <SiteHeader />
-
-    <SubmitCallout class="mt-10" />
 
     {
       rows.length === 0 && (
