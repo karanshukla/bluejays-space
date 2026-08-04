@@ -61,12 +61,17 @@ const description = headline.stat_block
   articlePublishedTime={headline.published_at ?? undefined}
 >
   <main class="permalink-overlay mx-auto max-w-[1600px] px-6 py-12 sm:px-10" data-focus-id={id}>
-    <SiteHeader />
+    <SiteHeader siteNameLevel="p" />
 
     <ul class="scrapbook-grid mt-14">
       {
         headlines.map((h, i) => (
-          <HeadlineCard headline={h} dimmed={h.id !== id} eager={h.id === id || i < 2} />
+          <HeadlineCard
+            headline={h}
+            dimmed={h.id !== id}
+            eager={h.id === id || i < 2}
+            headingLevel={h.id === id ? 'h1' : 'h2'}
+          />
         ))
       }
     </ul>

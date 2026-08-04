@@ -2,14 +2,26 @@
 // The submit CTA is hidden on /submit itself (redundant next to the form),
 // shown everywhere else. Issue #142: the only other pointer to /submit was a
 // footer line, which most visitors never reach.
+//
+// SEO heading hierarchy: the site name is the <h1> on the homepage (the site
+// name IS the page's topic there), but on a permalink page the focused
+// headline is the page's real topic, so it should be the only <h1> and the
+// site name drops to a styled <p> (visually identical). `siteNameLevel` lets
+// each page place the site name at the right outline level — default h1 keeps
+// the homepage/submit/etc. as-is, permalinks pass 'p'.
+interface Props {
+  siteNameLevel?: 'h1' | 'p';
+}
+const { siteNameLevel = 'h1' } = Astro.props;
 const showSubmit = Astro.url.pathname !== '/submit';
+const SiteNameTag = siteNameLevel; // 'h1' or 'p' — same classes, just the tag differs
 ---
 
 <header class="relative text-center">
   <a href="/" class="inline-block transition-opacity hover:opacity-80">
-    <h1 class="text-5xl font-semibold tracking-tight text-ink font-display sm:text-6xl">
+    <SiteNameTag class="text-5xl font-semibold tracking-tight text-ink font-display sm:text-6xl">
       bluejays.space
-    </h1>
+    </SiteNameTag>
   </a>
   {
     showSubmit && (
