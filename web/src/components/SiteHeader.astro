@@ -1,5 +1,36 @@
-<a href="/" class="block text-center transition-opacity hover:opacity-80">
-  <h1 class="text-5xl font-semibold tracking-tight text-ink font-display sm:text-6xl">
-    bluejays.space
-  </h1>
-</a>
+---
+// The submit CTA is hidden on /submit itself (redundant next to the form),
+// shown everywhere else. Issue #142: the only other pointer to /submit was a
+// footer line, which most visitors never reach.
+const showSubmit = Astro.url.pathname !== '/submit';
+---
+
+<header class="relative text-center">
+  <a href="/" class="inline-block transition-opacity hover:opacity-80">
+    <h1 class="text-5xl font-semibold tracking-tight text-ink font-display sm:text-6xl">
+      bluejays.space
+    </h1>
+  </a>
+  {
+    showSubmit && (
+      <a
+        href="/submit"
+        class="card-action relative mt-4 inline-flex items-center gap-1.5 rounded-full border border-blue/30 bg-card px-3.5 py-2 font-mono text-xs font-bold tracking-widest text-blue uppercase shadow-[2px_2px_0_rgba(20,33,61,0.12)] transition-colors hover:bg-blue hover:text-white hover:shadow-none sm:absolute sm:end-0 sm:top-0 sm:mt-0 sm:text-[0.8rem]"
+      >
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+        Submit
+      </a>
+    )
+  }
+</header>
