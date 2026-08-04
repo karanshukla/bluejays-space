@@ -2,6 +2,7 @@
 import Base from '../layouts/Base.astro';
 import HeadlineCard from '../components/HeadlineCard.astro';
 import SiteHeader from '../components/SiteHeader.astro';
+import SubmitCallout from '../components/SubmitCallout.astro';
 import { getPublishedHeadlinesPaged } from '../lib/db';
 
 export const prerender = false;
@@ -18,6 +19,8 @@ const nextPage = totalPages > 1 ? 2 : 0;
 <Base title="bluejays.space">
   <main class="mx-auto max-w-[1600px] px-6 py-12 sm:px-10">
     <SiteHeader />
+
+    <SubmitCallout class="mt-10" />
 
     {
       rows.length === 0 && (
@@ -80,9 +83,19 @@ const nextPage = totalPages > 1 ? 2 : 0;
     // --- Infinite scroll (issue #123) -------------------------------------
     // Watch a sentinel at the bottom of the feed. When it intersects, fetch the
     // next page as an HTML fragment from /feed-fragment?page=N (same HeadlineCard
-    // as the first page, so there's one card template), splice its <li>s into
-    // #feed, and adopt its data-next-page as the new page number. Stops when the
-    // fragment reports page 0 (last page). Re-binds copy-link to injected cards.
+    // as the first page, so there's one card template) and insert the whole
+    // returned <ul> as a sibling block before the sentinel.
+    //
+    // Why sibling blocks instead of splicing <li>s into #feed: the scrapbook is
+    // CSS multi-column (column-count), and multi-column rebalances its columns
+    // every time a child is appended — so splicing later pages' cards into #feed
+    // reflowed every earlier card between columns and made the feed visibly
+    // "shuffle" as you scrolled (issue #141), worst in landscape. Giving each
+    // page its own self-contained column box means earlier pages never
+    // recompute: cards stay exactly where they first painted. The tradeoff is a
+    // slight ragged seam between every page (≈12 cards), which reads as natural
+    // scrapbook spacing. Stops when the fragment reports page 0 (last page).
+    // Re-binds copy-link to injected cards.
     const feed = document.getElementById('feed');
     const sentinel = document.getElementById('feed-sentinel');
     if (feed && sentinel && 'IntersectionObserver' in window) {
@@ -132,11 +145,13 @@ const nextPage = totalPages > 1 ? 2 : 0;
             done = true;
             return;
           }
-          for (const card of cards) feed.appendChild(card);
+          // Insert the page as its own self-contained column block ahead of the
+          // sentinel. Earlier blocks never reflow → no shuffle (issue #141).
+          sentinel.before(list);
           // Adopt the fragment's next-page number; 0 = last page, stop.
           feed.dataset.nextPage = list.dataset.nextPage ?? '0';
           if (!Number(feed.dataset.nextPage)) done = true;
-          bindCopyLink(feed);
+          bindCopyLink(list);
         } catch {
           // Network errors shouldn't kill the observer — just skip this round.
         } finally {

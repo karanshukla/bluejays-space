@@ -1,0 +1,49 @@
+---
+// On-brand "submit a headline" callout, styled as a scrapbook clipping so it
+// reads as part of the board rather than a SaaS banner glued on top. Pinned at
+// the top of the feed (issue #142) — the only prior pointer to /submit was a
+// footer line most visitors never reach. The header Submit link covers
+// discoverability on every page; this gives the feed itself an unmissable,
+// on-aesthetic invitation.
+//
+// Not a <li> in the feed's column box: a centered standalone card above the
+// grid, so it never participates in (or gets shuffled by) the masonry columns.
+interface Props {
+  // Hide the top margin when it sits directly under the header on /submit-like
+  // placements; the feed mounts it with default spacing.
+  class?: string;
+}
+const { class: extra = '' } = Astro.props;
+---
+
+<div class={`mx-auto max-w-xl ${extra}`}>
+  <div
+    class="clipping tape-c relative rounded-sm border border-paper-edge bg-card p-5 pt-7 text-center shadow-[3px_4px_0_rgba(20,33,61,0.12),0_10px_24px_-8px_rgba(20,33,61,0.28)]"
+  >
+    <p class="font-mono text-[0.65rem] tracking-widest text-blue/70 uppercase">Got a bit?</p>
+    <p class="mt-1 text-lg leading-snug font-semibold text-ink font-display">
+      Submit your own Blue Jays headline.
+    </p>
+    <p class="mt-1.5 font-mono text-xs text-ink-soft">
+      Funny, down on the Jays, or just wrong. Human-reviewed — may take a bit to appear.
+    </p>
+    <a
+      href="/submit"
+      class="card-action mt-3 inline-flex items-center gap-1.5 rounded-full bg-blue px-4 py-1.5 font-mono text-xs font-bold tracking-widest text-white uppercase shadow-[2px_2px_0_rgba(20,33,61,0.18)] transition-colors hover:bg-ink hover:shadow-none"
+    >
+      <svg
+        width="13"
+        height="13"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M12 5v14M5 12h14"></path>
+      </svg>
+      Send it in
+    </a>
+  </div>
+</div>
