@@ -56,6 +56,15 @@ Name:  *
 Value: <your-railway-service>.railway.app
 ```
 
+### One canonical host for the form
+
+The wildcard means every hostname under it reaches this service, and the form handler is not host-gated — so `alice.bluejays.space/`, `www.bluejays.space/`, and every handle ever merged all used to serve a byte-identical copy of the request form. Search engines read that as one page duplicated across a set of hosts that grows with every handle, which is why linking to this service from the main site was a problem.
+
+`/` now 301s to `https://handles.<BASE_DOMAIN>/` from any other host under the wildcard (`canonicalRedirect` in `main.go`), so there is exactly one indexable URL for the form. Two things deliberately do *not* redirect:
+
+- **`/.well-known/atproto-did`** — Bluesky resolves this per-handle on the user's own subdomain, so it stays host-derived. Redirecting it would break every handle on the service.
+- **Hosts outside the wildcard** — `localhost`, Railway's internal health check, a direct IP. Local runs and probes are untouched.
+
 ## Once deployed
 
 Once a handle PR is merged, tell the person to go to **Bluesky → Settings → Change handle → I have my own domain**, enter `them.bluejays.space`, and hit Verify.

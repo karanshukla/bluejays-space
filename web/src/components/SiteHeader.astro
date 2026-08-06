@@ -9,12 +9,23 @@
 // site name drops to a styled <p> (visually identical). `siteNameLevel` lets
 // each page place the site name at the right outline level — default h1 keeps
 // the homepage/submit/etc. as-is, permalinks pass 'p'.
+import { getHandlesUrl } from '../lib/site';
+
 interface Props {
   siteNameLevel?: 'h1' | 'p';
 }
 const { siteNameLevel = 'h1' } = Astro.props;
 const showSubmit = Astro.url.pathname !== '/submit';
 const SiteNameTag = siteNameLevel; // 'h1' or 'p' — same classes, just the tag differs
+
+// Cross-origin, so it carries rel="noopener" — but deliberately *not* nofollow.
+// It points at our own subdomain, which is a page we want found; the reason
+// this link was a problem for Search Console before was the target, not the
+// link (every host under the *.bluejays.space wildcard served a byte-identical
+// copy of it). That's fixed on the service side — handles/main.go now redirects
+// every non-canonical host to this one URL — so a normal followed link is the
+// correct signal now. It stays out of sitemap.xml, which is same-origin only.
+const handlesUrl = getHandlesUrl().href;
 ---
 
 <header class="relative text-center">
@@ -23,26 +34,54 @@ const SiteNameTag = siteNameLevel; // 'h1' or 'p' — same classes, just the tag
       bluejays.space
     </SiteNameTag>
   </a>
-  {
-    showSubmit && (
-      <a
-        href="/submit"
-        class="card-action relative mt-4 inline-flex items-center gap-1.5 rounded-full border border-blue/30 bg-card px-3.5 py-2 font-mono text-xs font-bold tracking-widest text-blue uppercase shadow-[2px_2px_0_rgba(20,33,61,0.12)] transition-colors hover:bg-blue hover:text-white hover:shadow-none sm:absolute sm:end-0 sm:top-0 sm:mt-0 sm:text-[0.8rem]"
+  <!-- One centred row under the wordmark by default; pinned to opposite top
+       corners from lg up. Not sm: two chips either side of a text-6xl wordmark
+       collide around tablet width, and "Bluesky Handles" is wide enough that
+       the overlap lands on the wordmark itself. -->
+  <div class="mt-4 flex flex-wrap items-center justify-center gap-2 lg:mt-0 lg:block">
+    <a
+      href={handlesUrl}
+      rel="noopener"
+      class="inline-flex items-center gap-1.5 rounded-full border border-paper-edge bg-card px-3.5 py-2 font-mono text-xs font-bold tracking-widest text-ink-soft uppercase shadow-[2px_2px_0_rgba(20,33,61,0.08)] transition-colors hover:border-blue/40 hover:text-blue lg:absolute lg:start-0 lg:top-0 lg:text-[0.8rem]"
+    >
+      Bluesky Handles
+      <svg
+        width="11"
+        height="11"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
       >
-        <svg
-          width="13"
-          height="13"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+        <path d="M7 17 17 7M9 7h8v8"></path>
+      </svg>
+    </a>
+
+    {
+      showSubmit && (
+        <a
+          href="/submit"
+          class="inline-flex items-center gap-1.5 rounded-full border border-blue/30 bg-card px-3.5 py-2 font-mono text-xs font-bold tracking-widest text-blue uppercase shadow-[2px_2px_0_rgba(20,33,61,0.12)] transition-colors hover:bg-blue hover:text-white hover:shadow-none lg:absolute lg:end-0 lg:top-0 lg:text-[0.8rem]"
         >
-          <path d="M12 5v14M5 12h14" />
-        </svg>
-        Submit
-      </a>
-    )
-  }
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          Submit
+        </a>
+      )
+    }
+  </div>
 </header>
