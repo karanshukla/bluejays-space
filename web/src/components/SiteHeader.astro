@@ -26,6 +26,12 @@ const SiteNameTag = siteNameLevel; // 'h1' or 'p' — same classes, just the tag
 // every non-canonical host to this one URL — so a normal followed link is the
 // correct signal now. It stays out of sitemap.xml, which is same-origin only.
 const handlesUrl = getHandlesUrl().href;
+
+// One definition for both header chips so they can't drift apart again — they
+// sit at opposite corners of the same header and read as a pair, so identical
+// shape, weight, colour, and hover. Only the corner they pin to differs.
+const HEADER_CHIP =
+  'inline-flex items-center gap-1.5 rounded-full border border-blue/30 bg-card px-3.5 py-2 font-mono text-xs font-bold tracking-widest text-blue uppercase shadow-[2px_2px_0_rgba(20,33,61,0.12)] transition-colors hover:bg-blue hover:text-white hover:shadow-none lg:absolute lg:top-0 lg:text-[0.8rem]';
 ---
 
 <header class="relative text-center">
@@ -39,15 +45,10 @@ const handlesUrl = getHandlesUrl().href;
        collide around tablet width, and "Bluesky Handles" is wide enough that
        the overlap lands on the wordmark itself. -->
   <div class="mt-4 flex flex-wrap items-center justify-center gap-2 lg:mt-0 lg:block">
-    <a
-      href={handlesUrl}
-      rel="noopener"
-      class="inline-flex items-center gap-1.5 rounded-full border border-paper-edge bg-card px-3.5 py-2 font-mono text-xs font-bold tracking-widest text-ink-soft uppercase shadow-[2px_2px_0_rgba(20,33,61,0.08)] transition-colors hover:border-blue/40 hover:text-blue lg:absolute lg:start-0 lg:top-0 lg:text-[0.8rem]"
-    >
-      Bluesky Handles
+    <a href={handlesUrl} rel="noopener" class={`${HEADER_CHIP} lg:start-0`}>
       <svg
-        width="11"
-        height="11"
+        width="13"
+        height="13"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
@@ -58,14 +59,12 @@ const handlesUrl = getHandlesUrl().href;
       >
         <path d="M7 17 17 7M9 7h8v8"></path>
       </svg>
+      Bluesky Handles
     </a>
 
     {
       showSubmit && (
-        <a
-          href="/submit"
-          class="inline-flex items-center gap-1.5 rounded-full border border-blue/30 bg-card px-3.5 py-2 font-mono text-xs font-bold tracking-widest text-blue uppercase shadow-[2px_2px_0_rgba(20,33,61,0.12)] transition-colors hover:bg-blue hover:text-white hover:shadow-none lg:absolute lg:end-0 lg:top-0 lg:text-[0.8rem]"
-        >
+        <a href="/submit" class={`${HEADER_CHIP} lg:end-0`}>
           <svg
             width="13"
             height="13"
