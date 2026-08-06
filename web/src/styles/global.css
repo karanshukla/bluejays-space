@@ -249,14 +249,21 @@ body {
    *which part of the photo you see*, which reads as the wrong photo rather
    than a hand-mounted one, and slid subjects out of frame on anything that
    wasn't already near 4:3. Per-card variation is the mount's job (.mount-a..g
-   below). */
-.photo-mount img {
-  display: block;
-  width: 100%;
+   below).
+   `.published-crop` is the same geometry for the drafting preview
+   (PhotoInput.svelte), declared here in one rule with the live card rather
+   than copied: if the two ever drift, /admin starts quietly lying about what
+   will ship, which is the exact failure the preview exists to prevent. */
+.photo-mount img,
+.published-crop {
   aspect-ratio: 4 / 3;
   object-fit: cover;
   object-position: 50% 35%;
   filter: saturate(1.08) contrast(1.03);
+}
+.photo-mount img {
+  display: block;
+  width: 100%;
 }
 
 /* Where the print actually sits: one of seven placements per card (picked by
