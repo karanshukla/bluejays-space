@@ -243,22 +243,27 @@ body {
   background: var(--color-card);
   padding: 0.6rem 0.6rem 0;
 }
+/* One crop for every card, biased slightly above centre: a photo of a person
+   keeps their head in frame when a 4:3 window is taken out of a taller source,
+   which centring does not. This does not vary per card — varying it changed
+   *which part of the photo you see*, which reads as the wrong photo rather
+   than a hand-mounted one, and slid subjects out of frame on anything that
+   wasn't already near 4:3. Per-card variation is the mount's job (.mount-a..g
+   below). */
 .photo-mount img {
   display: block;
   width: 100%;
   aspect-ratio: 4 / 3;
   object-fit: cover;
+  object-position: 50% 35%;
   filter: saturate(1.08) contrast(1.03);
 }
 
 /* Where the print actually sits: one of seven placements per card (picked by
    headline id in HeadlineCard.astro) varying tilt, horizontal nudge, and the
    width of the white border on each side, so no two neighbouring photos are
-   mounted the same way.
-   The tilt is what makes this visible. Shifting the *crop* alone (object-position)
-   does nothing on a photo already near the mount's 4:3, which is why the earlier
-   attempts at this looked identical — the crop offsets are still applied on top,
-   they just can't carry the effect by themselves.
+   mounted the same way. This moves the print inside its mount; it never
+   changes the crop, so every card shows the same part of its own photo.
    Kept at ≤2deg and ≤0.4rem: the card's own padding absorbs the overhang, so a
    tilted mount never pushes ink outside its <li> box. That matters here because
    the feed is a CSS multi-column container, where an overflowing child can get

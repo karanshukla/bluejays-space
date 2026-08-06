@@ -14,10 +14,11 @@ export const TAPE_VARIANTS = ['tape-a', 'tape-b', 'tape-c', 'tape-d', 'tape-e', 
 // centre, and leaves an uneven white border (see .mount-a..g in global.css) —
 // the way a photo actually ends up when it's taped into a scrapbook by hand.
 //
-// This is the axis that carries the visible variation. The crop offsets below
-// only shift *which part* of the source photo shows, which is invisible on a
-// photo already close to the mount's 4:3 — that's why two earlier passes at
-// "randomise the photo placement" read as no change at all.
+// This is the only axis that varies, deliberately. Varying the cover-crop
+// (object-position) as well moved *which part of the photo you see*, which is
+// not a scrapbook effect but a different photo: on anything that isn't roughly
+// the mount's 4:3 it slid subjects out of frame and cut heads off. The crop is
+// now the same for every card (see .photo-mount img in global.css).
 export const PHOTO_MOUNT_VARIANTS = [
   'mount-a',
   'mount-b',
@@ -28,22 +29,7 @@ export const PHOTO_MOUNT_VARIANTS = [
   'mount-g',
 ];
 
-// Per-card cover-crop offsets, kept close to centre (30-65%) so the crop never
-// clips a face badly on a tall or wide source photo.
-export const PHOTO_POSITION_VARIANTS = [
-  '50% 35%',
-  '35% 50%',
-  '65% 40%',
-  '40% 65%',
-  '60% 45%',
-  '45% 60%',
-  '55% 30%',
-];
-
-// Distinct seeds so tilt and crop are drawn independently — same-length lists
-// off one hash would pair up 1:1 for every card.
 const MOUNT_SEED = 1;
-const CROP_SEED = 2;
 
 interface Props {
   headline: Headline;
@@ -77,7 +63,6 @@ const {
 const HeadingTag = headingLevel;
 const tapeVariant = TAPE_VARIANTS[h.id % TAPE_VARIANTS.length];
 const mountVariant = variantFor(h.id, PHOTO_MOUNT_VARIANTS, MOUNT_SEED);
-const photoPosition = variantFor(h.id, PHOTO_POSITION_VARIANTS, CROP_SEED);
 const url = permalinkPath(h.id, h.headline);
 const siteHost = getSiteUrl().hostname;
 // Only webp uploads (the resize path in photoImport.ts) have a small variant
@@ -106,7 +91,6 @@ const hasSmallVariant = h.photo_ref?.endsWith('.webp') ?? false;
             loading={eager ? 'eager' : 'lazy'}
             decoding="async"
             fetchpriority={eager ? 'high' : 'auto'}
-            style={`object-position: ${photoPosition};`}
           />
         </div>
       )
