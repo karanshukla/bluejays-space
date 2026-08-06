@@ -71,37 +71,66 @@ const description = headline.stat_block
             dimmed={h.id !== id}
             eager={h.id === id || i < 2}
             headingLevel={h.id === id ? 'h1' : 'h2'}
+            linkBody={false}
           />
         ))
       }
     </ul>
+
+    {
+      /* Inline, and placed immediately after the list rather than in the module
+        script below, because it has to land before the browser's first paint:
+        a deferred script scrolls a page the visitor has already seen, which is
+        the jump this is here to remove. Runs again at DOMContentLoaded in case
+        the mid-parse document was still too short to scroll that far. */
+    }
+    <script is:inline define:vars={{ focusId: id }}>
+      (() => {
+        const card = document.querySelector(`li[data-headline-id="${focusId}"]`);
+        if (!card) return;
+        card.style.viewTransitionName = 'card-focus';
+
+        let anchorTop = null;
+        try {
+          const saved = JSON.parse(sessionStorage.getItem('cardAnchor') || 'null');
+          if (saved && String(saved.id) === String(focusId) && Number.isFinite(saved.top)) {
+            anchorTop = saved.top;
+          }
+        } catch {
+          // Unparseable/blocked storage just means no anchor to honour.
+        }
+
+        // Opened from the feed: put the card back at the exact viewport offset
+        // it was clicked at, so it doesn't visibly move between the two pages.
+        // Arrived cold from a shared link: centre it, since there's no position
+        // to preserve.
+        const place = () => {
+          if (anchorTop === null) card.scrollIntoView({ block: 'center' });
+          else window.scrollBy(0, card.getBoundingClientRect().top - anchorTop);
+        };
+        place();
+        document.addEventListener('DOMContentLoaded', place, { once: true });
+      })();
+    </script>
   </main>
 
   <script>
-    document.querySelectorAll<HTMLButtonElement>('.copy-link').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const path = btn.dataset.url;
-        if (!path) return;
-        try {
-          await navigator.clipboard.writeText(`${location.origin}${path}`);
-          const svg = btn.querySelector('svg');
-          if (svg) {
-            svg.style.color = 'var(--color-blue)';
-            setTimeout(() => (svg.style.color = ''), 1500);
-          }
-        } catch {
-          window.open(path, '_blank');
-        }
-      });
-    });
+    import { bindCopyLinks, rememberOpenedCard } from '../../scripts/cardInteractions';
 
-    // Scroll the focused card into view on load — especially important on
-    // mobile where the card could be anywhere in the feed.
+    bindCopyLinks();
+    rememberOpenedCard();
+
     const focusId = document.querySelector<HTMLElement>('.permalink-overlay')?.dataset.focusId;
-    if (focusId) {
-      document
-        .querySelector<HTMLLIElement>(`li[data-headline-id="${focusId}"]`)
-        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    // Going *back* rather than pushing a fresh '/' lets the browser restore the
+    // feed from bfcache — its scroll position and any infinite-scrolled pages
+    // intact, instantly, exactly where the visitor left off. Only correct when
+    // the feed is genuinely the previous entry; someone who landed here from a
+    // shared link gets a normal navigation with the saved-scroll fallback.
+    function returnToFeed() {
+      const referrer = document.referrer ? new URL(document.referrer) : null;
+      if (referrer?.origin === location.origin && referrer.pathname === '/') history.back();
+      else location.href = '/?restoreScroll=1';
     }
 
     // Click anywhere that isn't the focused card → back to the feed. Checking
@@ -122,10 +151,7 @@ const description = headline.stat_block
         : null;
       if (focusedCard?.contains(target)) return;
 
-      // A plain navigation to '/' always lands at the top of the fresh page.
-      // The `restoreScroll` flag tells the feed to scroll back to wherever
-      // the user was (saved in sessionStorage as they scrolled) instead.
-      window.location.href = '/?restoreScroll=1';
+      returnToFeed();
     });
   </script>
 </Base>

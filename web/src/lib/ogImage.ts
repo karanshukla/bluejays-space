@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Headline } from './db';
 import { getImage } from './storage';
+import { variantFor } from './cardVariants';
 
 // Loaded once, reused across renders. Satori needs the raw font binary (TTF/
 // OTF/WOFF, not woff2); @fontsource ships a .woff alongside the .woff2.
@@ -37,11 +38,17 @@ function loadFonts() {
 const OG_WIDTH = 1200;
 const OG_HEIGHT = 630;
 
+// Bump when the layout below changes. Rendered PNGs are stored under a
+// content-hash key and served back with a one-year immutable cache, so without
+// this a redesign would only ever reach headlines created after it shipped —
+// every existing preview would keep serving its old bytes forever.
+const OG_LAYOUT_VERSION = 2;
+
 // Content hash of the fields that affect the rendered image. An admin edit
 // changes the hash, so the old cached PNG is never looked up again (an orphan
 // swept by the general image-cleanup pass in docs/backend-api-plan.md item 3).
 export function ogCacheKey(headline: Headline): string {
-  const content = `${headline.headline}|${headline.stat_block ?? ''}|${headline.photo_ref ?? ''}`;
+  const content = `v${OG_LAYOUT_VERSION}|${headline.headline}|${headline.stat_block ?? ''}|${headline.photo_ref ?? ''}`;
   const hash = createHash('sha256').update(content).digest('hex').slice(0, 12);
   return `og/${headline.id}-${hash}.png`;
 }
@@ -79,27 +86,67 @@ export function tapeBackgroundFor(id: number): string {
 // Card fills almost the whole canvas (a slim margin, not the large gutter the
 // original 900px card left) so the headline/photo read as the dominant
 // content instead of a small island of text in a sea of paper background.
-const OUTER_PADDING = 28;
+const OUTER_PADDING = 24;
 const CARD_WIDTH = OG_WIDTH - OUTER_PADDING * 2;
 const CARD_HEIGHT = OG_HEIGHT - OUTER_PADDING * 2;
-const CARD_PADDING_X = 64;
-const PHOTO_SIZE = 280;
+const CARD_PADDING_X = 56;
+const CARD_PADDING_Y = 44;
+
+// The photo is the thing that stops a share looking like a wall of text, so it
+// gets a third of the card's width at the feed card's own 4:3 rather than the
+// small square it used to be. Mounted like the live card's polaroid: white
+// border, wider at the bottom, tilted, taped down.
+const PHOTO_WIDTH = 440;
+const PHOTO_HEIGHT = 330;
+const MOUNT_BORDER = 14;
+const MOUNT_BORDER_BOTTOM = 26;
+const MOUNT_WIDTH = PHOTO_WIDTH + MOUNT_BORDER * 2;
 const PHOTO_TEXT_GAP = 40;
+
 // Explicit width, not just flexGrow: 1 — Satori's flex children default to
 // not shrinking below their content's natural width (same as browsers' flex
 // min-width:auto default), so without a hard width the headline text
 // overflowed past the card's right edge instead of wrapping at the intended
 // column width.
-const TEXT_COLUMN_WIDTH = CARD_WIDTH - CARD_PADDING_X * 2 - PHOTO_SIZE - PHOTO_TEXT_GAP;
+const TEXT_COLUMN_WIDTH = CARD_WIDTH - CARD_PADDING_X * 2 - MOUNT_WIDTH - PHOTO_TEXT_GAP;
+const FULL_WIDTH_TEXT_COLUMN = CARD_WIDTH - CARD_PADDING_X * 2;
+
+// Mirrors the live card's per-headline photo tilt (.mount-a..g in global.css),
+// drawn with the same seed so a headline's preview leans the way its card does.
+const MOUNT_TILT_SEED = 1;
+const MOUNT_TILTS = [-1.7, 1.3, -0.7, 2, -1.1, 0.6, -2];
+
+export function photoTiltFor(id: number): number {
+  return variantFor(id, MOUNT_TILTS, MOUNT_TILT_SEED);
+}
+
+// Satori has no text measurement to auto-fit against, so the size is estimated
+// from the character count: how big can this headline be and still fill no more
+// than `maxLines` of a column this wide? Fraunces 600 averages a little over
+// half its em per character in mixed-case text — the constant only has to be
+// stable and err small, since a headline that renders a size down still reads
+// fine while one that overflows the card does not.
+const AVERAGE_GLYPH_RATIO = 0.52;
+
+export function headlineFontSize(
+  text: string,
+  columnWidth: number,
+  { maxLines, cap, floor }: { maxLines: number; cap: number; floor: number }
+): number {
+  if (!text.length) return cap;
+  const fitted = (columnWidth * maxLines) / (text.length * AVERAGE_GLYPH_RATIO);
+  return Math.max(floor, Math.min(cap, Math.round(fitted)));
+}
 
 // Fetches the headline's photo and inlines it as a base64 PNG data URL so
 // Satori (which renders standalone, no network access of its own) can place
 // it as an <img> node. Re-encodes through sharp regardless of the stored
-// format \u2014 Satori's image handling doesn't reliably decode webp (the format
+// format — Satori's image handling doesn't reliably decode webp (the format
 // storeImageBytes normally produces), so passing the stored bytes straight
-// through crashes the render. Pre-cropping to an exact square here also means
-// the Satori tree doesn't need to lean on its (patchy) object-fit support.
-// Returns null on any failure \u2014 a missing/unreadable/unrecognized photo must
+// through crashes the render. Pre-cropping to the mount's exact pixel size here
+// also means the Satori tree doesn't need to lean on its (patchy) object-fit
+// support.
+// Returns null on any failure — a missing/unreadable/unrecognized photo must
 // degrade to the text-only layout, never break the render (same "never break
 // a crawler's unfurl" rule the route itself already follows).
 export async function loadPhotoDataUrl(photoRef: string | null): Promise<string | null> {
@@ -110,7 +157,7 @@ export async function loadPhotoDataUrl(photoRef: string | null): Promise<string 
     const chunks: Buffer[] = [];
     for await (const chunk of image.body) chunks.push(chunk as Buffer);
     const png = await sharp(Buffer.concat(chunks))
-      .resize(PHOTO_SIZE, PHOTO_SIZE, { fit: 'cover' })
+      .resize(PHOTO_WIDTH, PHOTO_HEIGHT, { fit: 'cover' })
       .png()
       .toBuffer();
     return `data:image/png;base64,${png.toString('base64')}`;
@@ -119,20 +166,21 @@ export async function loadPhotoDataUrl(photoRef: string | null): Promise<string 
   }
 }
 
-// Headline (+ optional stat block) text block. Smaller font size when it's
-// sharing the row with a photo (narrower column) than when it has the full
-// card width to itself.
-function buildTextChildren(headline: Headline, headlineFontSize: number) {
+// Headline first and largest, stat line directly under it behind the same
+// dashed rule the live card uses — the two things a share is actually read for,
+// with nothing else competing for the space.
+function buildTextChildren(headline: Headline, columnWidth: number, fontSize: number) {
   return [
     {
       type: 'p',
       props: {
         style: {
-          fontSize: `${headlineFontSize}px`,
+          fontSize: `${fontSize}px`,
           fontWeight: 600,
           color: INK,
-          lineHeight: 1.2,
+          lineHeight: 1.18,
           fontFamily: 'Fraunces',
+          width: `${columnWidth}px`,
         },
         children: headline.headline,
       },
@@ -142,12 +190,14 @@ function buildTextChildren(headline: Headline, headlineFontSize: number) {
           type: 'p',
           props: {
             style: {
-              fontSize: '28px',
+              fontSize: '30px',
+              lineHeight: 1.35,
               color: INK_SOFT,
               fontFamily: 'Space Mono',
-              marginTop: '24px',
-              paddingTop: '20px',
+              marginTop: '28px',
+              paddingTop: '22px',
               borderTop: `2px dashed ${BLUE}66`,
+              width: `${columnWidth}px`,
             },
             children: headline.stat_block,
           },
@@ -156,45 +206,94 @@ function buildTextChildren(headline: Headline, headlineFontSize: number) {
   ].filter((c) => c !== null);
 }
 
+// The photo as it sits on the live card: white polaroid border (deeper at the
+// bottom), a hairline paper edge, a drop shadow, tilted a degree or two, with
+// its own strip of tape across the top.
+function buildPhotoMount(photoDataUrl: string, id: number) {
+  return {
+    type: 'div',
+    props: {
+      style: {
+        display: 'flex',
+        position: 'relative',
+        padding: `${MOUNT_BORDER}px ${MOUNT_BORDER}px ${MOUNT_BORDER_BOTTOM}px`,
+        backgroundColor: CARD,
+        border: `1px solid ${PAPER_EDGE}`,
+        boxShadow: '0 6px 16px -4px rgba(20,33,61,0.35)',
+        transform: `rotate(${photoTiltFor(id)}deg)`,
+      },
+      children: [
+        {
+          type: 'img',
+          props: {
+            src: photoDataUrl,
+            width: PHOTO_WIDTH,
+            height: PHOTO_HEIGHT,
+            // No object-fit needed — loadPhotoDataUrl already pre-crops to
+            // exactly PHOTO_WIDTH × PHOTO_HEIGHT via sharp.
+            style: { width: `${PHOTO_WIDTH}px`, height: `${PHOTO_HEIGHT}px` },
+          },
+        },
+        {
+          type: 'div',
+          props: {
+            style: {
+              position: 'absolute',
+              top: '-13px',
+              left: '155px',
+              width: '110px',
+              height: '28px',
+              // Offset id so the print's tape isn't off the same roll as the
+              // strip holding the card down behind it.
+              backgroundImage: tapeBackgroundFor(id + 3),
+              opacity: 0.92,
+              transform: 'rotate(3deg)',
+            },
+          },
+        },
+      ],
+    },
+  };
+}
+
 export async function renderOgPng(headline: Headline): Promise<Buffer> {
   const photoDataUrl = await loadPhotoDataUrl(headline.photo_ref);
 
-  // With a photo: polaroid-style thumbnail on the left, headline/stat block
-  // in a narrower column on the right \u2014 the layout most unfurl cards use.
-  // Without one: the original full-width text block.
+  // With a photo: the mounted print on the left at a third of the card's width,
+  // headline and stat line in a column beside it, the two centred against each
+  // other so neither dangles. Without one: the headline takes the full card
+  // width and scales up into the space the photo would have used.
   const contentNode = photoDataUrl
     ? {
         type: 'div',
         props: {
-          style: { display: 'flex', flexDirection: 'row', alignItems: 'flex-start' },
+          style: {
+            display: 'flex',
+            flexDirection: 'row',
+            alignItems: 'center',
+            flexGrow: 1,
+          },
           children: [
-            {
-              type: 'img',
-              props: {
-                src: photoDataUrl,
-                width: PHOTO_SIZE,
-                height: PHOTO_SIZE,
-                // No object-fit needed — loadPhotoDataUrl already pre-crops
-                // to an exact PHOTO_SIZE×PHOTO_SIZE square via sharp.
-                style: {
-                  width: `${PHOTO_SIZE}px`,
-                  height: `${PHOTO_SIZE}px`,
-                  border: `3px solid ${CARD}`,
-                  outline: `1px solid ${PAPER_EDGE}`,
-                  boxShadow: '0 4px 10px rgba(20,33,61,0.25)',
-                },
-              },
-            },
+            buildPhotoMount(photoDataUrl, headline.id),
             {
               type: 'div',
               props: {
                 style: {
                   display: 'flex',
                   flexDirection: 'column',
+                  justifyContent: 'center',
                   marginLeft: `${PHOTO_TEXT_GAP}px`,
                   width: `${TEXT_COLUMN_WIDTH}px`,
                 },
-                children: buildTextChildren(headline, 50),
+                children: buildTextChildren(
+                  headline,
+                  TEXT_COLUMN_WIDTH,
+                  headlineFontSize(headline.headline, TEXT_COLUMN_WIDTH, {
+                    maxLines: 5,
+                    cap: 56,
+                    floor: 34,
+                  })
+                ),
               },
             },
           ],
@@ -203,8 +302,21 @@ export async function renderOgPng(headline: Headline): Promise<Buffer> {
     : {
         type: 'div',
         props: {
-          style: { display: 'flex', flexDirection: 'column' },
-          children: buildTextChildren(headline, 64),
+          style: {
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            flexGrow: 1,
+          },
+          children: buildTextChildren(
+            headline,
+            FULL_WIDTH_TEXT_COLUMN,
+            headlineFontSize(headline.headline, FULL_WIDTH_TEXT_COLUMN, {
+              maxLines: 4,
+              cap: 88,
+              floor: 42,
+            })
+          ),
         },
       };
 
@@ -228,10 +340,9 @@ export async function renderOgPng(headline: Headline): Promise<Buffer> {
             style: {
               display: 'flex',
               flexDirection: 'column',
-              justifyContent: 'center',
               width: `${CARD_WIDTH}px`,
               height: `${CARD_HEIGHT}px`,
-              padding: `48px ${CARD_PADDING_X}px`,
+              padding: `${CARD_PADDING_Y}px ${CARD_PADDING_X}px`,
               backgroundColor: CARD,
               border: `2px solid ${PAPER_EDGE}`,
               boxShadow: '4px 6px 0 rgba(20,33,61,0.12), 0 14px 36px -8px rgba(20,33,61,0.28)',
@@ -253,17 +364,31 @@ export async function renderOgPng(headline: Headline): Promise<Buffer> {
                 },
               },
               contentNode,
-              { type: 'div', props: { style: { height: '36px' } } },
+              // flexGrow on the content block pins the label to the card's
+              // bottom edge, so it sits in the same place on every preview
+              // instead of floating with the headline's length. Centred by a
+              // flex wrapper rather than textAlign, which Satori ignores on a
+              // block whose width it derived from the text itself.
               {
-                type: 'p',
+                type: 'div',
                 props: {
                   style: {
-                    fontSize: '20px',
-                    color: `${INK_SOFT}99`,
-                    fontFamily: 'Space Mono',
-                    textAlign: 'center',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    width: `${FULL_WIDTH_TEXT_COLUMN}px`,
+                    marginTop: '24px',
                   },
-                  children: 'bluejays.space \u00B7 parody \u00B7 not affiliated with MLB',
+                  children: {
+                    type: 'p',
+                    props: {
+                      style: {
+                        fontSize: '20px',
+                        color: `${INK_SOFT}99`,
+                        fontFamily: 'Space Mono',
+                      },
+                      children: 'bluejays.space · parody · not affiliated with MLB',
+                    },
+                  },
                 },
               },
             ],

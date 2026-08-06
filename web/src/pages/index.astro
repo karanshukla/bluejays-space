@@ -42,35 +42,27 @@ const nextPage = totalPages > 1 ? 2 : 0;
   </main>
 
   <script>
-    document.querySelectorAll<HTMLButtonElement>('.copy-link').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const path = btn.dataset.url;
-        if (!path) return;
-        try {
-          await navigator.clipboard.writeText(`${location.origin}${path}`);
-          const svg = btn.querySelector('svg');
-          if (svg) {
-            svg.style.color = 'var(--color-blue)';
-            setTimeout(() => (svg.style.color = ''), 1500);
-          }
-        } catch {
-          window.open(path, '_blank');
-        }
-      });
-    });
+    import {
+      bindCopyLinks,
+      rememberOpenedCard,
+      FEED_SCROLL_KEY,
+    } from '../scripts/cardInteractions';
+
+    bindCopyLinks();
+    rememberOpenedCard();
 
     // Remember the feed's scroll position so tapping outside the focused card
-    // on a permalink page (see h/[id].astro) can restore it here, instead of
-    // that fresh navigation always landing at the top of the page.
+    // on a permalink page (see h/[id].astro) can restore it here, when that
+    // page can't simply hand the visitor back via history.back().
     window.addEventListener(
       'scroll',
-      () => sessionStorage.setItem('feedScrollY', String(window.scrollY)),
+      () => sessionStorage.setItem(FEED_SCROLL_KEY, String(window.scrollY)),
       { passive: true }
     );
 
     const params = new URLSearchParams(location.search);
     if (params.has('restoreScroll')) {
-      const y = Number(sessionStorage.getItem('feedScrollY'));
+      const y = Number(sessionStorage.getItem(FEED_SCROLL_KEY));
       if (Number.isFinite(y) && y > 0) window.scrollTo(0, y);
       params.delete('restoreScroll');
       const rest = params.toString();
@@ -98,27 +90,6 @@ const nextPage = totalPages > 1 ? 2 : 0;
     if (feed && sentinel && 'IntersectionObserver' in window) {
       let loading = false;
       let done = false;
-
-      const bindCopyLink = (root: ParentNode) => {
-        root.querySelectorAll<HTMLButtonElement>('.copy-link').forEach((btn) => {
-          if (btn.dataset.bound) return;
-          btn.dataset.bound = '1';
-          btn.addEventListener('click', async () => {
-            const path = btn.dataset.url;
-            if (!path) return;
-            try {
-              await navigator.clipboard.writeText(`${location.origin}${path}`);
-              const svg = btn.querySelector('svg');
-              if (svg) {
-                svg.style.color = 'var(--color-blue)';
-                setTimeout(() => (svg.style.color = ''), 1500);
-              }
-            } catch {
-              window.open(path, '_blank');
-            }
-          });
-        });
-      };
 
       const loadMore = async () => {
         if (loading || done) return;
@@ -148,7 +119,7 @@ const nextPage = totalPages > 1 ? 2 : 0;
           // Adopt the fragment's next-page number; 0 = last page, stop.
           feed.dataset.nextPage = list.dataset.nextPage ?? '0';
           if (!Number(feed.dataset.nextPage)) done = true;
-          bindCopyLink(list);
+          bindCopyLinks(list);
         } catch {
           // Network errors shouldn't kill the observer — just skip this round.
         } finally {

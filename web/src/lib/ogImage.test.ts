@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { Readable } from 'node:stream';
+import { createHash } from 'node:crypto';
 import type { Headline } from './db';
 
 const getImage = vi.fn();
@@ -12,7 +13,8 @@ const sharpChain = {
 };
 vi.mock('sharp', () => ({ default: vi.fn(() => sharpChain) }));
 
-const { ogCacheKey, tapeBackgroundFor, loadPhotoDataUrl } = await import('./ogImage');
+const { ogCacheKey, tapeBackgroundFor, loadPhotoDataUrl, headlineFontSize, photoTiltFor } =
+  await import('./ogImage');
 
 function makeHeadline(overrides: Partial<Headline> = {}): Headline {
   return {
@@ -71,6 +73,19 @@ describe('ogCacheKey', () => {
   it('produces a 12-hex-char hash segment', () => {
     expect(ogCacheKey(makeHeadline())).toMatch(/^og\/1-[0-9a-f]{12}\.png$/);
   });
+
+  it('folds a layout version into the hash so a redesign invalidates old renders', () => {
+    // Stored PNGs are served back with a one-year immutable cache. Hashing the
+    // headline's content alone would leave every existing preview serving its
+    // pre-redesign bytes forever, so the key must not be derivable from the
+    // content fields on their own.
+    const h = makeHeadline();
+    const contentOnly = createHash('sha256')
+      .update(`${h.headline}|${h.stat_block}|${h.photo_ref}`)
+      .digest('hex')
+      .slice(0, 12);
+    expect(ogCacheKey(h)).not.toBe(`og/${h.id}-${contentOnly}.png`);
+  });
 });
 
 describe('loadPhotoDataUrl', () => {
@@ -115,7 +130,70 @@ describe('loadPhotoDataUrl', () => {
     });
     const url = await loadPhotoDataUrl('admin/photo.webp');
     expect(url).toBe(`data:image/png;base64,${Buffer.from([9, 9, 9]).toString('base64')}`);
-    expect(sharpChain.resize).toHaveBeenCalledWith(280, 280, { fit: 'cover' });
+    expect(sharpChain.resize).toHaveBeenCalledWith(440, 330, { fit: 'cover' });
+  });
+});
+
+describe('headlineFontSize', () => {
+  const COLUMN = 532;
+  const BOUNDS = { maxLines: 5, cap: 56, floor: 34 };
+
+  it('gives a short headline the largest allowed size', () => {
+    expect(headlineFontSize('Jays sweep Yankees', COLUMN, BOUNDS)).toBe(56);
+  });
+
+  it('shrinks as the headline gets longer', () => {
+    const short = headlineFontSize('a'.repeat(60), COLUMN, BOUNDS);
+    const medium = headlineFontSize('a'.repeat(120), COLUMN, BOUNDS);
+    const long = headlineFontSize('a'.repeat(200), COLUMN, BOUNDS);
+    expect(short).toBeGreaterThan(medium);
+    expect(medium).toBeGreaterThan(long);
+  });
+
+  it('never exceeds the cap or drops below the floor', () => {
+    for (const length of [1, 20, 80, 150, 400, 2000]) {
+      const size = headlineFontSize('a'.repeat(length), COLUMN, BOUNDS);
+      expect(size).toBeGreaterThanOrEqual(BOUNDS.floor);
+      expect(size).toBeLessThanOrEqual(BOUNDS.cap);
+    }
+  });
+
+  it('keeps the estimated block inside the lines it was given', () => {
+    // The size is only useful if the headline it was picked for actually fits:
+    // at that size, the text should wrap into no more than maxLines (unless it
+    // was already clamped to the floor, where overflow is the accepted tradeoff
+    // against an unreadably small headline).
+    for (const length of [40, 90, 130]) {
+      const size = headlineFontSize('a'.repeat(length), COLUMN, BOUNDS);
+      const charsPerLine = COLUMN / (size * 0.52);
+      expect(Math.ceil(length / charsPerLine)).toBeLessThanOrEqual(BOUNDS.maxLines);
+    }
+  });
+
+  it('falls back to the cap for an empty headline instead of dividing by zero', () => {
+    expect(headlineFontSize('', COLUMN, BOUNDS)).toBe(56);
+  });
+
+  it('scales up for the wider full-card column a photo-less headline gets', () => {
+    const text = 'Vladimir Guerrero Jr. hits ball so hard it files for free agency';
+    const narrow = headlineFontSize(text, COLUMN, BOUNDS);
+    const wide = headlineFontSize(text, 1040, { maxLines: 4, cap: 88, floor: 42 });
+    expect(wide).toBeGreaterThan(narrow);
+  });
+});
+
+describe('photoTiltFor', () => {
+  it('is stable per headline and stays within the subtle range the card uses', () => {
+    for (let id = 1; id <= 100; id++) {
+      const tilt = photoTiltFor(id);
+      expect(tilt).toBe(photoTiltFor(id));
+      expect(Math.abs(tilt)).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it('does not give every headline the same lean', () => {
+    const tilts = new Set(Array.from({ length: 100 }, (_, i) => photoTiltFor(i + 1)));
+    expect(tilts.size).toBeGreaterThan(3);
   });
 });
 
