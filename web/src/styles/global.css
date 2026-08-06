@@ -94,31 +94,74 @@ body {
    transform-animated child every frame instead of a cheap compositor layer,
    which is what made the hover-straighten feel laggy here. */
 .clipping {
+  position: relative;
   transition:
     transform 0.12s ease-out,
     opacity 0.15s ease-out,
-    filter 0.15s ease-out;
+    filter 0.15s ease-out,
+    border-color 0.15s ease-out,
+    background-color 0.15s ease-out,
+    box-shadow 0.15s ease-out;
   will-change: transform;
 }
 .clipping.dimmed {
   opacity: 0.25;
   filter: grayscale(1);
 }
-.scrapbook-grid > li:nth-child(4n + 1) .clipping {
+/* Wrapped in :where() so these count as specificity zero. Written plainly, a
+   `.scrapbook-grid > li:nth-child(...) .clipping` selector outranks
+   `.clipping:hover`, and the straighten-on-hover below silently never applied
+   — the resting tilt won on every card. */
+:where(.scrapbook-grid > li:nth-child(4n + 1)) .clipping {
   transform: rotate(-1.1deg);
 }
-.scrapbook-grid > li:nth-child(4n + 2) .clipping {
+:where(.scrapbook-grid > li:nth-child(4n + 2)) .clipping {
   transform: rotate(0.9deg);
 }
-.scrapbook-grid > li:nth-child(4n + 3) .clipping {
+:where(.scrapbook-grid > li:nth-child(4n + 3)) .clipping {
   transform: rotate(-0.6deg);
 }
-.scrapbook-grid > li:nth-child(4n + 4) .clipping {
+:where(.scrapbook-grid > li:nth-child(4n + 4)) .clipping {
   transform: rotate(1.3deg);
 }
 .clipping:hover,
 .clipping:focus-within {
   transform: rotate(0deg) scale(1.015);
+}
+
+/* --- Whole-card click target ------------------------------------------------
+   The permalink icon's hit area is stretched over the entire card, so clicking
+   anywhere in the body opens the headline — and because the pointer is then
+   genuinely hovering that anchor, the icon lights up on its own (no duplicated
+   hover styling), and the card picks up the same blue wash the icon does.
+   Controls that do something *else* (copy link, source attribution) sit above
+   the overlay so they keep their own click.
+   Only rendered on the feed: HeadlineCard's `linkBody` prop drops .card-link on
+   permalink pages, where the focused card would link to itself and the backdrop
+   cards are the click-outside-to-dismiss surface.
+   The stretched link must not be positioned itself, or `inset: 0` resolves
+   against the icon instead of the card and the overlay collapses to a 30px
+   square that looks and behaves exactly like no overlay at all. */
+.card-link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+.card-control {
+  position: relative;
+  z-index: 2;
+}
+.clipping:has(.card-link:hover),
+.clipping:has(.card-link:focus-visible) {
+  border-color: var(--color-blue);
+  background-color: color-mix(in oklab, var(--color-blue) 7%, var(--color-card));
+  box-shadow:
+    3px 4px 0 color-mix(in oklab, var(--color-blue) 22%, transparent),
+    0 12px 28px -8px rgba(20, 33, 61, 0.32);
+}
+.clipping:has(.card-link:active) {
+  transform: rotate(0deg) scale(0.995);
 }
 
 /* A single strip of washi tape pinning the top of each card. The base style
@@ -206,6 +249,66 @@ body {
   aspect-ratio: 4 / 3;
   object-fit: cover;
   filter: saturate(1.08) contrast(1.03);
+}
+
+/* Where the print actually sits: one of seven placements per card (picked by
+   headline id in HeadlineCard.astro) varying tilt, horizontal nudge, and the
+   width of the white border on each side, so no two neighbouring photos are
+   mounted the same way.
+   The tilt is what makes this visible. Shifting the *crop* alone (object-position)
+   does nothing on a photo already near the mount's 4:3, which is why the earlier
+   attempts at this looked identical — the crop offsets are still applied on top,
+   they just can't carry the effect by themselves.
+   Kept at ≤2deg and ≤0.4rem: the card's own padding absorbs the overhang, so a
+   tilted mount never pushes ink outside its <li> box. That matters here because
+   the feed is a CSS multi-column container, where an overflowing child can get
+   mis-fragmented into a phantom column (same reason the tape's offset is capped
+   — see .scrapbook-grid > li above). */
+.mount-a {
+  transform: rotate(-1.7deg) translateX(-0.3rem);
+  padding: 0.5rem 0.85rem 0 0.45rem;
+}
+.mount-b {
+  transform: rotate(1.3deg) translateX(0.25rem);
+  padding: 0.75rem 0.45rem 0 0.9rem;
+}
+.mount-c {
+  transform: rotate(-0.7deg) translateX(0.35rem);
+  padding: 0.4rem 0.5rem 0 0.75rem;
+}
+.mount-d {
+  transform: rotate(2deg) translateX(-0.15rem);
+  padding: 0.85rem 0.7rem 0 0.5rem;
+}
+.mount-e {
+  transform: rotate(-1.1deg) translateX(0.15rem);
+  padding: 0.65rem 0.4rem 0 0.85rem;
+}
+.mount-f {
+  transform: rotate(0.6deg) translateX(-0.35rem);
+  padding: 0.55rem 0.9rem 0 0.4rem;
+}
+.mount-g {
+  transform: rotate(-2deg) translateX(0.1rem);
+  padding: 0.9rem 0.6rem 0 0.6rem;
+}
+
+/* --- Page transitions -------------------------------------------------------
+   Cross-document view transitions: opening a headline from the feed (and
+   dismissing back to it) cross-fades instead of hard-cutting, and the card the
+   visitor clicked is given a shared transition name on both pages so it holds
+   still while everything around it changes. Pure CSS + a couple of lines of
+   name-tagging — browsers without the feature just navigate normally.
+   The card only *appears* to hold still because both pages put it at the same
+   viewport offset; that part is the scroll anchoring in h/[id].astro. */
+@view-transition {
+  navigation: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @view-transition {
+    navigation: none;
+  }
 }
 
 /* Admin layout lives in admin.astro's component-scoped <style> now: the old
