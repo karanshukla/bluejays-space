@@ -135,3 +135,58 @@ func TestIsValidDID(t *testing.T) {
 		}
 	}
 }
+
+// --- canonicalRedirect() ---
+
+func TestCanonicalRedirect_CollapsesWildcardHostsOntoTheCanonicalOne(t *testing.T) {
+	// Every one of these serves the identical form today. Left alone they are
+	// duplicates of each other in Google's index, and the set grows with every
+	// handle merged.
+	for _, host := range []string{"alice.bluejays.space", "www.bluejays.space", "bo.bluejays.space"} {
+		got := canonicalRedirect(host, "bluejays.space", "/")
+		if want := "https://handles.bluejays.space/"; got != want {
+			t.Errorf("host %q: got %q, want %q", host, got, want)
+		}
+	}
+}
+
+func TestCanonicalRedirect_LeavesTheCanonicalHostAlone(t *testing.T) {
+	if got := canonicalRedirect("handles.bluejays.space", "bluejays.space", "/"); got != "" {
+		t.Errorf("expected no redirect on the canonical host, got %q", got)
+	}
+}
+
+func TestCanonicalRedirect_LeavesHostsOutsideTheWildcardAlone(t *testing.T) {
+	// Dev, Railway's internal health check, and a direct IP must keep working —
+	// redirecting them to a public hostname would break local runs and probes.
+	for _, host := range []string{"localhost", "127.0.0.1", "bluejays-handles.railway.internal"} {
+		if got := canonicalRedirect(host, "bluejays.space", "/"); got != "" {
+			t.Errorf("host %q: expected no redirect, got %q", host, got)
+		}
+	}
+}
+
+func TestCanonicalRedirect_DoesNotMatchOnASuffixThatIsNotASubdomain(t *testing.T) {
+	// "notbluejays.space" ends with "bluejays.space" as a string but is a
+	// different registrable domain — redirecting it would be sending traffic
+	// off a host we don't control.
+	if got := canonicalRedirect("notbluejays.space", "bluejays.space", "/"); got != "" {
+		t.Errorf("expected no redirect, got %q", got)
+	}
+}
+
+func TestCanonicalRedirect_PreservesPathAndQuery(t *testing.T) {
+	// The form posts to /request-handle and lands back on /?job=...&handle=...;
+	// dropping the query would strand the visitor on a page with no status.
+	got := canonicalRedirect("alice.bluejays.space", "bluejays.space", "/?job=abc123&handle=bo")
+	if want := "https://handles.bluejays.space/?job=abc123&handle=bo"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestCanonicalRedirect_HonoursAConfiguredBaseDomain(t *testing.T) {
+	got := canonicalRedirect("alice.staging.example", "staging.example", "/")
+	if want := "https://handles.staging.example/"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}

@@ -71,12 +71,9 @@ func main() {
 	// Bluesky GETs https://<username>.bluejays.space/.well-known/atproto-did and
 	// expects the plain-text DID in the response.
 	mux.HandleFunc("/.well-known/atproto-did", func(w http.ResponseWriter, r *http.Request) {
-		host := r.Host
-		if i := strings.LastIndex(host, ":"); i >= 0 {
-			host = host[:i]
-		}
-		username := strings.ToLower(strings.TrimSuffix(host, "."+baseDomain))
-		if username == strings.ToLower(host) {
+		host := requestHost(r)
+		username := strings.TrimSuffix(host, "."+baseDomain)
+		if username == host {
 			http.NotFound(w, r)
 			return
 		}
@@ -175,6 +172,10 @@ func main() {
 	mux.Handle("/static/", http.FileServer(http.FS(staticFS)))
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if to := canonicalRedirect(requestHost(r), baseDomain, r.URL.RequestURI()); to != "" {
+			http.Redirect(w, r, to, http.StatusMovedPermanently)
+			return
+		}
 		if r.URL.Path != "/" {
 			http.NotFound(w, r)
 			return
@@ -253,6 +254,44 @@ func newJobID() string {
 	b := make([]byte, 8)
 	rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// requestHost is the request's hostname, lowercased and without any port.
+func requestHost(r *http.Request) string {
+	host := r.Host
+	if i := strings.LastIndex(host, ":"); i >= 0 {
+		host = host[:i]
+	}
+	return strings.ToLower(host)
+}
+
+// canonicalRedirect returns the URL a request for the handle-request form
+// should be sent to, or "" when it is already in the right place.
+//
+// The whole *.<baseDomain> wildcard resolves to this service and the form
+// handler is not host-gated, so every hostname under it — every handle ever
+// merged, plus www and anything else pointed here — served a byte-identical
+// copy of the form at /. Search Console reads that as one page duplicated
+// across an ever-growing set of hosts, which is what made linking to this
+// service from the main site a problem. Collapsing them onto the one canonical
+// URL is the fix.
+//
+// Deliberately a crawlable 301 rather than a robots.txt Disallow: a URL that
+// Google has already indexed and can no longer crawl cannot be re-checked, so
+// it lingers in the index as "indexed, though blocked by robots.txt" instead
+// of being replaced by the canonical one. The redirect is the signal that
+// actually cleans the index up.
+//
+// Hosts outside the wildcard are left alone — localhost in dev, Railway's
+// internal health check, a direct IP — so this never fires anywhere it would
+// only get in the way. /.well-known/atproto-did is a separate route and is not
+// affected: Bluesky must keep resolving it per-handle.
+func canonicalRedirect(host, baseDomain, requestURI string) string {
+	canonical := "handles." + baseDomain
+	if host == canonical || !strings.HasSuffix(host, "."+baseDomain) {
+		return ""
+	}
+	return "https://" + canonical + requestURI
 }
 
 // filterHex strips any non-hex characters before embedding a job ID in JS.

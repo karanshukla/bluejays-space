@@ -4,7 +4,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{.D}}</title>
+    <!-- Was just "{{.D}}", byte-identical to the main site's homepage title on a
+         different host — two pages competing on the same name. -->
+    <title>Bluesky Handles &middot; {{.D}}</title>
+    <meta name="description"
+        content="Free @yourname.{{.D}} Bluesky handles for Toronto Blue Jays fans. Request one and it goes live once the pull request is merged.">
+    <!-- Backs up the 301 in main.go (canonicalRedirect): if a wildcard host is
+         still in the index from before that shipped, this points its equity at
+         the one real URL rather than leaving copies competing. -->
+    <link rel="canonical" href="https://handles.{{.D}}/">
     <style>
         *,
         *::before,
