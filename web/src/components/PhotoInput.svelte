@@ -32,6 +32,35 @@
   let previewBust = $state(0);
   const MAX_PREVIEW_RETRIES = 4;
 
+  // 'published' frames the photo exactly as a live card will crop it (4:3,
+  // .published-crop in global.css); 'full' shows the whole source. You need
+  // both to judge a photo: the first is what ships, the second is what the
+  // first is cutting off.
+  const VIEWS = [
+    { value: 'published', label: 'As published' },
+    { value: 'full', label: 'Full image' },
+  ] as const;
+
+  let view = $state<'published' | 'full'>('published');
+  let expanded = $state(false);
+  let overlay = $state<HTMLDivElement | null>(null);
+  let naturalWidth = $state(0);
+  let naturalHeight = $state(0);
+
+  // storeImageBytes resizes uploads to 1024w (and a 640w variant) but never
+  // enlarges, so anything narrower than 640 is already below the small
+  // variant the feed serves and will look soft on a card at 2x DPR.
+  const SOFT_BELOW_WIDTH = 640;
+  const looksSoft = $derived(naturalWidth > 0 && naturalWidth < SOFT_BELOW_WIDTH);
+
+  const previewSrc = $derived(`/api/images/${key}${previewBust ? `?r=${previewBust}` : ''}`);
+
+  // Move focus into the overlay when it opens so Escape reaches it and tab
+  // order doesn't stay behind on the draft form underneath.
+  $effect(() => {
+    if (expanded) overlay?.focus();
+  });
+
   function retryPreview() {
     if (previewRetries >= MAX_PREVIEW_RETRIES) return;
     previewRetries += 1;
@@ -40,10 +69,20 @@
     }, 300 * previewRetries);
   }
 
+  function onPreviewLoad(e: Event) {
+    const img = e.currentTarget as HTMLImageElement;
+    naturalWidth = img.naturalWidth;
+    naturalHeight = img.naturalHeight;
+  }
+
   function setKey(next: string | null) {
     key = next;
     previewRetries = 0;
     previewBust = 0;
+    naturalWidth = 0;
+    naturalHeight = 0;
+    view = 'published';
+    expanded = false;
     onchange?.(next);
   }
 
@@ -122,20 +161,98 @@
   {/if}
 
   {#if key}
-    <div class="relative flex justify-center">
+    <div class="space-y-2">
+      <div class="relative mx-auto w-full max-w-sm">
+        <!-- The preview is a button so the whole frame opens the full-size
+             view; type="button" matters because this component renders inside
+             the draft edit <form> in DraftCard.svelte. -->
+        <button
+          type="button"
+          onclick={() => (expanded = true)}
+          class="group block w-full cursor-zoom-in overflow-hidden rounded border border-paper-edge bg-paper focus-visible:ring-2 focus-visible:ring-blue/40 focus-visible:outline-none"
+          title="View full size"
+        >
+          <img
+            src={previewSrc}
+            onerror={retryPreview}
+            onload={onPreviewLoad}
+            alt="Attached photo, shown as it will be cropped on the published card"
+            class={view === 'published'
+              ? 'published-crop w-full'
+              : 'max-h-64 w-full object-contain'}
+          />
+        </button>
+        <button
+          type="button"
+          onclick={() => setKey(null)}
+          disabled={uploading}
+          class="absolute top-1 right-1 rounded bg-ink/70 px-2 py-0.5 text-xs font-semibold text-white hover:bg-ink/90 disabled:opacity-50"
+        >
+          Remove
+        </button>
+      </div>
+
+      <div class="mx-auto flex w-full max-w-sm flex-wrap items-center gap-2 text-xs">
+        <div class="inline-flex overflow-hidden rounded border border-paper-edge">
+          {#each VIEWS as option (option.value)}
+            <button
+              type="button"
+              onclick={() => (view = option.value)}
+              aria-pressed={view === option.value}
+              class={`px-2 py-1 font-medium transition-colors ${
+                view === option.value
+                  ? 'bg-blue text-white'
+                  : 'bg-paper text-ink-soft hover:text-blue'
+              }`}
+            >
+              {option.label}
+            </button>
+          {/each}
+        </div>
+        {#if naturalWidth > 0}
+          <span class="text-ink-soft/70 font-mono">{naturalWidth}×{naturalHeight}</span>
+        {/if}
+        {#if looksSoft}
+          <span class="text-red font-mono" title="Below the 640px variant the feed serves">
+            low resolution
+          </span>
+        {/if}
+      </div>
+
+      {#if view === 'published'}
+        <p class="mx-auto max-w-sm text-xs text-ink-soft/70">
+          This is the exact crop the published card uses. Switch to “Full image” to see what's
+          outside it.
+        </p>
+      {/if}
+    </div>
+  {/if}
+
+  {#if expanded && key}
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <div
+      bind:this={overlay}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Full size photo"
+      tabindex="-1"
+      onclick={() => (expanded = false)}
+      onkeydown={(e) => {
+        if (e.key === 'Escape') expanded = false;
+      }}
+      class="fixed inset-0 z-50 flex items-center justify-center bg-ink/80 p-6"
+    >
       <img
-        src={`/api/images/${key}${previewBust ? `?r=${previewBust}` : ''}`}
-        onerror={retryPreview}
-        alt=""
-        class="h-32 w-auto rounded border border-paper-edge object-cover"
+        src={previewSrc}
+        alt="Attached photo at full size"
+        class="max-h-full max-w-full rounded shadow-lg"
       />
       <button
         type="button"
-        onclick={() => setKey(null)}
-        disabled={uploading}
-        class="absolute right-1 top-1 rounded bg-ink/70 px-2 py-0.5 text-xs font-semibold text-white hover:bg-ink/90 disabled:opacity-50"
+        onclick={() => (expanded = false)}
+        class="absolute top-4 right-4 rounded bg-card px-3 py-1 text-sm font-semibold text-ink hover:opacity-90"
       >
-        Remove
+        Close
       </button>
     </div>
   {/if}
