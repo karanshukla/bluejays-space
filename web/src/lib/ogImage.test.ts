@@ -13,8 +13,24 @@ const sharpChain = {
 };
 vi.mock('sharp', () => ({ default: vi.fn(() => sharpChain) }));
 
-const { ogCacheKey, tapeBackgroundFor, loadPhotoDataUrl, headlineFontSize, photoTiltFor } =
-  await import('./ogImage');
+const {
+  ogCacheKey,
+  tapeBackgroundFor,
+  loadPhotoDataUrl,
+  photoTiltFor,
+  fitText,
+  fitCardText,
+  measureText,
+  headlineStyle,
+  statStyle,
+  labelStyle,
+  PARODY_LABEL,
+  LABEL_MARGIN_TOP,
+  LABEL_TEXT_HEIGHT,
+  CONTENT_HEIGHT,
+  textBlockHeight,
+  TEXT_BUDGET,
+} = await import('./ogImage');
 
 function makeHeadline(overrides: Partial<Headline> = {}): Headline {
   return {
@@ -134,51 +150,190 @@ describe('loadPhotoDataUrl', () => {
   });
 });
 
-describe('headlineFontSize', () => {
-  const COLUMN = 532;
-  const BOUNDS = { maxLines: 5, cap: 56, floor: 34 };
+const PHOTO_COLUMN = 532;
+const FULL_COLUMN = 1040;
+const PHOTO_BOUNDS = { cap: 56, floor: 30 };
+const FULL_BOUNDS = { cap: 88, floor: 34 };
 
-  it('gives a short headline the largest allowed size', () => {
-    expect(headlineFontSize('Jays sweep Yankees', COLUMN, BOUNDS)).toBe(56);
+const SHORT = 'Jays sweep Yankees';
+const MEDIUM = 'Vladimir Guerrero Jr. hits ball so hard it files for free agency';
+const LONG =
+  'Blue Jays announce that Rogers Centre will be renamed the Rogers Centre presented by Rogers in a multi-year deal with Rogers';
+const VERY_LONG =
+  'Toronto Blue Jays confirm the seventh-inning stretch will now be performed exclusively by a committee of interns who have never attended a baseball game and refuse to learn the words';
+// The public submission caps (submissionLimits.ts): the longest input that can
+// reach a card without an admin hand-writing something longer.
+const MAX_HEADLINE =
+  'Toronto Blue Jays front office confirms that the entire 2026 roster construction strategy was in fact decided by a single intern with a spreadsheet, a coin, and an unshakeable belief that every problem in professional baseball can be solved by simply acquiring more relief pitchers';
+const MAX_STAT =
+  '41 HR / 108 RBI / .382 AVG / 4.1 WAR / 112 consecutive games / 7 different relief pitchers acquired at the deadline / 0 explanations offered by the front office';
+
+function fitHeadline(text: string, columnWidth: number, maxHeight: number, bounds = PHOTO_BOUNDS) {
+  return fitText(text, (fontSize) => headlineStyle(columnWidth, fontSize), {
+    maxHeight,
+    ...bounds,
+  });
+}
+
+describe('fitText', () => {
+  it('gives a short headline the largest allowed size', async () => {
+    const fitted = await fitHeadline(SHORT, PHOTO_COLUMN, 446);
+    expect(fitted.fontSize).toBe(PHOTO_BOUNDS.cap);
+    expect(fitted.text).toBe(SHORT);
   });
 
-  it('shrinks as the headline gets longer', () => {
-    const short = headlineFontSize('a'.repeat(60), COLUMN, BOUNDS);
-    const medium = headlineFontSize('a'.repeat(120), COLUMN, BOUNDS);
-    const long = headlineFontSize('a'.repeat(200), COLUMN, BOUNDS);
-    expect(short).toBeGreaterThan(medium);
-    expect(medium).toBeGreaterThan(long);
+  it('shrinks as the headline gets longer', async () => {
+    const sizes = await Promise.all(
+      [MEDIUM, LONG, VERY_LONG].map(async (t) => (await fitHeadline(t, PHOTO_COLUMN, 300)).fontSize)
+    );
+    expect(sizes[0]).toBeGreaterThan(sizes[1]);
+    expect(sizes[1]).toBeGreaterThan(sizes[2]);
   });
 
-  it('never exceeds the cap or drops below the floor', () => {
-    for (const length of [1, 20, 80, 150, 400, 2000]) {
-      const size = headlineFontSize('a'.repeat(length), COLUMN, BOUNDS);
-      expect(size).toBeGreaterThanOrEqual(BOUNDS.floor);
-      expect(size).toBeLessThanOrEqual(BOUNDS.cap);
+  it('never exceeds the cap or drops below the floor', async () => {
+    for (const text of [SHORT, MEDIUM, LONG, VERY_LONG, MAX_HEADLINE, 'a'.repeat(2000)]) {
+      const { fontSize } = await fitHeadline(text, PHOTO_COLUMN, 300);
+      expect(fontSize).toBeGreaterThanOrEqual(PHOTO_BOUNDS.floor);
+      expect(fontSize).toBeLessThanOrEqual(PHOTO_BOUNDS.cap);
     }
   });
 
-  it('keeps the estimated block inside the lines it was given', () => {
-    // The size is only useful if the headline it was picked for actually fits:
-    // at that size, the text should wrap into no more than maxLines (unless it
-    // was already clamped to the floor, where overflow is the accepted tradeoff
-    // against an unreadably small headline).
-    for (const length of [40, 90, 130]) {
-      const size = headlineFontSize('a'.repeat(length), COLUMN, BOUNDS);
-      const charsPerLine = COLUMN / (size * 0.52);
-      expect(Math.ceil(length / charsPerLine)).toBeLessThanOrEqual(BOUNDS.maxLines);
+  it('reports the height Satori actually lays the block out at', async () => {
+    // The whole point of measuring rather than estimating: a character-count
+    // guess cannot model word wrapping, so the reported height has to come from
+    // the real line count, not from an assumed glyph width.
+    for (const text of [SHORT, MEDIUM, LONG, VERY_LONG, MAX_HEADLINE]) {
+      const fitted = await fitHeadline(text, PHOTO_COLUMN, 300);
+      const measured = await measureText(fitted.text, headlineStyle(PHOTO_COLUMN, fitted.fontSize));
+      expect(measured.lines).toBe(fitted.lines);
+      expect(fitted.height).toBe(measured.height);
+      expect(measured.height).toBeLessThanOrEqual(300);
     }
   });
 
-  it('falls back to the cap for an empty headline instead of dividing by zero', () => {
-    expect(headlineFontSize('', COLUMN, BOUNDS)).toBe(56);
+  it('elides rather than overflowing when even the floor size cannot fit', async () => {
+    const fitted = await fitHeadline('a'.repeat(2000), PHOTO_COLUMN, 120);
+    expect(fitted.text.endsWith('…')).toBe(true);
+    expect(fitted.text.length).toBeLessThan(2000);
+    expect(fitted.height).toBeLessThanOrEqual(120);
   });
 
-  it('scales up for the wider full-card column a photo-less headline gets', () => {
-    const text = 'Vladimir Guerrero Jr. hits ball so hard it files for free agency';
-    const narrow = headlineFontSize(text, COLUMN, BOUNDS);
-    const wide = headlineFontSize(text, 1040, { maxLines: 4, cap: 88, floor: 42 });
-    expect(wide).toBeGreaterThan(narrow);
+  it('treats an empty headline as a zero-height block instead of dividing by zero', async () => {
+    const fitted = await fitHeadline('', PHOTO_COLUMN, 446);
+    expect(fitted.lines).toBe(0);
+    expect(fitted.height).toBe(0);
+  });
+
+  it('scales up for the wider full-card column a photo-less headline gets', async () => {
+    const narrow = await fitHeadline(MEDIUM, PHOTO_COLUMN, 300);
+    const wide = await fitHeadline(MEDIUM, FULL_COLUMN, 300, FULL_BOUNDS);
+    expect(wide.fontSize).toBeGreaterThan(narrow.fontSize);
+  });
+});
+
+describe('fitCardText', () => {
+  // Every one of these overflowed the card before the layout measured itself:
+  // the estimator sized a block to fill exactly N lines and word wrapping made
+  // it N+1, pushing the parody label off the bottom of the canvas.
+  const CASES: [string, string | null][] = [
+    [SHORT, '.382 AVG'],
+    [MEDIUM, '.382 AVG / 41 HR / 108 RBI'],
+    [LONG, '112 consecutive games / 4.1 WAR / 0 explanations offered by the front office'],
+    [VERY_LONG, MAX_STAT],
+    [MAX_HEADLINE, MAX_STAT],
+    [MAX_HEADLINE, null],
+    [LONG, null],
+    ['Jays sign Guerrero to an unfathomablyoverwhelminglyenormous extension', '$500,000,000'],
+  ];
+
+  for (const [columnWidth, bounds, layout] of [
+    [PHOTO_COLUMN, PHOTO_BOUNDS, 'beside a photo'],
+    [FULL_COLUMN, FULL_BOUNDS, 'full width'],
+  ] as const) {
+    it(`keeps the headline and stat block inside the card's text budget (${layout})`, async () => {
+      for (const [headline, stat_block] of CASES) {
+        const fitted = await fitCardText(
+          makeHeadline({ headline, stat_block }),
+          columnWidth,
+          bounds
+        );
+        // Re-measured from the text and size that will actually be rendered,
+        // deliberately not trusting the heights fitCardText reported: a fitter
+        // that scores its own work against its own estimate is how the previous
+        // overflow survived a passing test suite.
+        const title = await measureText(
+          fitted.title.text,
+          headlineStyle(columnWidth, fitted.title.fontSize)
+        );
+        const stat = fitted.stat
+          ? await measureText(fitted.stat.text, statStyle(columnWidth, fitted.stat.fontSize))
+          : { height: 0 };
+        expect(title.height + stat.height).toBeLessThanOrEqual(TEXT_BUDGET);
+        expect(textBlockHeight(fitted)).toBe(title.height + stat.height);
+      }
+    });
+  }
+
+  it('never lets the stat block starve the headline down to its floor', async () => {
+    const fitted = await fitCardText(
+      makeHeadline({ headline: MEDIUM, stat_block: MAX_STAT }),
+      PHOTO_COLUMN,
+      PHOTO_BOUNDS
+    );
+    expect(fitted.title.fontSize).toBeGreaterThan(PHOTO_BOUNDS.floor);
+  });
+
+  it('gives a headline with no stat block the whole budget', async () => {
+    const withStat = await fitCardText(
+      makeHeadline({ headline: LONG, stat_block: MAX_STAT }),
+      PHOTO_COLUMN,
+      PHOTO_BOUNDS
+    );
+    const withoutStat = await fitCardText(
+      makeHeadline({ headline: LONG, stat_block: null }),
+      PHOTO_COLUMN,
+      PHOTO_BOUNDS
+    );
+    expect(withoutStat.stat).toBeNull();
+    expect(withoutStat.title.fontSize).toBeGreaterThan(withStat.title.fontSize);
+  });
+});
+
+describe("the card's vertical budget", () => {
+  it('reserves exactly the height the parody label actually renders at', async () => {
+    // TEXT_BUDGET is the card's content height minus this reservation, so a
+    // label taller than the number reserved for it is not a rounding nit: it is
+    // the whole line falling off the bottom edge of every preview.
+    const { lines, height } = await measureText(PARODY_LABEL, labelStyle(FULL_COLUMN));
+    expect(lines).toBe(1);
+    expect(height).toBe(LABEL_TEXT_HEIGHT);
+    expect(TEXT_BUDGET).toBe(CONTENT_HEIGHT - LABEL_MARGIN_TOP - height);
+  });
+});
+
+describe('measureText', () => {
+  const styleAt = (fontSize: number) => headlineStyle(PHOTO_COLUMN, fontSize);
+
+  it('breaks a word too long for the column instead of running off the card', async () => {
+    // Satori honours word-break but ignores overflow-wrap, so without the
+    // former a single unbreakable token renders straight past the card's right
+    // edge and off the canvas.
+    const { width } = await measureText(
+      'Jays sign Guerrero to an unfathomablyoverwhelminglyenormous extension',
+      styleAt(44)
+    );
+    expect(width).toBeLessThanOrEqual(PHOTO_COLUMN);
+  });
+
+  it('counts the lines the text actually wraps into, not an estimate', async () => {
+    // "Jays sweep Yankees" at 56px does not fit one line of a 532px column,
+    // which is exactly the kind of miss a character-count estimate makes.
+    expect((await measureText(SHORT, styleAt(56))).lines).toBe(2);
+  });
+
+  it('reports no lines for blank text', async () => {
+    expect(await measureText('', styleAt(56))).toEqual({ lines: 0, width: 0, height: 0 });
+    expect(await measureText('   ', styleAt(56))).toEqual({ lines: 0, width: 0, height: 0 });
   });
 });
 
