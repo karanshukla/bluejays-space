@@ -42,7 +42,7 @@ const OG_HEIGHT = 630;
 // content-hash key and served back with a one-year immutable cache, so without
 // this a redesign would only ever reach headlines created after it shipped —
 // every existing preview would keep serving its old bytes forever.
-const OG_LAYOUT_VERSION = 2;
+const OG_LAYOUT_VERSION = 3;
 
 // Content hash of the fields that affect the rendered image. An admin edit
 // changes the hash, so the old cached PNG is never looked up again (an orphan
@@ -120,22 +120,259 @@ export function photoTiltFor(id: number): number {
   return variantFor(id, MOUNT_TILTS, MOUNT_TILT_SEED);
 }
 
-// Satori has no text measurement to auto-fit against, so the size is estimated
-// from the character count: how big can this headline be and still fill no more
-// than `maxLines` of a column this wide? Fraunces 600 averages a little over
-// half its em per character in mixed-case text — the constant only has to be
-// stable and err small, since a headline that renders a size down still reads
-// fine while one that overflows the card does not.
-const AVERAGE_GLYPH_RATIO = 0.52;
+// Vertical budget the headline and stat block have to share. The parody label
+// is pinned to the card's bottom edge, so whatever the two text blocks take
+// beyond this pushes it off the canvas — Satori clips nothing and Yoga's
+// flex-shrink defaults to 0, so an over-tall content block is not squeezed, it
+// simply overflows.
+export const PARODY_LABEL = 'bluejays.space · parody · not affiliated with MLB';
+const LABEL_FONT_SIZE = 20;
+const LABEL_LINE_HEIGHT = 1.2;
+export const LABEL_MARGIN_TOP = 24;
+// The label is one line at a fixed size, so unlike the two variable blocks its
+// height is a constant rather than something measured per render. The test suite
+// measures it once and asserts this matches, since a budget derived from a wrong
+// label height is exactly how the parody line got pushed off the card before.
+export const LABEL_TEXT_HEIGHT = Math.round(LABEL_FONT_SIZE * LABEL_LINE_HEIGHT);
+export const CONTENT_HEIGHT = CARD_HEIGHT - CARD_PADDING_Y * 2;
+export const TEXT_BUDGET = CONTENT_HEIGHT - LABEL_MARGIN_TOP - LABEL_TEXT_HEIGHT;
 
-export function headlineFontSize(
+const HEADLINE_LINE_HEIGHT = 1.18;
+const STAT_LINE_HEIGHT = 1.35;
+const STAT_MARGIN_TOP = 28;
+const STAT_PADDING_TOP = 22;
+const STAT_RULE_WIDTH = 2;
+
+// The headline is what a share is read for, so the stat block is capped at a
+// share of the budget rather than being allowed to take whatever it wants and
+// squeeze the headline down to the floor behind it.
+const STAT_BUDGET_SHARE = 0.4;
+const STAT_BUDGET = Math.floor(TEXT_BUDGET * STAT_BUDGET_SHARE);
+const STAT_FONT_CAP = 30;
+const STAT_FONT_FLOOR = 18;
+
+// Tall enough that no measured block is ever clipped by the probe canvas: at
+// the smallest floor above this is well over a hundred lines.
+const MEASURE_CANVAS_HEIGHT = 4000;
+
+// Satori honours `word-break` but ignores `overflow-wrap`, so this is the only
+// way to stop a single unbreakable token (a long URL, a joke compound word)
+// running straight off the right edge of the card.
+const WORD_BREAK = 'break-word' as const;
+
+interface TextBlockStyle {
+  columnWidth: number;
+  fontSize: number;
+  fontFamily: 'Fraunces' | 'Space Mono';
+  fontWeight: 400 | 600;
+  lineHeight: number;
+  marginTop?: number;
+  paddingTop?: number;
+  borderTopWidth?: number;
+}
+
+// The single source of every property that decides how a text block is laid out.
+// The measurement pass and the real render both build their node from this, so a
+// measured height is the height that actually renders — there is no second model
+// to drift out of step.
+//
+// The explicit margin matters more than it looks: Satori gives <p> the browser
+// default 1em vertical margin (16px top and bottom, regardless of the element's
+// own font size), which silently adds 32px to a block nothing here would expect.
+// The border is split into longhands so the render can add only its colour
+// without a shorthand overwriting the width this measured.
+function textNodeStyle(style: TextBlockStyle) {
+  return {
+    fontSize: `${style.fontSize}px`,
+    fontFamily: style.fontFamily,
+    fontWeight: style.fontWeight,
+    lineHeight: style.lineHeight,
+    margin: `${style.marginTop ?? 0}px 0px 0px 0px`,
+    paddingTop: `${style.paddingTop ?? 0}px`,
+    borderTopWidth: `${style.borderTopWidth ?? 0}px`,
+    borderTopStyle: 'dashed',
+    width: `${style.columnWidth}px`,
+    wordBreak: WORD_BREAK,
+  };
+}
+
+// Satori exposes no text-measurement API, and a character-count estimate cannot
+// stand in for one: word wrapping leaves a ragged right edge on every line, so a
+// block sized to fill "exactly N lines" on paper reliably renders N+1 and runs
+// off the card.
+//
+// Rendering the block on its own instead gives all three numbers directly. With
+// embedFont:false Satori emits one <text> per word carrying its own x/y/width
+// (so, line count and horizontal extent), and the wrapper's background rect
+// carries the block's full laid-out height, margins and padding and border
+// included.
+export async function measureText(
   text: string,
+  style: TextBlockStyle
+): Promise<{ lines: number; width: number; height: number }> {
+  if (!text.trim()) return { lines: 0, width: 0, height: 0 };
+  const svg = await satori(
+    {
+      type: 'div',
+      props: {
+        style: { display: 'flex', width: `${style.columnWidth}px`, backgroundColor: '#000' },
+        children: { type: 'p', props: { style: textNodeStyle(style), children: text } },
+      },
+    },
+    {
+      width: style.columnWidth,
+      height: MEASURE_CANVAS_HEIGHT,
+      fonts: loadFonts(),
+      embedFont: false,
+    }
+  );
+  const runs = [
+    ...svg.matchAll(/<text[^>]*\sx="(-?[\d.]+)"[^>]*\sy="([\d.]+)"[^>]*\swidth="([\d.]+)"/g),
+  ];
+  return {
+    lines: new Set(runs.map((run) => run[2])).size,
+    width: Math.max(0, ...runs.map((run) => Number(run[1]) + Number(run[3]))),
+    height: Number(svg.match(/<rect[^>]*\sheight="([\d.]+)"/)?.[1] ?? 0),
+  };
+}
+
+export interface FittedText {
+  text: string;
+  fontSize: number;
+  lines: number;
+  height: number;
+}
+
+// Longest prefix whose rendered block still fits `maxHeight`. Only reached when
+// a block overflows even at its floor size — a headline long enough to need this
+// is an essay, and a clipped preview reads far worse than an elided one.
+async function truncateToHeight(
+  text: string,
+  maxHeight: number,
+  style: TextBlockStyle
+): Promise<string> {
+  let fits = 0;
+  let tooLong = text.length;
+  while (fits < tooLong) {
+    const mid = Math.ceil((fits + tooLong) / 2);
+    const candidate = `${text.slice(0, mid).trimEnd()}…`;
+    if ((await measureText(candidate, style)).height <= maxHeight) fits = mid;
+    else tooLong = mid - 1;
+  }
+  return `${text.slice(0, fits).trimEnd()}…`;
+}
+
+// The two blocks a card carries, each described once so the fitting pass and
+// the render agree on every property that decides how they wrap.
+export function headlineStyle(columnWidth: number, fontSize: number): TextBlockStyle {
+  return {
+    columnWidth,
+    fontSize,
+    fontFamily: 'Fraunces',
+    fontWeight: 600,
+    lineHeight: HEADLINE_LINE_HEIGHT,
+  };
+}
+
+// Carries its own chrome (the gap above it and the dashed rule it sits behind)
+// so a measured stat block height is the whole block, not just its text.
+export function labelStyle(columnWidth: number): TextBlockStyle {
+  return {
+    columnWidth,
+    fontSize: LABEL_FONT_SIZE,
+    fontFamily: 'Space Mono',
+    fontWeight: 400,
+    lineHeight: LABEL_LINE_HEIGHT,
+  };
+}
+
+// Satori rejects an explicitly-undefined style property, so the label's width is
+// dropped by destructuring rather than overwritten.
+const { width: _labelColumnWidth, ...labelNodeStyle } = textNodeStyle(
+  labelStyle(FULL_WIDTH_TEXT_COLUMN)
+);
+
+export function statStyle(columnWidth: number, fontSize: number): TextBlockStyle {
+  return {
+    columnWidth,
+    fontSize,
+    fontFamily: 'Space Mono',
+    fontWeight: 400,
+    lineHeight: STAT_LINE_HEIGHT,
+    marginTop: STAT_MARGIN_TOP,
+    paddingTop: STAT_PADDING_TOP,
+    borderTopWidth: STAT_RULE_WIDTH,
+  };
+}
+
+// Largest size in [floor, cap] whose measured block fits `maxHeight`. Line count
+// (and so block height) rises monotonically with font size, which is what makes
+// the binary search valid — and what makes this cost ~6 probe renders rather
+// than one per candidate size.
+export async function fitText(
+  text: string,
+  styleAt: (fontSize: number) => TextBlockStyle,
+  { maxHeight, cap, floor }: { maxHeight: number; cap: number; floor: number }
+): Promise<FittedText> {
+  if (!text.trim()) return { text, fontSize: cap, lines: 0, height: 0 };
+
+  let smallest = floor;
+  let largest = cap;
+  let best: FittedText | null = null;
+  while (smallest <= largest) {
+    const fontSize = Math.floor((smallest + largest) / 2);
+    const { lines, height } = await measureText(text, styleAt(fontSize));
+    if (height <= maxHeight) {
+      best = { text, fontSize, lines, height };
+      smallest = fontSize + 1;
+    } else {
+      largest = fontSize - 1;
+    }
+  }
+  if (best) return best;
+
+  const style = styleAt(floor);
+  const truncated = await truncateToHeight(text, maxHeight, style);
+  const { lines, height } = await measureText(truncated, style);
+  return { text: truncated, fontSize: floor, lines, height };
+}
+
+// Stat block first: it is bounded to a share of the budget regardless of the
+// headline, and the headline then gets everything it leaves behind. Fitting the
+// headline first would let a two-word headline at cap size starve a stat block
+// that had room to render at full size.
+export async function fitCardText(
+  headline: Headline,
   columnWidth: number,
-  { maxLines, cap, floor }: { maxLines: number; cap: number; floor: number }
-): number {
-  if (!text.length) return cap;
-  const fitted = (columnWidth * maxLines) / (text.length * AVERAGE_GLYPH_RATIO);
-  return Math.max(floor, Math.min(cap, Math.round(fitted)));
+  { cap, floor }: { cap: number; floor: number }
+): Promise<{ title: FittedText; stat: FittedText | null }> {
+  const stat = headline.stat_block
+    ? await fitText(headline.stat_block, (fontSize) => statStyle(columnWidth, fontSize), {
+        maxHeight: STAT_BUDGET,
+        cap: STAT_FONT_CAP,
+        floor: STAT_FONT_FLOOR,
+      })
+    : null;
+
+  const title = await fitText(
+    headline.headline,
+    (fontSize) => headlineStyle(columnWidth, fontSize),
+    { maxHeight: TEXT_BUDGET - (stat?.height ?? 0), cap, floor }
+  );
+
+  return { title, stat };
+}
+
+// Total laid-out height of the two text blocks, for the tests that assert a
+// rendered card never pushes the parody label off the bottom edge.
+export function textBlockHeight({
+  title,
+  stat,
+}: {
+  title: FittedText;
+  stat: FittedText | null;
+}): number {
+  return title.height + (stat?.height ?? 0);
 }
 
 // Fetches the headline's photo and inlines it as a base64 PNG data URL so
@@ -168,38 +405,30 @@ export async function loadPhotoDataUrl(photoRef: string | null): Promise<string 
 
 // Headline first and largest, stat line directly under it behind the same
 // dashed rule the live card uses — the two things a share is actually read for,
-// with nothing else competing for the space.
-function buildTextChildren(headline: Headline, columnWidth: number, fontSize: number) {
+// with nothing else competing for the space. Both sizes come from fitCardText,
+// which measured them against the card's real vertical budget.
+function buildTextChildren(
+  { title, stat }: { title: FittedText; stat: FittedText | null },
+  columnWidth: number
+) {
   return [
     {
       type: 'p',
       props: {
-        style: {
-          fontSize: `${fontSize}px`,
-          fontWeight: 600,
-          color: INK,
-          lineHeight: 1.18,
-          fontFamily: 'Fraunces',
-          width: `${columnWidth}px`,
-        },
-        children: headline.headline,
+        style: { ...textNodeStyle(headlineStyle(columnWidth, title.fontSize)), color: INK },
+        children: title.text,
       },
     },
-    headline.stat_block
+    stat && stat.lines > 0
       ? {
           type: 'p',
           props: {
             style: {
-              fontSize: '30px',
-              lineHeight: 1.35,
+              ...textNodeStyle(statStyle(columnWidth, stat.fontSize)),
               color: INK_SOFT,
-              fontFamily: 'Space Mono',
-              marginTop: '28px',
-              paddingTop: '22px',
-              borderTop: `2px dashed ${BLUE}66`,
-              width: `${columnWidth}px`,
+              borderTopColor: `${BLUE}66`,
             },
-            children: headline.stat_block,
+            children: stat.text,
           },
         }
       : null,
@@ -256,8 +485,20 @@ function buildPhotoMount(photoDataUrl: string, id: number) {
   };
 }
 
+// Size bounds per layout. The floors are what a preview drops to before text
+// gets elided, so they sit at the smallest size still comfortably readable in a
+// 1200×630 unfurl rather than at the largest size that usually works.
+const PHOTO_HEADLINE_BOUNDS = { cap: 56, floor: 30 };
+const FULL_WIDTH_HEADLINE_BOUNDS = { cap: 88, floor: 34 };
+
 export async function renderOgPng(headline: Headline): Promise<Buffer> {
   const photoDataUrl = await loadPhotoDataUrl(headline.photo_ref);
+  const columnWidth = photoDataUrl ? TEXT_COLUMN_WIDTH : FULL_WIDTH_TEXT_COLUMN;
+  const fitted = await fitCardText(
+    headline,
+    columnWidth,
+    photoDataUrl ? PHOTO_HEADLINE_BOUNDS : FULL_WIDTH_HEADLINE_BOUNDS
+  );
 
   // With a photo: the mounted print on the left at a third of the card's width,
   // headline and stat line in a column beside it, the two centred against each
@@ -285,15 +526,7 @@ export async function renderOgPng(headline: Headline): Promise<Buffer> {
                   marginLeft: `${PHOTO_TEXT_GAP}px`,
                   width: `${TEXT_COLUMN_WIDTH}px`,
                 },
-                children: buildTextChildren(
-                  headline,
-                  TEXT_COLUMN_WIDTH,
-                  headlineFontSize(headline.headline, TEXT_COLUMN_WIDTH, {
-                    maxLines: 5,
-                    cap: 56,
-                    floor: 34,
-                  })
-                ),
+                children: buildTextChildren(fitted, TEXT_COLUMN_WIDTH),
               },
             },
           ],
@@ -308,15 +541,7 @@ export async function renderOgPng(headline: Headline): Promise<Buffer> {
             justifyContent: 'center',
             flexGrow: 1,
           },
-          children: buildTextChildren(
-            headline,
-            FULL_WIDTH_TEXT_COLUMN,
-            headlineFontSize(headline.headline, FULL_WIDTH_TEXT_COLUMN, {
-              maxLines: 4,
-              cap: 88,
-              floor: 42,
-            })
-          ),
+          children: buildTextChildren(fitted, FULL_WIDTH_TEXT_COLUMN),
         },
       };
 
@@ -376,17 +601,16 @@ export async function renderOgPng(headline: Headline): Promise<Buffer> {
                     display: 'flex',
                     justifyContent: 'center',
                     width: `${FULL_WIDTH_TEXT_COLUMN}px`,
-                    marginTop: '24px',
+                    marginTop: `${LABEL_MARGIN_TOP}px`,
                   },
                   children: {
                     type: 'p',
                     props: {
-                      style: {
-                        fontSize: '20px',
-                        color: `${INK_SOFT}99`,
-                        fontFamily: 'Space Mono',
-                      },
-                      children: 'bluejays.space · parody · not affiliated with MLB',
+                      // The same shared style the budget's label height is
+                      // measured from, minus its fixed column width: the label
+                      // sizes to its own text inside the centring wrapper above.
+                      style: { ...labelNodeStyle, color: `${INK_SOFT}99` },
+                      children: PARODY_LABEL,
                     },
                   },
                 },
