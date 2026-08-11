@@ -94,6 +94,15 @@ export function buildUserMessage({ headline, statBlock, sourceNote }) {
   return parts.join('\n');
 }
 
+// The Messages API rejects a base64 image source over 5MB, and base64 inflates
+// bytes by ~4/3. An animated photo is the realistic way to exceed this, since
+// its size scales with frame count rather than dimensions.
+const MAX_VISION_BYTES = Math.floor((5 * 1024 * 1024 * 3) / 4);
+
+export function isVisionSafeSize(byteLength) {
+  return byteLength <= MAX_VISION_BYTES;
+}
+
 // Builds a Claude vision image content block. mediaType defaults to image/webp
 // because the storage pipeline re-encodes to webp; caller passes the stored
 // content-type when known. base64 is the raw base64 string (no data: prefix).

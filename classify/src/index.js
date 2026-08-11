@@ -6,7 +6,7 @@
 // else is flagged for admin review. Requires ANTHROPIC_API_KEY.
 
 import pg from 'pg';
-import { classify } from './classify.js';
+import { classify, isVisionSafeSize } from './classify.js';
 import { getImageBytes } from './storage.js';
 
 const { Pool } = pg;
@@ -83,7 +83,11 @@ async function runClassification(pool) {
     let image = null;
     if (draft.photo_ref) {
       const img = await getImageBytes(draft.photo_ref);
-      if (img) {
+      if (img && !isVisionSafeSize(img.buffer.byteLength)) {
+        console.warn(
+          `[classify] draft #${draft.id} photo ${draft.photo_ref} exceeds the vision size limit, classifying text-only`
+        );
+      } else if (img) {
         image = { base64: img.buffer.toString('base64'), mediaType: img.contentType };
       }
     }
