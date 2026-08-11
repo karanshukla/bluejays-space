@@ -12,8 +12,10 @@ const chain = {
   resize: vi.fn(() => chain),
   webp: vi.fn(() => chain),
   toBuffer: vi.fn(),
+  metadata: vi.fn(),
 };
-vi.mock('sharp', () => ({ default: vi.fn(() => chain) }));
+const sharp = vi.fn((..._args: unknown[]) => chain);
+vi.mock('sharp', () => ({ default: (...args: unknown[]) => sharp(...args) }));
 
 const { resolvePhotoRef, storeImageBytes, isAllowedImageType, smallVariantKey } =
   await import('./photoImport');
@@ -43,18 +45,39 @@ describe('isAllowedImageType', () => {
 describe('storeImageBytes', () => {
   beforeEach(() => {
     uploadImage.mockReset();
+    sharp.mockClear();
+    chain.rotate.mockClear();
     chain.toBuffer.mockReset();
     chain.toBuffer.mockResolvedValue(Buffer.from([1]));
+    chain.metadata.mockReset();
+    chain.metadata.mockResolvedValue({ pages: 1 });
   });
 
-  it('stores a GIF untouched (no re-encode)', async () => {
+  it('keeps every frame of an animated source, re-encoding it as animated webp', async () => {
+    chain.metadata.mockResolvedValue({ pages: 12 });
     const buf = Buffer.from([1, 2, 3]);
-    const key = await storeImageBytes(buf, 'image/gif', 'anim.gif');
-    expect(key).toMatch(/^admin\/\d+-anim\.gif$/);
-    expect(uploadImage).toHaveBeenCalledWith(key, buf, 'image/gif');
+    const key = await storeImageBytes(buf, 'image/webp', 'anim.webp');
+
+    expect(sharp).toHaveBeenCalledWith(buf, { animated: true });
+    // Auto-orientation would rotate the frame strip, not the frames.
+    expect(chain.rotate).not.toHaveBeenCalled();
+    expect(key).toMatch(/^admin\/\d+-anim\.webp$/);
+    expect(uploadImage).toHaveBeenCalledWith(key, expect.any(Buffer), 'image/webp');
+    expect(uploadImage).toHaveBeenCalledWith(
+      smallVariantKey(key),
+      expect.any(Buffer),
+      'image/webp'
+    );
   });
 
-  it('re-encodes a non-GIF image to webp, storing a large and a small variant', async () => {
+  it('re-encodes an animated GIF to webp rather than storing the GIF as-is', async () => {
+    chain.metadata.mockResolvedValue({ pages: 4 });
+    const key = await storeImageBytes(Buffer.from([1, 2, 3]), 'image/gif', 'anim.gif');
+    expect(key).toMatch(/^admin\/\d+-anim\.webp$/);
+    expect(uploadImage).toHaveBeenCalledWith(key, expect.any(Buffer), 'image/webp');
+  });
+
+  it('re-encodes a still image to webp, storing a large and a small variant', async () => {
     const buf = Buffer.from([4, 5, 6]);
     const key = await storeImageBytes(buf, 'image/jpeg', 'photo.jpg');
     expect(key).toMatch(/^admin\/\d+-photo\.webp$/);
@@ -88,6 +111,8 @@ describe('resolvePhotoRef', () => {
     safeFetch.mockReset();
     chain.toBuffer.mockReset();
     chain.toBuffer.mockResolvedValue(Buffer.from([1]));
+    chain.metadata.mockReset();
+    chain.metadata.mockResolvedValue({ pages: 1 });
   });
 
   it('passes through null unchanged', async () => {

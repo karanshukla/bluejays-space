@@ -49,6 +49,21 @@ export function keyForSlug(slug: string): string {
   return `admin/${stamp}-${cleaned}`;
 }
 
+// sharp reads only the first frame unless told otherwise, so an animated
+// source has to be opened with `animated: true` or it silently arrives as a
+// still — which is what a multi-frame upload used to become here.
+async function isAnimated(buf: Buffer): Promise<boolean> {
+  const { pages } = await sharp(buf).metadata();
+  return (pages ?? 1) > 1;
+}
+
+// An animated image reaches sharp as one tall strip of frames, where EXIF
+// auto-orientation is both meaningless (neither GIF nor WebP carries an
+// orientation tag) and destructive — it would rotate the strip, not the frames.
+function readForResize(buf: Buffer, animated: boolean) {
+  return animated ? sharp(buf, { animated: true }) : sharp(buf).rotate();
+}
+
 export async function storeImageBytes(
   buf: Buffer,
   contentType: string,
@@ -58,13 +73,11 @@ export async function storeImageBytes(
   if (buf.byteLength > MAX_BYTES) throw new Error('image is too large');
   const key = keyForSlug(slug);
 
-  if (contentType === 'image/gif') {
-    await uploadImage(key, buf, contentType);
-    return key;
-  }
-
   try {
-    const oriented = sharp(buf).rotate();
+    // Animated GIFs go down the same path as everything else and come out as
+    // animated WebP: the format is dramatically cheaper over the wire, and the
+    // reader (HeadlineCard.astro) already keys its srcset off the .webp suffix.
+    const oriented = readForResize(buf, await isAnimated(buf));
     const [large, small] = await Promise.all([
       oriented
         .clone()

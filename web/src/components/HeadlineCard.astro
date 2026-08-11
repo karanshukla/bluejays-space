@@ -65,8 +65,9 @@ const tapeVariant = TAPE_VARIANTS[h.id % TAPE_VARIANTS.length];
 const mountVariant = variantFor(h.id, PHOTO_MOUNT_VARIANTS, MOUNT_SEED);
 const url = permalinkPath(h.id, h.headline);
 const siteHost = getSiteUrl().hostname;
-// Only webp uploads (the resize path in photoImport.ts) have a small variant
-// stored alongside — the untouched-GIF path has just the one file.
+// Only the resize path in photoImport.ts stores a small variant alongside, and
+// it always writes .webp (animated sources included). A non-webp ref is one
+// sharp couldn't decode and stored as-is: a single file, no srcset.
 const hasSmallVariant = h.photo_ref?.endsWith('.webp') ?? false;
 ---
 
