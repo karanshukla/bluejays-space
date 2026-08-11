@@ -5,6 +5,13 @@ on:
     branches: [main]
   pull_request:
 
+# Every job here only reads the checkout and runs its own toolchain: nothing
+# pushes an image, comments on a PR, or writes back to the repo. Declaring the
+# floor at the workflow level rather than per job means a job added later
+# inherits read-only and has to opt into anything more, deliberately.
+permissions:
+  contents: read
+
 jobs:
   web:
     name: web (lint, typecheck, test, build)
