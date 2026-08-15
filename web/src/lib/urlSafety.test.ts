@@ -1,9 +1,13 @@
-import { describe, expect, it, vi, beforeEach, afterAll } from 'vitest';
+import { describe, expect, it, vi, beforeAll, beforeEach, afterAll } from 'vitest';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 
 const lookup = vi.fn();
 vi.mock('node:dns/promises', () => ({ lookup: (...args: unknown[]) => lookup(...args) }));
 
-const { safeFetch } = await import('./urlSafety');
+const { safeFetch, pinnedDispatcher } = await import('./urlSafety');
+
+const realFetch = global.fetch;
 
 describe('safeFetch', () => {
   const originalFetch = global.fetch;
@@ -29,6 +33,23 @@ describe('safeFetch', () => {
       'https://example.com/photo.jpg',
       expect.objectContaining({ redirect: 'manual' })
     );
+  });
+
+  it('resolves the hostname once per hop and pins the connection to what it validated', async () => {
+    lookup
+      .mockResolvedValueOnce([{ address: '93.184.216.34', family: 4 }])
+      .mockResolvedValue([{ address: '169.254.169.254', family: 4 }]);
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
+      new Response('ok', { status: 200 })
+    );
+
+    await safeFetch('https://rebind.example.com/photo.jpg');
+
+    expect(lookup).toHaveBeenCalledTimes(1);
+    const init = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1] as RequestInit & {
+      dispatcher?: unknown;
+    };
+    expect(init.dispatcher).toBeDefined();
   });
 
   it('rejects an IP literal in a private range without a DNS lookup', async () => {
@@ -80,5 +101,35 @@ describe('safeFetch', () => {
 
     await expect(safeFetch('https://example.com/redirect')).rejects.toThrow('private address');
     expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('pinnedDispatcher', () => {
+  let server: Server;
+  let port: number;
+
+  beforeAll(async () => {
+    server = createServer((req, res) => res.end(req.headers.host));
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    port = (server.address() as AddressInfo).port;
+  });
+
+  afterAll(() => {
+    server.close();
+  });
+
+  it('connects to the pinned address regardless of what the hostname resolves to', async () => {
+    // `.invalid` never resolves, so reaching the server at all proves the
+    // socket followed the pin rather than a second DNS answer. The echoed Host
+    // header proves the hostname (and so TLS SNI) survives the pinning.
+    const dispatcher = pinnedDispatcher({ address: '127.0.0.1', family: 4 });
+    try {
+      const res = await realFetch(`http://rebind.invalid:${port}/`, {
+        dispatcher,
+      } as RequestInit);
+      expect(await res.text()).toBe(`rebind.invalid:${port}`);
+    } finally {
+      await dispatcher.close();
+    }
   });
 });

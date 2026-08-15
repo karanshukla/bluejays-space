@@ -1,5 +1,6 @@
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
+import { Agent } from 'undici';
 
 // Guards admin-supplied photo URLs against SSRF: refuses to fetch hosts that
 // resolve to private, loopback, link-local, or cloud-metadata addresses, and
@@ -42,7 +43,9 @@ function isBlockedV6(ip: string): boolean {
   );
 }
 
-async function assertPublicHttpUrl(rawUrl: string): Promise<void> {
+type ResolvedAddress = { address: string; family: number };
+
+async function resolvePublicHttpUrl(rawUrl: string): Promise<ResolvedAddress> {
   const url = new URL(rawUrl);
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new Error('only http(s) URLs are allowed');
@@ -62,21 +65,55 @@ async function assertPublicHttpUrl(rawUrl: string): Promise<void> {
       throw new Error('that URL points to a private address');
     }
   }
+
+  const first = addresses[0];
+  if (!first) throw new Error('that URL did not resolve to any address');
+  return first;
+}
+
+// Closes the check-to-connect gap: without pinning, fetch() resolves the
+// hostname a second time and connects to whatever that lookup returns, so a
+// host whose DNS answers public-then-private (rebinding) sails past the
+// address checks above. The hostname still travels in the URL, so the Host
+// header and TLS SNI — and therefore certificate validation — are unaffected.
+export function pinnedDispatcher({ address, family }: ResolvedAddress): Agent {
+  return new Agent({
+    connect: {
+      lookup: (_hostname, options, callback) =>
+        options?.all ? callback(null, [{ address, family }]) : callback(null, address, family),
+    },
+  });
+}
+
+// close() is graceful, so a response already in flight stays readable by the
+// caller and its socket is released once the body has been consumed. It
+// settles after safeFetch has returned, so it must not reject unhandled.
+function release(dispatcher: Agent): void {
+  void dispatcher.close().catch(() => {});
 }
 
 // Drop-in replacement for fetch() that validates the target host (and every
-// redirect hop) isn't a private/internal address before following it.
+// redirect hop) isn't a private/internal address before connecting to it.
 export async function safeFetch(rawUrl: string, maxRedirects = 5): Promise<Response> {
   let current = rawUrl;
   for (let i = 0; i <= maxRedirects; i++) {
-    await assertPublicHttpUrl(current);
-    const res = await fetch(current, { redirect: 'manual' });
+    const dispatcher = pinnedDispatcher(await resolvePublicHttpUrl(current));
+    let res: Response;
+    try {
+      res = await fetch(current, { redirect: 'manual', dispatcher } as RequestInit);
+    } catch (err) {
+      release(dispatcher);
+      throw err;
+    }
     if (res.status >= 300 && res.status < 400) {
+      await res.body?.cancel();
+      release(dispatcher);
       const location = res.headers.get('location');
       if (!location) throw new Error('redirect with no location');
       current = new URL(location, current).toString();
       continue;
     }
+    release(dispatcher);
     return res;
   }
   throw new Error('too many redirects');
