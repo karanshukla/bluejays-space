@@ -27,7 +27,7 @@ describe('POST /api/submit-photo', () => {
   it('returns the stored key on success', async () => {
     importPhotoFromForm.mockResolvedValue('admin/123-cat.webp');
 
-    const res = await callPost(new FormData(), 'ip-a');
+    const res = await callPost(new FormData(), '203.0.113.10');
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ key: 'admin/123-cat.webp' });
   });
@@ -35,7 +35,7 @@ describe('POST /api/submit-photo', () => {
   it('returns 400 with the failure message', async () => {
     importPhotoFromForm.mockRejectedValue(new Error('unsupported image type (got text/plain)'));
 
-    const res = await callPost(new FormData(), 'ip-b');
+    const res = await callPost(new FormData(), '203.0.113.11');
     expect(res.status).toBe(400);
     expect(await res.text()).toMatch(/unsupported image type/i);
   });
@@ -44,10 +44,21 @@ describe('POST /api/submit-photo', () => {
     importPhotoFromForm.mockResolvedValue('admin/1-x.webp');
 
     for (let i = 0; i < 10; i++) {
-      const res = await callPost(new FormData(), 'ip-c');
+      const res = await callPost(new FormData(), '203.0.113.12');
       expect(res.status).toBe(200);
     }
-    const res = await callPost(new FormData(), 'ip-c');
+    const res = await callPost(new FormData(), '203.0.113.12');
     expect(res.status).toBe(429);
+  });
+
+  it('rate-limits a caller rotating a forged CF-Connecting-IP', async () => {
+    importPhotoFromForm.mockResolvedValue('admin/1-x.webp');
+
+    const statuses = [];
+    for (let i = 0; i < 120; i++) {
+      statuses.push((await callPost(new FormData(), `198.51.100.${i % 250}`)).status);
+    }
+
+    expect(statuses).toContain(429);
   });
 });

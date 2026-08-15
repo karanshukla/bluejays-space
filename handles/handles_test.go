@@ -2,7 +2,11 @@ package main
 
 import (
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 // --- add() ---
@@ -188,5 +192,72 @@ func TestCanonicalRedirect_HonoursAConfiguredBaseDomain(t *testing.T) {
 	got := canonicalRedirect("alice.staging.example", "staging.example", "/")
 	if want := "https://handles.staging.example/"; got != want {
 		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// --- clientIP() / rate limiting ---
+
+func TestClientIP_TrustsAWellFormedCFConnectingIP(t *testing.T) {
+	r := httptest.NewRequest(http.MethodPost, "/request-handle", nil)
+	r.Header.Set("CF-Connecting-IP", "203.0.113.5")
+	r.RemoteAddr = "10.0.0.1:5000"
+	if got := clientIP(r); got != "203.0.113.5" {
+		t.Errorf("got %q, want %q", got, "203.0.113.5")
+	}
+}
+
+func TestClientIP_IgnoresAHeaderThatIsNotAnAddress(t *testing.T) {
+	for _, claimed := range []string{"bucket-1", "203.0.113.5, 10.0.0.1", "999.999.999.999", ""} {
+		r := httptest.NewRequest(http.MethodPost, "/request-handle", nil)
+		r.Header.Set("CF-Connecting-IP", claimed)
+		r.RemoteAddr = "10.0.0.1:5000"
+		if got := clientIP(r); got != "10.0.0.1" {
+			t.Errorf("claimed %q: got %q, want the peer address", claimed, got)
+		}
+	}
+}
+
+func TestPublicRouteLimiter_HoldsAForgedRotatingKeyToTheRouteWideCeiling(t *testing.T) {
+	limiter := newPublicRouteLimiter(2, 5, time.Hour)
+
+	allowed := 0
+	for i := 0; i < 50; i++ {
+		if limiter.allow(fmt.Sprintf("203.0.113.%d", i)) {
+			allowed++
+		}
+	}
+
+	if allowed != 5 {
+		t.Errorf("allowed %d requests, want the route-wide ceiling of 5", allowed)
+	}
+}
+
+func TestPublicRouteLimiter_StillAppliesThePerClientBudget(t *testing.T) {
+	limiter := newPublicRouteLimiter(2, 100, time.Hour)
+
+	if !limiter.allow("203.0.113.5") || !limiter.allow("203.0.113.5") {
+		t.Fatal("expected the first two requests to be allowed")
+	}
+	if limiter.allow("203.0.113.5") {
+		t.Error("expected the third request from the same client to be refused")
+	}
+	if !limiter.allow("203.0.113.6") {
+		t.Error("expected a different client to still be allowed")
+	}
+}
+
+func TestPublicRouteLimiter_DoesNotSpendTheCeilingOnARefusedClient(t *testing.T) {
+	limiter := newPublicRouteLimiter(1, 3, time.Hour)
+
+	limiter.allow("203.0.113.5")
+	for i := 0; i < 10; i++ {
+		limiter.allow("203.0.113.5")
+	}
+
+	if !limiter.allow("203.0.113.6") || !limiter.allow("203.0.113.7") {
+		t.Error("refused requests should not have drawn down the route-wide budget")
+	}
+	if limiter.allow("203.0.113.8") {
+		t.Error("expected the route-wide ceiling to be spent by now")
 	}
 }

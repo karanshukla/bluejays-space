@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro';
 import { createSubmittedHeadline } from '../../lib/db';
 import { asNullableText } from '../../lib/formHelpers';
 import { clientIp } from '../../lib/clientIp';
-import { RateLimiter } from '../../lib/rateLimit';
+import { PublicRouteLimiter } from '../../lib/rateLimit';
 import {
   HEADLINE_MAX,
   SUBMITTER_NAME_MAX,
@@ -17,8 +17,10 @@ export const prerender = false;
 // /admin's CSRF-adjacent same-site check, which assumes a logged-in operator.
 // 5/hour/IP mirrors the handles service's GitHub-PR submission limiter
 // (handles/main.go: newRateLimiter(5, time.Hour)), same policy, reused for
-// consistency rather than picking a new number.
-const limiter = new RateLimiter(5, 60 * 60 * 1000);
+// consistency rather than picking a new number. The route-wide ceiling is
+// looser than the photo route's: a draft row is cheap, and a headline worth
+// riffing on can put a genuine burst of submitters here at once.
+const limiter = new PublicRouteLimiter(5, 200, 60 * 60 * 1000);
 
 export const POST: APIRoute = async ({ request, redirect }) => {
   if (!limiter.allow(clientIp(request))) {

@@ -48,7 +48,7 @@ func main() {
 	warnDuplicateDIDs(handles, log.Printf)
 	log.Printf("loaded %d handle(s) from %s", len(handles), configPath)
 
-	limiter := newRateLimiter(5, time.Hour)
+	limiter := newPublicRouteLimiter(5, 50, time.Hour)
 
 	var jobsMu sync.Mutex
 	jobs := make(map[string]jobResult)
@@ -335,8 +335,13 @@ func isValidDID(s string) bool {
 	return true
 }
 
+// Cloudflare replaces any client-supplied CF-Connecting-IP, but the origin also
+// answers for this hostname directly, and on that path the header is whatever
+// the caller sent. Requiring it to parse as an address keeps a forged value to
+// one bucket per address instead of one per arbitrary string; the route-wide
+// ceiling in publicRouteLimiter is what bounds the forging itself.
 func clientIP(r *http.Request) string {
-	if ip := strings.TrimSpace(r.Header.Get("CF-Connecting-IP")); ip != "" {
+	if ip := strings.TrimSpace(r.Header.Get("CF-Connecting-IP")); net.ParseIP(ip) != nil {
 		return ip
 	}
 	ip, _, err := net.SplitHostPort(r.RemoteAddr)
@@ -363,6 +368,21 @@ func newRateLimiter(limit int, window time.Duration) *rateLimiter {
 	return rl
 }
 
+// Same verdict as allow() without spending anything, so a caller checking
+// several budgets can decline before it has consumed any of them.
+func (rl *rateLimiter) wouldAllow(key string) bool {
+	cutoff := time.Now().Add(-rl.window)
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	n := 0
+	for _, t := range rl.entries[key] {
+		if t.After(cutoff) {
+			n++
+		}
+	}
+	return n < rl.limit
+}
+
 func (rl *rateLimiter) allow(key string) bool {
 	now := time.Now()
 	cutoff := now.Add(-rl.window)
@@ -382,6 +402,41 @@ func (rl *rateLimiter) allow(key string) bool {
 		return false
 	}
 	rl.entries[key] = append(times, now)
+	return true
+}
+
+const routeWideKey = "*"
+
+// /request-handle budgets per client by clientIP(), which reads a request
+// header. The origin is reachable without passing through Cloudflare, so a
+// caller that goes straight there supplies that header itself, and rotating it
+// mints a fresh per-client budget on every request. Since every accepted
+// request opens a pull request against the repo, the route-wide ceiling is what
+// keeps forged identities to a larger share of one fixed budget rather than an
+// unlimited one. The trade-off is that a flood can exhaust the ceiling and make
+// the route refuse everyone for the rest of the window, which is bounded
+// degradation in place of unbounded PR spam.
+type publicRouteLimiter struct {
+	mu        sync.Mutex
+	perClient *rateLimiter
+	routeWide *rateLimiter
+}
+
+func newPublicRouteLimiter(perClientLimit, routeWideLimit int, window time.Duration) *publicRouteLimiter {
+	return &publicRouteLimiter{
+		perClient: newRateLimiter(perClientLimit, window),
+		routeWide: newRateLimiter(routeWideLimit, window),
+	}
+}
+
+func (l *publicRouteLimiter) allow(key string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if !l.perClient.wouldAllow(key) || !l.routeWide.wouldAllow(routeWideKey) {
+		return false
+	}
+	l.perClient.allow(key)
+	l.routeWide.allow(routeWideKey)
 	return true
 }
 
