@@ -40,6 +40,17 @@ describe('POST /api/submit-photo', () => {
     expect(await res.text()).toMatch(/unsupported image type/i);
   });
 
+  it('returns 400, not 500, when the body is not parseable form data', async () => {
+    const request = new Request('http://localhost/api/submit-photo', {
+      method: 'POST',
+      body: 'not form data',
+      headers: { 'CF-Connecting-IP': '203.0.113.13' },
+    });
+    const res = await POST({ request } as Parameters<typeof POST>[0]);
+    expect(res.status).toBe(400);
+    expect(importPhotoFromForm).not.toHaveBeenCalled();
+  });
+
   it('rate-limits repeated uploads from the same IP', async () => {
     importPhotoFromForm.mockResolvedValue('admin/1-x.webp');
 

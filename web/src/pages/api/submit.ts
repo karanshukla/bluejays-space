@@ -27,7 +27,12 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     return redirect('/submit?error=rate_limited', 303);
   }
 
-  const form = await request.formData();
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    return redirect('/submit?error=server-error', 303);
+  }
   const headline = asNullableText(form.get('headline'));
   const submitterName = asNullableText(form.get('submitter_name'));
   const statBlock = asNullableText(form.get('stat_block'));

@@ -19,9 +19,8 @@ export const POST: APIRoute = async ({ request }) => {
     return new Response('Too many photo uploads, try again later', { status: 429 });
   }
 
-  const form = await request.formData();
   try {
-    const key = await importPhotoFromForm(form);
+    const key = await importPhotoFromForm(await request.formData());
     return Response.json({ key });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'failed to import photo';
