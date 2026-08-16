@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { Readable } from 'node:stream';
 import { createHash } from 'node:crypto';
 import type { Headline } from './db';
+import { SUBMITTER_NAME_MAX } from './submissionLimits';
 
 const getImage = vi.fn();
 vi.mock('./storage', () => ({ getImage: (...args: unknown[]) => getImage(...args) }));
@@ -30,6 +31,8 @@ const {
   CONTENT_HEIGHT,
   textBlockHeight,
   TEXT_BUDGET,
+  submitterCreditFor,
+  SUBMITTER_MARGIN_TOP,
 } = await import('./ogImage');
 
 function makeHeadline(overrides: Partial<Headline> = {}): Headline {
@@ -78,6 +81,12 @@ describe('ogCacheKey', () => {
   it('changes when the photo ref changes', () => {
     const a = ogCacheKey(makeHeadline({ photo_ref: 'photos/a.jpg' }));
     const b = ogCacheKey(makeHeadline({ photo_ref: 'photos/b.jpg' }));
+    expect(a).not.toBe(b);
+  });
+
+  it('changes when the submitter name changes (the credit line is part of the render)', () => {
+    const a = ogCacheKey(makeHeadline({ submitter_name: null }));
+    const b = ogCacheKey(makeHeadline({ submitter_name: 'Jane' }));
     expect(a).not.toBe(b);
   });
 
@@ -308,6 +317,42 @@ describe("the card's vertical budget", () => {
     expect(lines).toBe(1);
     expect(height).toBe(LABEL_TEXT_HEIGHT);
     expect(TEXT_BUDGET).toBe(CONTENT_HEIGHT - LABEL_MARGIN_TOP - height);
+  });
+
+  it('shrinks the headline/stat budget by the submitter credit reservation when one is passed', async () => {
+    // renderOgPng passes TEXT_BUDGET - (SUBMITTER_MARGIN_TOP + LABEL_TEXT_HEIGHT)
+    // for a headline carrying a submitter credit — asserted here directly on
+    // fitCardText's optional textBudget param, the same seam renderOgPng uses,
+    // so a change to that reservation is caught without rendering a full PNG.
+    const submitterBudget = SUBMITTER_MARGIN_TOP + LABEL_TEXT_HEIGHT;
+    const fitted = await fitCardText(
+      makeHeadline({ headline: LONG, stat_block: MAX_STAT }),
+      PHOTO_COLUMN,
+      PHOTO_BOUNDS,
+      TEXT_BUDGET - submitterBudget
+    );
+    expect(textBlockHeight(fitted)).toBeLessThanOrEqual(TEXT_BUDGET - submitterBudget);
+  });
+});
+
+describe('submitterCreditFor', () => {
+  it('mirrors the live card\'s "submitted by {name}" phrasing', () => {
+    expect(submitterCreditFor('Jane')).toBe('submitted by Jane');
+  });
+
+  it('fits on a single line at the longest allowed submitter name', async () => {
+    // SUBMITTER_NAME_MAX (submissionLimits.ts) is the longest name that can
+    // reach a card without an admin hand-writing something longer — if the
+    // credit line ever wraps to a second line at that length, the fixed
+    // SUBMITTER_MARGIN_TOP + LABEL_TEXT_HEIGHT budget renderOgPng reserves for
+    // it is wrong and the parody label gets pushed off the canvas.
+    const longest = 'x'.repeat(SUBMITTER_NAME_MAX);
+    const { lines, height } = await measureText(
+      submitterCreditFor(longest),
+      labelStyle(FULL_COLUMN)
+    );
+    expect(lines).toBe(1);
+    expect(height).toBe(LABEL_TEXT_HEIGHT);
   });
 });
 

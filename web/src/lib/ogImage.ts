@@ -48,7 +48,7 @@ const OG_LAYOUT_VERSION = 3;
 // changes the hash, so the old cached PNG is never looked up again (an orphan
 // swept by the general image-cleanup pass in docs/backend-api-plan.md item 3).
 export function ogCacheKey(headline: Headline): string {
-  const content = `v${OG_LAYOUT_VERSION}|${headline.headline}|${headline.stat_block ?? ''}|${headline.photo_ref ?? ''}`;
+  const content = `v${OG_LAYOUT_VERSION}|${headline.headline}|${headline.stat_block ?? ''}|${headline.photo_ref ?? ''}|${headline.submitter_name ?? ''}`;
   const hash = createHash('sha256').update(content).digest('hex').slice(0, 12);
   return `og/${headline.id}-${hash}.png`;
 }
@@ -136,6 +136,17 @@ export const LABEL_MARGIN_TOP = 24;
 export const LABEL_TEXT_HEIGHT = Math.round(LABEL_FONT_SIZE * LABEL_LINE_HEIGHT);
 export const CONTENT_HEIGHT = CARD_HEIGHT - CARD_PADDING_Y * 2;
 export const TEXT_BUDGET = CONTENT_HEIGHT - LABEL_MARGIN_TOP - LABEL_TEXT_HEIGHT;
+
+// Mirrors HeadlineCard.astro's "submitted by {name}" credit so a submission's
+// preview carries the same attribution its live card does. Same font/line-height
+// as the parody label, so it reuses LABEL_TEXT_HEIGHT rather than a constant of
+// its own; SUBMITTER_NAME_MAX (40 chars, submissionLimits.ts) keeps the prefixed
+// string comfortably inside one line at the label's full-card column width — see
+// the "fits on one line" test in ogImage.test.ts, which is what actually pins this.
+export function submitterCreditFor(name: string): string {
+  return `submitted by ${name}`;
+}
+export const SUBMITTER_MARGIN_TOP = 10;
 
 const HEADLINE_LINE_HEIGHT = 1.18;
 const STAT_LINE_HEIGHT = 1.35;
@@ -344,7 +355,8 @@ export async function fitText(
 export async function fitCardText(
   headline: Headline,
   columnWidth: number,
-  { cap, floor }: { cap: number; floor: number }
+  { cap, floor }: { cap: number; floor: number },
+  textBudget: number = TEXT_BUDGET
 ): Promise<{ title: FittedText; stat: FittedText | null }> {
   const stat = headline.stat_block
     ? await fitText(headline.stat_block, (fontSize) => statStyle(columnWidth, fontSize), {
@@ -357,7 +369,7 @@ export async function fitCardText(
   const title = await fitText(
     headline.headline,
     (fontSize) => headlineStyle(columnWidth, fontSize),
-    { maxHeight: TEXT_BUDGET - (stat?.height ?? 0), cap, floor }
+    { maxHeight: textBudget - (stat?.height ?? 0), cap, floor }
   );
 
   return { title, stat };
@@ -494,10 +506,15 @@ const FULL_WIDTH_HEADLINE_BOUNDS = { cap: 88, floor: 34 };
 export async function renderOgPng(headline: Headline): Promise<Buffer> {
   const photoDataUrl = await loadPhotoDataUrl(headline.photo_ref);
   const columnWidth = photoDataUrl ? TEXT_COLUMN_WIDTH : FULL_WIDTH_TEXT_COLUMN;
+  const submitterLine = headline.submitter_name
+    ? submitterCreditFor(headline.submitter_name)
+    : null;
+  const submitterBudget = submitterLine ? SUBMITTER_MARGIN_TOP + LABEL_TEXT_HEIGHT : 0;
   const fitted = await fitCardText(
     headline,
     columnWidth,
-    photoDataUrl ? PHOTO_HEADLINE_BOUNDS : FULL_WIDTH_HEADLINE_BOUNDS
+    photoDataUrl ? PHOTO_HEADLINE_BOUNDS : FULL_WIDTH_HEADLINE_BOUNDS,
+    TEXT_BUDGET - submitterBudget
   );
 
   // With a photo: the mounted print on the left at a third of the card's width,
@@ -589,6 +606,24 @@ export async function renderOgPng(headline: Headline): Promise<Buffer> {
                 },
               },
               contentNode,
+              submitterLine && {
+                type: 'div',
+                props: {
+                  style: {
+                    display: 'flex',
+                    justifyContent: 'center',
+                    width: `${FULL_WIDTH_TEXT_COLUMN}px`,
+                    marginTop: `${SUBMITTER_MARGIN_TOP}px`,
+                  },
+                  children: {
+                    type: 'p',
+                    props: {
+                      style: { ...labelNodeStyle, color: `${INK_SOFT}CC` },
+                      children: submitterLine,
+                    },
+                  },
+                },
+              },
               // flexGrow on the content block pins the label to the card's
               // bottom edge, so it sits in the same place on every preview
               // instead of floating with the headline's length. Centred by a
@@ -615,7 +650,7 @@ export async function renderOgPng(headline: Headline): Promise<Buffer> {
                   },
                 },
               },
-            ],
+            ].filter(Boolean),
           },
         },
       },
