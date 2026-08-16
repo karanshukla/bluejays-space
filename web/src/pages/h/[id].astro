@@ -4,6 +4,7 @@ import HeadlineCard from '../../components/HeadlineCard.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
 import { getHeadlineById, getPublishedHeadlinesPaged } from '../../lib/db';
 import { permalinkPath } from '../../lib/slug';
+import { permalinkDescription } from '../../lib/permalinkMeta';
 
 export const prerender = false;
 
@@ -46,9 +47,7 @@ const headlines = backdrop.some((h) => h.id === id)
 // the first render for that headline's current content.
 const ogImage = `/api/og/${id}.png`;
 
-const description = headline.stat_block
-  ? `${headline.stat_block} - ${DEFAULT_DESCRIPTION}`
-  : undefined;
+const description = permalinkDescription(headline, DEFAULT_DESCRIPTION);
 ---
 
 <Base

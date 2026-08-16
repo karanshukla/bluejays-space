@@ -53,7 +53,7 @@ All of the above run in CI (`.github/workflows/ci.yml`) on every push/PR, plus a
 
 ## Code comments
 
-Don't add comments above functions or inline unless the WHY is genuinely non-obvious (a hidden constraint, a subtle invariant, a workaround for a specific bug). Well-named identifiers should make the WHAT self-evident. Before reaching for a comment, check whether the explanation can instead be expressed through abstraction or encapsulation — e.g. business logic embedded in a route or component should move to a self-commenting, domain-named function in a service layer rather than being explained in a comment. Favor human-readable, domain-driven names and logical flow over prose explanations, while keeping code legible to agents working in this repo.
+A comment is the last resort — work down the ladder before writing prose: extract the logic into a domain-named function or constant, name the sentinel/block instead of labelling it, pin a business rule with a test pair (or an E2E spec for a cross-service rule), and only then fall back to prose for a genuinely non-obvious constraint (a hidden invariant, an upstream bug, incident history). Well-named identifiers should make the WHAT self-evident; comments are for the WHY. See [`docs/comment-style.md`](./docs/comment-style.md) for the full ladder, rationale, and worked examples from this repo.
 
 ## What's real vs. stubbed right now
 
