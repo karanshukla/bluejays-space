@@ -11,14 +11,14 @@
 // data-next-page so the observer knows whether to fetch again.
 import HeadlineCard from '../components/HeadlineCard.astro';
 import { getPublishedHeadlinesPaged } from '../lib/db';
+import { nextPageAfter } from '../lib/pagination';
 
 export const prerender = false;
 
 const page = Math.max(1, Number(Astro.url.searchParams.get('page')) || 1);
 const { rows, page: current, totalPages } = await getPublishedHeadlinesPaged({ page });
 
-// 0 = last page reached; the observer treats that as "done".
-const nextPage = current < totalPages ? current + 1 : 0;
+const nextPage = nextPageAfter(current, totalPages);
 ---
 
 <ul class="scrapbook-grid feed-fragment" data-next-page={nextPage}>

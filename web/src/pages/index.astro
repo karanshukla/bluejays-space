@@ -3,6 +3,7 @@ import Base from '../layouts/Base.astro';
 import HeadlineCard from '../components/HeadlineCard.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import { getPublishedHeadlinesPaged } from '../lib/db';
+import { nextPageAfter } from '../lib/pagination';
 
 export const prerender = false;
 
@@ -11,8 +12,7 @@ export const prerender = false;
 // IntersectionObserver below. Pagination is plain page numbers (OFFSET), shared
 // with the admin tab — see getPublishedHeadlinesPaged in lib/db.ts.
 const { rows, totalPages } = await getPublishedHeadlinesPaged({ page: 1 });
-// 0 = last page reached; the observer treats that as "done".
-const nextPage = totalPages > 1 ? 2 : 0;
+const nextPage = nextPageAfter(1, totalPages);
 ---
 
 <Base title="bluejays.space">
@@ -47,6 +47,7 @@ const nextPage = totalPages > 1 ? 2 : 0;
       rememberOpenedCard,
       FEED_SCROLL_KEY,
     } from '../scripts/cardInteractions';
+    import { NO_NEXT_PAGE } from '../lib/pagination';
 
     bindCopyLinks();
     rememberOpenedCard();
@@ -83,8 +84,7 @@ const nextPage = totalPages > 1 ? 2 : 0;
     // page its own self-contained column box means earlier pages never
     // recompute: cards stay exactly where they first painted. The tradeoff is a
     // slight ragged seam between every page (≈12 cards), which reads as natural
-    // scrapbook spacing. Stops when the fragment reports page 0 (last page).
-    // Re-binds copy-link to injected cards.
+    // scrapbook spacing. Re-binds copy-link to injected cards.
     const feed = document.getElementById('feed');
     const sentinel = document.getElementById('feed-sentinel');
     if (feed && sentinel && 'IntersectionObserver' in window) {
@@ -94,7 +94,7 @@ const nextPage = totalPages > 1 ? 2 : 0;
       const loadMore = async () => {
         if (loading || done) return;
         const nextPage = Number(feed.dataset.nextPage);
-        if (!nextPage) {
+        if (nextPage === NO_NEXT_PAGE) {
           done = true;
           return;
         }
@@ -116,9 +116,8 @@ const nextPage = totalPages > 1 ? 2 : 0;
           // Insert the page as its own self-contained column block ahead of the
           // sentinel. Earlier blocks never reflow → no shuffle (issue #141).
           sentinel.before(list);
-          // Adopt the fragment's next-page number; 0 = last page, stop.
-          feed.dataset.nextPage = list.dataset.nextPage ?? '0';
-          if (!Number(feed.dataset.nextPage)) done = true;
+          feed.dataset.nextPage = list.dataset.nextPage ?? String(NO_NEXT_PAGE);
+          if (Number(feed.dataset.nextPage) === NO_NEXT_PAGE) done = true;
           bindCopyLinks(list);
         } catch {
           // Network errors shouldn't kill the observer — just skip this round.
