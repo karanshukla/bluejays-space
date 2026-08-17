@@ -33,7 +33,7 @@
     "@resvg/resvg-js": "^2.6.2",
     "astro": "^7.2.0",
     "jose": "^6.2.8",
-    "pg": "^8.13.1",
+    "pg": "^8.23.0",
     "satori": "^0.29.0",
     "sharp": "^0.35.3",
     "svelte": "^5.56.8",
@@ -42,7 +42,7 @@
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
     "@tailwindcss/vite": "^4.3.3",
-    "@types/pg": "^8.20.4",
+    "@types/pg": "^8.21.0",
     "oxlint": "^1.77.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
