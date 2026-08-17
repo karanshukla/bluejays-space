@@ -18,7 +18,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.117.1",
     "@aws-sdk/client-s3": "^3.1110.0",
-    "pg": "^8.13.1"
+    "pg": "^8.23.0"
   },
   "devDependencies": {
     "oxlint": "^1.78.0"
