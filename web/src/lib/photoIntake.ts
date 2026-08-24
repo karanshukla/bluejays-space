@@ -1,8 +1,9 @@
 import { storeImageBytes, isAllowedImageType, MAX_BYTES } from './photoImport';
 import { safeFetch } from './urlSafety';
+import type { Response as UndiciResponse } from 'undici';
 
 async function importFromUrl(url: string): Promise<string> {
-  let res: Response;
+  let res: UndiciResponse;
   try {
     res = await safeFetch(url);
   } catch (err) {

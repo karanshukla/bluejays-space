@@ -1,6 +1,6 @@
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
-import { Agent } from 'undici';
+import { Agent, fetch as undiciFetch, type Response as UndiciResponse } from 'undici';
 
 // Guards admin-supplied photo URLs against SSRF: refuses to fetch hosts that
 // resolve to private, loopback, link-local, or cloud-metadata addresses, and
@@ -76,6 +76,11 @@ async function resolvePublicHttpUrl(rawUrl: string): Promise<ResolvedAddress> {
 // host whose DNS answers public-then-private (rebinding) sails past the
 // address checks above. The hostname still travels in the URL, so the Host
 // header and TLS SNI — and therefore certificate validation — are unaffected.
+//
+// Must be dispatched via undici's own fetch(), not Node's global fetch: the
+// global fetch is backed by whatever undici version ships inside the Node
+// runtime, and handing it an Agent from a different major version of the npm
+// package trips undici's internal handler-shape validation.
 export function pinnedDispatcher({ address, family }: ResolvedAddress): Agent {
   return new Agent({
     connect: {
@@ -94,13 +99,13 @@ function release(dispatcher: Agent): void {
 
 // Drop-in replacement for fetch() that validates the target host (and every
 // redirect hop) isn't a private/internal address before connecting to it.
-export async function safeFetch(rawUrl: string, maxRedirects = 5): Promise<Response> {
+export async function safeFetch(rawUrl: string, maxRedirects = 5): Promise<UndiciResponse> {
   let current = rawUrl;
   for (let i = 0; i <= maxRedirects; i++) {
     const dispatcher = pinnedDispatcher(await resolvePublicHttpUrl(current));
-    let res: Response;
+    let res: UndiciResponse;
     try {
-      res = await fetch(current, { redirect: 'manual', dispatcher } as RequestInit);
+      res = await undiciFetch(current, { redirect: 'manual', dispatcher });
     } catch (err) {
       release(dispatcher);
       throw err;
