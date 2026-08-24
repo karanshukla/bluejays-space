@@ -5,31 +5,28 @@ import type { AddressInfo } from 'node:net';
 const lookup = vi.fn();
 vi.mock('node:dns/promises', () => ({ lookup: (...args: unknown[]) => lookup(...args) }));
 
-const { safeFetch, pinnedDispatcher } = await import('./urlSafety');
+const fetchMock = vi.fn();
+vi.mock('undici', async () => {
+  const actual = await vi.importActual<typeof import('undici')>('undici');
+  return { ...actual, fetch: fetchMock };
+});
 
-const realFetch = global.fetch;
+const { safeFetch, pinnedDispatcher } = await import('./urlSafety');
+const { fetch: realFetch } = await vi.importActual<typeof import('undici')>('undici');
 
 describe('safeFetch', () => {
-  const originalFetch = global.fetch;
-
   beforeEach(() => {
     lookup.mockReset();
-    global.fetch = vi.fn();
-  });
-
-  afterAll(() => {
-    global.fetch = originalFetch;
+    fetchMock.mockReset();
   });
 
   it('fetches a URL whose hostname resolves to a public address', async () => {
     lookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-      new Response('ok', { status: 200 })
-    );
+    fetchMock.mockResolvedValue(new Response('ok', { status: 200 }));
 
     const res = await safeFetch('https://example.com/photo.jpg');
     expect(res.status).toBe(200);
-    expect(global.fetch).toHaveBeenCalledWith(
+    expect(fetchMock).toHaveBeenCalledWith(
       'https://example.com/photo.jpg',
       expect.objectContaining({ redirect: 'manual' })
     );
@@ -39,14 +36,12 @@ describe('safeFetch', () => {
     lookup
       .mockResolvedValueOnce([{ address: '93.184.216.34', family: 4 }])
       .mockResolvedValue([{ address: '169.254.169.254', family: 4 }]);
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
-      new Response('ok', { status: 200 })
-    );
+    fetchMock.mockResolvedValue(new Response('ok', { status: 200 }));
 
     await safeFetch('https://rebind.example.com/photo.jpg');
 
     expect(lookup).toHaveBeenCalledTimes(1);
-    const init = (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1] as RequestInit & {
+    const init = fetchMock.mock.calls[0][1] as RequestInit & {
       dispatcher?: unknown;
     };
     expect(init.dispatcher).toBeDefined();
@@ -55,7 +50,7 @@ describe('safeFetch', () => {
   it('rejects an IP literal in a private range without a DNS lookup', async () => {
     await expect(safeFetch('http://192.168.1.5/secret')).rejects.toThrow('private address');
     expect(lookup).not.toHaveBeenCalled();
-    expect(global.fetch).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('rejects the cloud metadata address', async () => {
@@ -71,7 +66,7 @@ describe('safeFetch', () => {
   it('rejects a hostname that resolves to a private address', async () => {
     lookup.mockResolvedValue([{ address: '10.0.0.5', family: 4 }]);
     await expect(safeFetch('http://internal.example.com/')).rejects.toThrow('private address');
-    expect(global.fetch).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('rejects non-http(s) protocols', async () => {
@@ -82,7 +77,7 @@ describe('safeFetch', () => {
     lookup
       .mockResolvedValueOnce([{ address: '93.184.216.34', family: 4 }])
       .mockResolvedValueOnce([{ address: '93.184.216.35', family: 4 }]);
-    (global.fetch as ReturnType<typeof vi.fn>)
+    fetchMock
       .mockResolvedValueOnce(
         new Response(null, { status: 302, headers: { location: 'https://cdn.example.com/x.jpg' } })
       )
@@ -90,17 +85,17 @@ describe('safeFetch', () => {
 
     const res = await safeFetch('https://example.com/redirect');
     expect(res.status).toBe(200);
-    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('rejects a redirect to a private address instead of following it', async () => {
     lookup.mockResolvedValueOnce([{ address: '93.184.216.34', family: 4 }]);
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+    fetchMock.mockResolvedValueOnce(
       new Response(null, { status: 302, headers: { location: 'http://169.254.169.254/' } })
     );
 
     await expect(safeFetch('https://example.com/redirect')).rejects.toThrow('private address');
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -124,9 +119,7 @@ describe('pinnedDispatcher', () => {
     // header proves the hostname (and so TLS SNI) survives the pinning.
     const dispatcher = pinnedDispatcher({ address: '127.0.0.1', family: 4 });
     try {
-      const res = await realFetch(`http://rebind.invalid:${port}/`, {
-        dispatcher,
-      } as RequestInit);
+      const res = await realFetch(`http://rebind.invalid:${port}/`, { dispatcher });
       expect(await res.text()).toBe(`rebind.invalid:${port}`);
     } finally {
       await dispatcher.close();

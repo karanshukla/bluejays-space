@@ -1,6 +1,7 @@
 import sharp from 'sharp';
 import { uploadImage } from './storage';
 import { safeFetch } from './urlSafety';
+import type { Response as UndiciResponse } from 'undici';
 
 export const MAX_BYTES = 15 * 1024 * 1024;
 
@@ -105,7 +106,7 @@ export async function storeImageBytes(
 export async function resolvePhotoRef(value: string | null): Promise<string | null> {
   if (!value || !isHttpUrl(value)) return value;
 
-  let res: Response;
+  let res: UndiciResponse;
   try {
     res = await safeFetch(value);
   } catch (err) {
