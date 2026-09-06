@@ -1,9 +1,3 @@
-// Applies web/db/schema.sql against DATABASE_URL on every boot, before the
-// server accepts traffic. schema.sql is idempotent (CREATE/IF NOT EXISTS), so
-// re-running the whole file is safe — until a non-repeatable migration (data
-// backfill, destructive rename) is needed, at which point adopt a real tool.
-// Guarded by a Postgres advisory lock so overlapping instances can't run it
-// concurrently.
 import pg from 'pg';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';

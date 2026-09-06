@@ -3,15 +3,7 @@
     name?: string;
     currentRef?: string | null;
     onchange?: (key: string | null) => void;
-    // Where uploads/URL fetches are posted. Defaults to the admin route;
-    // the public submission form (submit.astro) passes /api/submit-photo,
-    // its own rate-limited, unauthenticated equivalent.
     importEndpoint?: string;
-    // Admin usage lets you paste an already-uploaded object key straight
-    // into the URL field, skipping the import round-trip. A public
-    // submitter has no legitimate reason to do that (there's no prior
-    // upload of theirs to reference), so submit.astro turns this off and
-    // treats any non-http(s) input as a mistake instead of a raw key.
     allowRawKey?: boolean;
   };
   let {
@@ -22,6 +14,7 @@
     allowRawKey = true,
   }: Props = $props();
 
+  // svelte-ignore state_referenced_locally
   let key = $state<string | null>(currentRef);
   let urlInput = $state('');
   let uploading = $state(false);
@@ -32,10 +25,6 @@
   let previewBust = $state(0);
   const MAX_PREVIEW_RETRIES = 4;
 
-  // 'published' frames the photo exactly as a live card will crop it (4:3,
-  // .published-crop in global.css); 'full' shows the whole source. You need
-  // both to judge a photo: the first is what ships, the second is what the
-  // first is cutting off.
   const VIEWS = [
     { value: 'published', label: 'As published' },
     { value: 'full', label: 'Full image' },
@@ -47,16 +36,10 @@
   let naturalWidth = $state(0);
   let naturalHeight = $state(0);
 
-  // storeImageBytes resizes uploads to 1024w (and a 640w variant) but never
-  // enlarges, so anything narrower than 640 is already below the small
-  // variant the feed serves and will look soft on a card at 2x DPR.
   const SOFT_BELOW_WIDTH = 640;
   const looksSoft = $derived(naturalWidth > 0 && naturalWidth < SOFT_BELOW_WIDTH);
-
   const previewSrc = $derived(`/api/images/${key}${previewBust ? `?r=${previewBust}` : ''}`);
 
-  // Move focus into the overlay when it opens so Escape reaches it and tab
-  // order doesn't stay behind on the draft form underneath.
   $effect(() => {
     if (expanded) overlay?.focus();
   });
@@ -163,15 +146,13 @@
   {#if key}
     <div class="space-y-2">
       <div class="relative mx-auto w-full max-w-sm">
-        <!-- The preview is a button so the whole frame opens the full-size
-             view; type="button" matters because this component renders inside
-             the draft edit <form> in DraftCard.svelte. -->
         <button
           type="button"
           onclick={() => (expanded = true)}
           class="group block w-full cursor-zoom-in overflow-hidden rounded border border-paper-edge bg-paper focus-visible:ring-2 focus-visible:ring-blue/40 focus-visible:outline-none"
           title="View full size"
         >
+          <!-- svelte-ignore a11y_img_redundant_alt -->
           <img
             src={previewSrc}
             onerror={retryPreview}
@@ -242,6 +223,7 @@
       }}
       class="fixed inset-0 z-50 flex items-center justify-center bg-ink/80 p-6"
     >
+      <!-- svelte-ignore a11y_img_redundant_alt -->
       <img
         src={previewSrc}
         alt="Attached photo at full size"

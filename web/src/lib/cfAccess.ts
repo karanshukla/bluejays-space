@@ -35,9 +35,6 @@ export async function verifyJwtWithLocalKeys(
   return verifiedUser(payload);
 }
 
-// Verifies against the team's remote JWKS so the gate holds even when a request
-// reaches the Node process without passing Cloudflare's edge (e.g. Railway's
-// direct *.up.railway.app domain, which bypasses Access path-scoping).
 export async function verifyCfAccessJwt(token: string): Promise<VerifiedUser> {
   const audience = process.env.CF_ACCESS_AUD;
   if (!audience) throw new Error('CF_ACCESS_AUD not set');
