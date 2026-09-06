@@ -1,20 +1,3 @@
-# Local development for the bluejays.space stack.
-#   docker compose up -d            -> db + minio + web (hot-reload dev)
-#   docker compose run --rm classify -> one-shot draft-classification run (manual profile)
-#   docker compose down -v          -> tear down + drop the Postgres/MinIO volumes
-#
-# minio is a self-hosted S3-compatible object store standing in for Cloudflare
-# R2 — same API, no external account needed. Console: http://localhost:9001
-# (login with MINIO_ROOT_USER/MINIO_ROOT_PASSWORD, both default to dev-only
-# values below). The bucket itself is created at runtime by classify/web, not
-# provisioned here.
-#
-# The handles/ Go service has its own Dockerfile and is deployed separately;
-# run it standalone with:  docker build -t handles handles/ && docker run -p 8080:8080 handles
-#
-# Each service also ships a production Dockerfile that Railway builds from;
-# this compose is for local dev only.
-
 name: bluejays-space
 
 services:
@@ -73,6 +56,10 @@ services:
       # defaults to localhost; production sets SITE_URL=https://bluejays.space
       # in the Railway dashboard.
       SITE_URL: ${SITE_URL:-http://localhost:4321}
+      # Header link to the handles service. Production leaves this unset and
+      # lets it derive handles.<site host>; locally that host resolves nowhere,
+      # so point it at the compose `handles` service's published port.
+      HANDLES_URL: ${HANDLES_URL:-http://localhost:8080}
       # Cloudflare Access — middleware skips verification in dev (NODE_ENV unset
       # in the builder stage), so these stay blank locally. Set in production.
       CF_ACCESS_TEAM: ${CF_ACCESS_TEAM:-}
@@ -96,7 +83,34 @@ services:
     # so dev and prod stay consistent. For hot-reload, swap to:
     #   npx astro dev --host 0.0.0.0
     entrypoint: ['/bin/sh', '/app/docker-entrypoint-dev.sh']
-    command: sh -c "npx astro build && npx astro preview --host 0.0.0.0"
+    # --force replaces the lock in web/.astro/preview.json. That file records
+    # the previous run's PID and lives in the bind-mounted source tree, so it
+    # outlives the container: every recreation met a lock naming a PID that no
+    # longer exists and refused to start. Nothing else can hold port 4321
+    # inside a freshly started container, so the lock is always stale here.
+    command: sh -c "npx astro build && npx astro preview --host 0.0.0.0 --force"
+
+  handles:
+    # Go service serving AT Protocol DID files for @user.bluejays.space Bluesky
+    # handles, plus the request form. No db/minio dependency — it reads
+    # handles.json. Deployed to Railway as its own service behind a
+    # *.bluejays.space wildcard; see handles/README.md.
+    #
+    # Templates and static assets are compiled into the binary via //go:embed,
+    # so a bind mount would not pick up edits. Rebuild to see template/CSS
+    # changes:  docker compose up -d handles --build
+    build: ./handles
+    ports:
+      - '8080:8080'
+    environment:
+      # Locally the wildcard subdomains don't resolve, so the DID route can't
+      # be exercised end to end; this keeps the rendered page matching prod.
+      # Set BASE_DOMAIN=localhost in .env to test <user>.localhost:8080 instead.
+      BASE_DOMAIN: ${BASE_DOMAIN:-bluejays.space}
+      HANDLES_FILE: ${HANDLES_FILE:-handles.json}
+      # Blank locally: the request form returns an error instead of opening a PR.
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      GITHUB_REPO: ${GITHUB_REPO:-karanshukla/bluejays-space}
 
   classify:
     build: ./classify
