@@ -5,7 +5,7 @@ import PhotoInput from '../components/PhotoInput.svelte';
 import {
   HEADLINE_MAX,
   SUBMITTER_NAME_MAX,
-  STAT_BLOCK_MAX,
+  SUBTITLE_MAX,
   SOURCE_NOTE_MAX,
 } from '../lib/submissionLimits';
 
@@ -64,18 +64,18 @@ const errorMessage: Record<string, string> = {
             required
             rows="3"
             maxlength={HEADLINE_MAX}
-            placeholder={`e.g. "Bo Bichette's bat found unresponsive at scene"`}
+            placeholder={`e.g. "Vladimir Guerrero Jr.'s bat found unresponsive at scene"`}
             class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-base text-ink font-display"
           ></textarea>
         </label>
 
         <label class="block text-sm font-medium text-ink">
-          Stat block/Subtitle <span class="font-normal text-ink-soft/70">(optional)</span>
+          Subtitle <span class="font-normal text-ink-soft/70">(optional)</span>
           <input
-            name="stat_block"
-            maxlength={STAT_BLOCK_MAX}
-            placeholder="e.g. .320 AVG, 40 HR"
-            class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink font-mono text-sm"
+            name="subtitle"
+            maxlength={SUBTITLE_MAX}
+            placeholder={`e.g. "Teammates say it had been quiet since the All-Star break"`}
+            class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-base text-ink italic font-display"
           />
         </label>
 

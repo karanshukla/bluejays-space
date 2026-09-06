@@ -48,7 +48,7 @@ describe('createSubmittedHeadline', () => {
 
     await createSubmittedHeadline({
       headline: 'Bo Bichette drafted by three teams simultaneously',
-      stat_block: '.311 AVG',
+      subtitle: 'Sources close to the situation are baffled',
       photo_ref: 'admin/123-bo.webp',
       source_note: 'saw it on the subway',
       submitter_name: 'A Fan',
@@ -56,7 +56,7 @@ describe('createSubmittedHeadline', () => {
 
     expect(query).toHaveBeenCalledWith(expect.stringContaining("'submission'"), [
       'Bo Bichette drafted by three teams simultaneously',
-      '.311 AVG',
+      'Sources close to the situation are baffled',
       'admin/123-bo.webp',
       'saw it on the subway',
       'A Fan',
@@ -68,7 +68,7 @@ describe('createSubmittedHeadline', () => {
 
     await createSubmittedHeadline({
       headline: 'Anonymous tip',
-      stat_block: null,
+      subtitle: null,
       photo_ref: null,
       source_note: null,
       submitter_name: null,

@@ -75,14 +75,14 @@ Headlines are DB-backed, not git-file-based (Astro Content Collections don't fit
 - **Auth**: gate `/admin` behind Cloudflare Access, same pattern already in use for the Asher Remote MCP server — no custom auth to build
 - **Layout**: `/admin` is a single tabbed column — **Drafts** (the review queue), **Published** (paginated, editable — unpublish pulls one back to a draft for another edit), **New** (create-from-scratch form). Tab + page state lives in the URL (`?tab=…&page=…`) so it survives the `location.reload()` that publish/unpublish trigger and is shareable. Replaced an earlier two-column "main queue + sticky rail" layout when editing published posts inline got too cramped in the rail.
 - **Flow**: admin creates a draft (`status: draft`) directly in the admin UI → the classifier job assigns a topic category + safety verdict (auto-discarding `blocked` drafts) → admin page lists remaining drafts → edit text inline → publish flips `status: published` and sets a timestamp → public feed only queries published rows. Register-2 real-fact-anchored drafts (fabricated premise + a real connecting fact) should be visually flagged in the admin list for extra scrutiny — the connecting fact is the one part of an otherwise-fictional headline that's a genuine factual claim, and needs to actually be checked before publish, not just skimmed.
-- **Fields per row**: `headline`, `stat_block`, `photo_ref`, `source_post_url` + `source_note` (optional), `status`, `created_at`, `published_at`
+- **Fields per row**: `headline`, `subtitle`, `photo_ref`, `source_post_url` + `source_note` (optional), `status`, `created_at`, `published_at`
 
 ### 3. Sharing & Discovery
 
 The whole point of a FAX-Sports-style site is that individual headlines get shared — a feed with no way to link, unfurl, or subscribe to a single entry undercuts the concept. This feature has a full, ready-to-implement technical spec in `docs/frontend-roadmap.md` § 1 — this section states the product requirement and the decisions already made; that doc carries the route paths, exact meta tags, and library choices.
 
-- **Permalinks**: every published headline gets its own stable, shareable URL (`/h/{id}`) showing that one card — headline, stat block, photo, source note — standalone. A draft's URL 404s rather than leaking unreviewed content.
-- **Open Graph / Twitter Card previews**: sharing a permalink on Bluesky/Discord/iMessage/Slack renders a real preview card (title, image, description), not a bare link. The preview image is generated per headline (headline text + stat block composited over the photo), not just the raw stored photo — see the Parody Labeling section above for the one content decision this feature required: the generated preview image carries the same small parody label as the site footer.
+- **Permalinks**: every published headline gets its own stable, shareable URL (`/h/{id}`) showing that one card — headline, subtitle, photo, source note — standalone. A draft's URL 404s rather than leaking unreviewed content.
+- **Open Graph / Twitter Card previews**: sharing a permalink on Bluesky/Discord/iMessage/Slack renders a real preview card (title, image, description), not a bare link. The preview image is generated per headline (headline text + subtitle composited over the photo), not just the raw stored photo — see the Parody Labeling section above for the one content decision this feature required: the generated preview image carries the same small parody label as the site footer.
 - **RSS feed** (`/feed.xml`) of published headlines — lets people follow the site without an account (accounts are out of scope, see below).
 - **Public feed pagination**: `/` renders the first page server-side (SEO- and no-JS-friendly) and infinite-scrolls the rest via an `IntersectionObserver` that fetches `/feed-fragment?page=N` — an HTML fragment rendered through the same `HeadlineCard` as the first page, so there is exactly one card template in the codebase. Pagination is plain page-number OFFSET, shared with the admin Published tab (`getPublishedHeadlinesPaged`); an earlier keyset cursor on `(published_at, id)` was dropped because `pg` returns `timestamptz` as a JS `Date`, whose `.toString()` form Postgres can't reparse, so the fragment query 500'd on prod. The permalink backdrop (`/h/{id}`) is likewise capped to the first page rather than loading the full history.
 - **Sitemap** (`/sitemap.xml`) and **`robots.txt`** — the public feed and every permalink are indexable; `/admin` is explicitly excluded from both (Cloudflare Access already blocks crawlers from reading it, but there's no reason to advertise the path either).
@@ -114,7 +114,7 @@ bluejays-classify run:
   4. fetch_mlb_context() — MLB Stats MCP only: record, standings, recent games (Statcast MCP dropped — non-functional)
   5. for each register:
        generate_headline(context, candidate_posts, style_reference, register, temperature)
-       → { headline, stat_block, source_post_url, source_note }
+       → { headline, subtitle, source_post_url, source_note }
   6. if register 1 headline reuses a fetched image → download + store to object storage,
      save the storage ref (not a hotlink to Reddit/Bluesky's CDN)
   7. insert draft row(s) into headlines table
@@ -126,7 +126,7 @@ bluejays-web (always-on):
   /        → queries published rows only, renders public feed
 ```
 
-**Current data flow:** an admin authors a draft directly in `/admin` (headline, register, stat block, source note, photo — the photo either uploaded, pasted, or imported from a URL); `bluejays-classify` periodically classifies any draft with `classified_at IS NULL`, writing back `category`/`safety_status`/`safety_reason` and auto-discarding `blocked` verdicts; the admin reviews (safety flag included) and publishes.
+**Current data flow:** an admin authors a draft directly in `/admin` (headline, register, subtitle, source note, photo — the photo either uploaded, pasted, or imported from a URL); `bluejays-classify` periodically classifies any draft with `classified_at IS NULL`, writing back `category`/`safety_status`/`safety_reason` and auto-discarding `blocked` verdicts; the admin reviews (safety flag included) and publishes.
 
 ### Image Storage
 
@@ -161,7 +161,7 @@ This section describes the original two-register generation design, retained as 
               [LLM headline generation]
               - Register 1: real-event riff — may draw directly on a specific fetched post (text/pun/image) as source material
               - Register 2: fabricated-scenario, deadpan real-news framing — no real source, MLB Stats context only
-              - Output: draft headline + suggested stat block + suggested player tag + source post/image ref (register 1 only)
+              - Output: draft headline + suggested subtitle + suggested player tag + source post/image ref (register 1 only)
                             ↓
               [Store as draft row in headlines table]
                             ↓
@@ -179,7 +179,7 @@ The register 1/register 2 headline styles themselves are still the target voice 
 The LLM classifies; it does not draft or publish. Headlines are authored directly by the admin in `/admin`. One classification step per draft, replacing the original single generation step described above.
 
 **Draft Classifier** (`classify/src/classify.js`)
-- Inputs: the draft's headline text, stat block, and source note, plus its attached photo when present (Claude vision)
+- Inputs: the draft's headline text, subtitle, and source note, plus its attached photo when present (Claude vision)
 - Task: assign a topic category (`game-recap`, `trade-rumor`, `stat-line`, `injury`, `roster-move`, `fabrication`, `off-field`, `other`) and a safety verdict (`safe`, `review`, `blocked`) — see `classify/src/classify.js` → `buildSystemPrompt()` for the full rubric, which is written to account for this being a parody site (fabricated scenarios and rough-on-the-field commentary about public figures are expected and safe; doxxing, threats, and sexualization of minors are always `blocked`)
 - Output: `{ category, safety_status, safety_reason }`, written back onto the draft row (`category`, `safety_status`, `safety_reason`, `classified_at`)
 - `blocked` verdicts are auto-discarded (`status = 'discarded'`) without admin action; `safe` and `review` just get flagged for the admin, who is the actual publish gate either way

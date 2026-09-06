@@ -6,14 +6,15 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Headline } from './db';
 import { getImage } from './storage';
-import { variantFor } from './cardVariants';
+import { PHOTO_MOUNT_TILTS, photoMountFor } from './cardVariants';
 
 // Loaded once, reused across renders. Satori needs the raw font binary (TTF/
 // OTF/WOFF, not woff2); @fontsource ships a .woff alongside the .woff2.
 // Resolved from cwd (the project root in dev, /app in the Docker image) because
 // the built server chunks live in dist/ and import.meta.url points there, not
 // at the source tree where node_modules actually sits.
-let fontsCache: { name: string; data: Buffer; weight: 400 | 600; style: 'normal' }[] | undefined;
+let fontsCache:
+  { name: string; data: Buffer; weight: 400 | 600; style: 'normal' | 'italic' }[] | undefined;
 
 function loadFonts() {
   if (fontsCache) return fontsCache;
@@ -24,6 +25,12 @@ function loadFonts() {
       data: readFileSync(join(files, 'fraunces/files/fraunces-latin-600-normal.woff')),
       weight: 600 as const,
       style: 'normal' as const,
+    },
+    {
+      name: 'Fraunces',
+      data: readFileSync(join(files, 'fraunces/files/fraunces-latin-400-italic.woff')),
+      weight: 400 as const,
+      style: 'italic' as const,
     },
     {
       name: 'Space Mono',
@@ -42,13 +49,13 @@ const OG_HEIGHT = 630;
 // content-hash key and served back with a one-year immutable cache, so without
 // this a redesign would only ever reach headlines created after it shipped —
 // every existing preview would keep serving its old bytes forever.
-const OG_LAYOUT_VERSION = 3;
+const OG_LAYOUT_VERSION = 4;
 
 // Content hash of the fields that affect the rendered image. An admin edit
 // changes the hash, so the old cached PNG is never looked up again (an orphan
 // swept by the general image-cleanup pass in docs/backend-api-plan.md item 3).
 export function ogCacheKey(headline: Headline): string {
-  const content = `v${OG_LAYOUT_VERSION}|${headline.headline}|${headline.stat_block ?? ''}|${headline.photo_ref ?? ''}|${headline.submitter_name ?? ''}`;
+  const content = `v${OG_LAYOUT_VERSION}|${headline.headline}|${headline.subtitle ?? ''}|${headline.photo_ref ?? ''}|${headline.submitter_name ?? ''}`;
   const hash = createHash('sha256').update(content).digest('hex').slice(0, 12);
   return `og/${headline.id}-${hash}.png`;
 }
@@ -60,7 +67,6 @@ const CARD = '#ffffff';
 const INK = '#14213d';
 const INK_SOFT = '#3d5578';
 const PAPER_EDGE = '#b8cbe8';
-const BLUE = '#134a8e';
 const TAPE = '#1e4d8c';
 const TAPE_ALT = '#c8102e';
 
@@ -111,16 +117,12 @@ const PHOTO_TEXT_GAP = 40;
 const TEXT_COLUMN_WIDTH = CARD_WIDTH - CARD_PADDING_X * 2 - MOUNT_WIDTH - PHOTO_TEXT_GAP;
 const FULL_WIDTH_TEXT_COLUMN = CARD_WIDTH - CARD_PADDING_X * 2;
 
-// Mirrors the live card's per-headline photo tilt (.mount-a..g in global.css),
-// drawn with the same seed so a headline's preview leans the way its card does.
-const MOUNT_TILT_SEED = 1;
-const MOUNT_TILTS = [-1.7, 1.3, -0.7, 2, -1.1, 0.6, -2];
-
+// Leans the preview photo the way the live card leans it, off the same mount.
 export function photoTiltFor(id: number): number {
-  return variantFor(id, MOUNT_TILTS, MOUNT_TILT_SEED);
+  return PHOTO_MOUNT_TILTS[photoMountFor(id)];
 }
 
-// Vertical budget the headline and stat block have to share. The parody label
+// Vertical budget the headline and subtitle block have to share. The parody label
 // is pinned to the card's bottom edge, so whatever the two text blocks take
 // beyond this pushes it off the canvas — Satori clips nothing and Yoga's
 // flex-shrink defaults to 0, so an over-tall content block is not squeezed, it
@@ -149,18 +151,16 @@ export function submitterCreditFor(name: string): string {
 export const SUBMITTER_MARGIN_TOP = 10;
 
 const HEADLINE_LINE_HEIGHT = 1.18;
-const STAT_LINE_HEIGHT = 1.35;
-const STAT_MARGIN_TOP = 28;
-const STAT_PADDING_TOP = 22;
-const STAT_RULE_WIDTH = 2;
+const SUBTITLE_LINE_HEIGHT = 1.4;
+const SUBTITLE_MARGIN_TOP = 18;
 
-// The headline is what a share is read for, so the stat block is capped at a
+// The headline is what a share is read for, so the subtitle block is capped at a
 // share of the budget rather than being allowed to take whatever it wants and
 // squeeze the headline down to the floor behind it.
-const STAT_BUDGET_SHARE = 0.4;
-const STAT_BUDGET = Math.floor(TEXT_BUDGET * STAT_BUDGET_SHARE);
-const STAT_FONT_CAP = 30;
-const STAT_FONT_FLOOR = 18;
+const SUBTITLE_BUDGET_SHARE = 0.4;
+const SUBTITLE_BUDGET = Math.floor(TEXT_BUDGET * SUBTITLE_BUDGET_SHARE);
+const SUBTITLE_FONT_CAP = 30;
+const SUBTITLE_FONT_FLOOR = 18;
 
 // Tall enough that no measured block is ever clipped by the probe canvas: at
 // the smallest floor above this is well over a hundred lines.
@@ -176,6 +176,7 @@ interface TextBlockStyle {
   fontSize: number;
   fontFamily: 'Fraunces' | 'Space Mono';
   fontWeight: 400 | 600;
+  fontStyle?: 'normal' | 'italic';
   lineHeight: number;
   marginTop?: number;
   paddingTop?: number;
@@ -197,6 +198,7 @@ function textNodeStyle(style: TextBlockStyle) {
     fontSize: `${style.fontSize}px`,
     fontFamily: style.fontFamily,
     fontWeight: style.fontWeight,
+    fontStyle: style.fontStyle ?? 'normal',
     lineHeight: style.lineHeight,
     margin: `${style.marginTop ?? 0}px 0px 0px 0px`,
     paddingTop: `${style.paddingTop ?? 0}px`,
@@ -286,7 +288,7 @@ export function headlineStyle(columnWidth: number, fontSize: number): TextBlockS
 }
 
 // Carries its own chrome (the gap above it and the dashed rule it sits behind)
-// so a measured stat block height is the whole block, not just its text.
+// so a measured subtitle block height is the whole block, not just its text.
 export function labelStyle(columnWidth: number): TextBlockStyle {
   return {
     columnWidth,
@@ -303,16 +305,15 @@ const { width: _labelColumnWidth, ...labelNodeStyle } = textNodeStyle(
   labelStyle(FULL_WIDTH_TEXT_COLUMN)
 );
 
-export function statStyle(columnWidth: number, fontSize: number): TextBlockStyle {
+export function subtitleStyle(columnWidth: number, fontSize: number): TextBlockStyle {
   return {
     columnWidth,
     fontSize,
-    fontFamily: 'Space Mono',
+    fontFamily: 'Fraunces',
     fontWeight: 400,
-    lineHeight: STAT_LINE_HEIGHT,
-    marginTop: STAT_MARGIN_TOP,
-    paddingTop: STAT_PADDING_TOP,
-    borderTopWidth: STAT_RULE_WIDTH,
+    fontStyle: 'italic',
+    lineHeight: SUBTITLE_LINE_HEIGHT,
+    marginTop: SUBTITLE_MARGIN_TOP,
   };
 }
 
@@ -348,43 +349,43 @@ export async function fitText(
   return { text: truncated, fontSize: floor, lines, height };
 }
 
-// Stat block first: it is bounded to a share of the budget regardless of the
+// Subtitle first: it is bounded to a share of the budget regardless of the
 // headline, and the headline then gets everything it leaves behind. Fitting the
-// headline first would let a two-word headline at cap size starve a stat block
+// headline first would let a two-word headline at cap size starve a subtitle block
 // that had room to render at full size.
 export async function fitCardText(
   headline: Headline,
   columnWidth: number,
   { cap, floor }: { cap: number; floor: number },
   textBudget: number = TEXT_BUDGET
-): Promise<{ title: FittedText; stat: FittedText | null }> {
-  const stat = headline.stat_block
-    ? await fitText(headline.stat_block, (fontSize) => statStyle(columnWidth, fontSize), {
-        maxHeight: STAT_BUDGET,
-        cap: STAT_FONT_CAP,
-        floor: STAT_FONT_FLOOR,
+): Promise<{ title: FittedText; subtitle: FittedText | null }> {
+  const subtitle = headline.subtitle
+    ? await fitText(headline.subtitle, (fontSize) => subtitleStyle(columnWidth, fontSize), {
+        maxHeight: SUBTITLE_BUDGET,
+        cap: SUBTITLE_FONT_CAP,
+        floor: SUBTITLE_FONT_FLOOR,
       })
     : null;
 
   const title = await fitText(
     headline.headline,
     (fontSize) => headlineStyle(columnWidth, fontSize),
-    { maxHeight: textBudget - (stat?.height ?? 0), cap, floor }
+    { maxHeight: textBudget - (subtitle?.height ?? 0), cap, floor }
   );
 
-  return { title, stat };
+  return { title, subtitle };
 }
 
 // Total laid-out height of the two text blocks, for the tests that assert a
 // rendered card never pushes the parody label off the bottom edge.
 export function textBlockHeight({
   title,
-  stat,
+  subtitle,
 }: {
   title: FittedText;
-  stat: FittedText | null;
+  subtitle: FittedText | null;
 }): number {
-  return title.height + (stat?.height ?? 0);
+  return title.height + (subtitle?.height ?? 0);
 }
 
 // Fetches the headline's photo and inlines it as a base64 PNG data URL so
@@ -415,12 +416,12 @@ export async function loadPhotoDataUrl(photoRef: string | null): Promise<string 
   }
 }
 
-// Headline first and largest, stat line directly under it behind the same
+// Headline first and largest, subtitle line directly under it behind the same
 // dashed rule the live card uses — the two things a share is actually read for,
 // with nothing else competing for the space. Both sizes come from fitCardText,
 // which measured them against the card's real vertical budget.
 function buildTextChildren(
-  { title, stat }: { title: FittedText; stat: FittedText | null },
+  { title, subtitle }: { title: FittedText; subtitle: FittedText | null },
   columnWidth: number
 ) {
   return [
@@ -431,16 +432,15 @@ function buildTextChildren(
         children: title.text,
       },
     },
-    stat && stat.lines > 0
+    subtitle && subtitle.lines > 0
       ? {
           type: 'p',
           props: {
             style: {
-              ...textNodeStyle(statStyle(columnWidth, stat.fontSize)),
+              ...textNodeStyle(subtitleStyle(columnWidth, subtitle.fontSize)),
               color: INK_SOFT,
-              borderTopColor: `${BLUE}66`,
             },
-            children: stat.text,
+            children: subtitle.text,
           },
         }
       : null,
@@ -518,7 +518,7 @@ export async function renderOgPng(headline: Headline): Promise<Buffer> {
   );
 
   // With a photo: the mounted print on the left at a third of the card's width,
-  // headline and stat line in a column beside it, the two centred against each
+  // headline and subtitle line in a column beside it, the two centred against each
   // other so neither dangles. Without one: the headline takes the full card
   // width and scales up into the space the photo would have used.
   const contentNode = photoDataUrl

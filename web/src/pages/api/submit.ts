@@ -6,7 +6,7 @@ import { PublicRouteLimiter } from '../../lib/rateLimit';
 import {
   HEADLINE_MAX,
   SUBMITTER_NAME_MAX,
-  STAT_BLOCK_MAX,
+  SUBTITLE_MAX,
   SOURCE_NOTE_MAX,
 } from '../../lib/submissionLimits';
 
@@ -35,7 +35,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   }
   const headline = asNullableText(form.get('headline'));
   const submitterName = asNullableText(form.get('submitter_name'));
-  const statBlock = asNullableText(form.get('stat_block'));
+  const subtitle = asNullableText(form.get('subtitle'));
   const sourceNote = asNullableText(form.get('source_note'));
   const photoRef = asNullableText(form.get('photo_ref'));
 
@@ -43,7 +43,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   if (
     headline.length > HEADLINE_MAX ||
     (submitterName?.length ?? 0) > SUBMITTER_NAME_MAX ||
-    (statBlock?.length ?? 0) > STAT_BLOCK_MAX ||
+    (subtitle?.length ?? 0) > SUBTITLE_MAX ||
     (sourceNote?.length ?? 0) > SOURCE_NOTE_MAX
   ) {
     return redirect('/submit?error=too_long', 303);
@@ -57,7 +57,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   // admin-authored draft, this route's only job is getting it in the door.
   await createSubmittedHeadline({
     headline,
-    stat_block: statBlock,
+    subtitle: subtitle,
     photo_ref: photoRef,
     source_note: sourceNote,
     submitter_name: submitterName,

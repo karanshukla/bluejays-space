@@ -1,107 +1,86 @@
--- bluejays.space — baseline schema
---
--- Auto-loaded by Postgres on first volume init (mounted into
--- /docker-entrypoint-initdb.d/ by docker-compose). Provisional — replaceable
--- by a migration tool (e.g. Drizzle) once the apps adopt one.
+CREATE TABLE
+    IF NOT EXISTS handles (
+        handle text PRIMARY KEY,
+        did text UNIQUE NOT NULL,
+        created_at timestamptz NOT NULL DEFAULT now ()
+    );
 
--- Handle directory.
--- Mirrors the invariants enforced by handles/handles.go add():
---   * a handle is locked to exactly one DID  (handle PRIMARY KEY)
---   * a DID can only own one handle          (did UNIQUE)
-CREATE TABLE IF NOT EXISTS handles (
-    handle     text PRIMARY KEY,
-    did        text UNIQUE NOT NULL,
-    created_at timestamptz NOT NULL DEFAULT now()
-);
+CREATE TABLE
+    IF NOT EXISTS headlines (
+        id serial PRIMARY KEY,
+        headline text NOT NULL,
+        subtitle text,
+        photo_ref text,
+        source_post_url text,
+        source_note text,
+        status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'discarded')),
+        category text, -- topic tag: game-recap | trade-rumor | ...
+        safety_status text CHECK (safety_status IN ('safe', 'review', 'blocked')),
+        safety_reason text,
+        classified_at timestamptz,
+        created_at timestamptz NOT NULL DEFAULT now (),
+        published_at timestamptz
+    );
 
--- Headline feed ("The Scrapbook") — draft/publish workflow.
--- Drafts originate from the admin create-form (user-submission intake is a
--- planned follow-up) and are classified by bluejays-classify: it assigns a topic
--- category and a safety verdict (text + image, via Claude vision), auto-
--- discarding only illegal/doxxing content and flagging the rest for review.
--- Karan reviews/edits in /admin and flips status to 'published'. The public
--- feed only reads published rows.
-CREATE TABLE IF NOT EXISTS headlines (
-    id               serial PRIMARY KEY,
-    headline         text NOT NULL,
-    stat_block       text,
-    photo_ref        text,
-    source_post_url  text,
-    source_note      text,
-    status           text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'discarded')),
-    -- Auto-classification output (written by the classify job).
-    -- NULL until first classified; re-set to NULL by web if a draft is edited
-    -- so the job re-runs on the new content.
-    category         text,          -- topic tag: game-recap | trade-rumor | ...
-    safety_status    text CHECK (safety_status IN ('safe', 'review', 'blocked')),
-    safety_reason    text,
-    classified_at    timestamptz,
-    created_at       timestamptz NOT NULL DEFAULT now(),
-    published_at     timestamptz
-);
+CREATE INDEX IF NOT EXISTS headlines_published_idx ON headlines (published_at DESC)
+WHERE
+    status = 'published';
 
--- Only published rows matter for the public feed; index that subset.
-CREATE INDEX IF NOT EXISTS headlines_published_idx
-    ON headlines (published_at DESC)
-    WHERE status = 'published';
+ALTER TABLE headlines
+DROP CONSTRAINT IF EXISTS headlines_status_check;
 
--- Migration: widen headlines.status to allow 'discarded' (soft-delete for a
--- draft/published row an admin has rejected — see web/src/lib/db.ts
--- discardHeadline()). CREATE TABLE IF NOT EXISTS above only applies the wider
--- CHECK on a fresh init; this ALTER re-applies it against an
--- already-initialized dev volume or the live production DB. Safe to re-run —
--- DROP CONSTRAINT IF EXISTS makes it idempotent, per docs/production-verification.md's
--- "no migration runner yet, re-run schema.sql by hand" pattern.
-ALTER TABLE headlines DROP CONSTRAINT IF EXISTS headlines_status_check;
-ALTER TABLE headlines ADD CONSTRAINT headlines_status_check
-    CHECK (status IN ('draft', 'published', 'discarded'));
+ALTER TABLE headlines ADD CONSTRAINT headlines_status_check CHECK (status IN ('draft', 'published', 'discarded'));
 
--- Migration: add the auto-classification columns + safety_status CHECK to
--- headlines tables created before the classifier existed (CREATE TABLE IF NOT
--- EXISTS above only adds them on a fresh init). Same idempotent ADD COLUMN IF
--- NOT EXISTS / DROP+ADD CONSTRAINT pattern as the status migration above.
--- NOTE: these ALTERs must run BEFORE any statement that references the new
--- columns (the headlines_unclassified_idx partial index below filters on
--- classified_at) — on an existing DB the CREATE TABLE IF NOT EXISTS above is a
--- no-op, so the columns don't exist until these ALTERs run.
-ALTER TABLE headlines ADD COLUMN IF NOT EXISTS category text;
-ALTER TABLE headlines ADD COLUMN IF NOT EXISTS safety_status text;
-ALTER TABLE headlines ADD COLUMN IF NOT EXISTS safety_reason text;
-ALTER TABLE headlines ADD COLUMN IF NOT EXISTS classified_at timestamptz;
-ALTER TABLE headlines DROP CONSTRAINT IF EXISTS headlines_safety_status_check;
-ALTER TABLE headlines ADD CONSTRAINT headlines_safety_status_check
-    CHECK (safety_status IN ('safe', 'review', 'blocked'));
+ALTER TABLE headlines
+ADD COLUMN IF NOT EXISTS category text;
 
--- Drop the legacy seen_posts dedup table. The classifier reads drafts back
--- from headlines (classified_at IS NULL), so the per-source post dedup the
--- old generator relied on is dead. Safe to re-run.
+ALTER TABLE headlines
+ADD COLUMN IF NOT EXISTS safety_status text;
+
+ALTER TABLE headlines
+ADD COLUMN IF NOT EXISTS safety_reason text;
+
+ALTER TABLE headlines
+ADD COLUMN IF NOT EXISTS classified_at timestamptz;
+
+ALTER TABLE headlines
+DROP CONSTRAINT IF EXISTS headlines_safety_status_check;
+
+ALTER TABLE headlines ADD CONSTRAINT headlines_safety_status_check CHECK (safety_status IN ('safe', 'review', 'blocked'));
+
 DROP TABLE IF EXISTS seen_posts;
 
--- Classify job selects draft rows it hasn't seen yet (classified_at NULL).
--- Must come AFTER the ADD COLUMN classified_at migration above so the column
--- exists on already-initialized volumes.
-CREATE INDEX IF NOT EXISTS headlines_unclassified_idx
-    ON headlines (created_at)
-    WHERE status = 'draft' AND classified_at IS NULL;
+CREATE INDEX IF NOT EXISTS headlines_unclassified_idx ON headlines (created_at)
+WHERE
+    status = 'draft'
+    AND classified_at IS NULL;
 
--- Migration: drop register and player_ids. Both were leftovers from the
--- retired auto-generation pipeline (issue #101): register tagged real-event
--- riff (1) vs. fabricated scenario (2), and player_ids was a text[] for a
--- never-built player-tagging feature. Neither is set by any current UI or
--- read anywhere. CREATE TABLE IF NOT EXISTS above only omits them on a fresh
--- init, so these ALTERs drop them from an already-initialized dev volume or
--- the live production DB. Safe to re-run — DROP COLUMN IF EXISTS is a no-op
--- once the column is gone.
-ALTER TABLE headlines DROP COLUMN IF EXISTS register;
-ALTER TABLE headlines DROP COLUMN IF EXISTS player_ids;
+ALTER TABLE headlines
+DROP COLUMN IF EXISTS register;
 
--- Migration: public headline submissions (issue #82). submitter_name is a
--- free-text display credit, no account system backs it, it's just what
--- shows on the card. source distinguishes admin-authored drafts from publicly
--- submitted ones so the admin queue can flag the latter for extra scrutiny
--- (unverified provenance on the text and any attached photo). Safe to re-run.
-ALTER TABLE headlines ADD COLUMN IF NOT EXISTS submitter_name text;
-ALTER TABLE headlines ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'admin';
-ALTER TABLE headlines DROP CONSTRAINT IF EXISTS headlines_source_check;
-ALTER TABLE headlines ADD CONSTRAINT headlines_source_check
-    CHECK (source IN ('admin', 'submission'));
+ALTER TABLE headlines
+DROP COLUMN IF EXISTS player_ids;
+
+ALTER TABLE headlines
+ADD COLUMN IF NOT EXISTS submitter_name text;
+
+ALTER TABLE headlines
+ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'admin';
+
+ALTER TABLE headlines
+DROP CONSTRAINT IF EXISTS headlines_source_check;
+
+ALTER TABLE headlines ADD CONSTRAINT headlines_source_check CHECK (source IN ('admin', 'submission'));
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'headlines' AND column_name = 'stat_block'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'headlines' AND column_name = 'subtitle'
+    ) THEN
+        ALTER TABLE headlines RENAME COLUMN stat_block TO subtitle;
+    END IF;
+END $$;

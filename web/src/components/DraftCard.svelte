@@ -6,7 +6,7 @@
   let { draft }: Props = $props();
 
   let headline = $state(draft.headline);
-  let statBlock = $state(draft.stat_block ?? '');
+  let subtitle = $state(draft.subtitle ?? '');
   let photoRef = $state(draft.photo_ref ?? '');
 
   let sourcePostUrl = $state(draft.source_post_url ?? '');
@@ -18,15 +18,9 @@
   let publishing = $state(false);
   let discarding = $state(false);
 
-  // A source note means the draft asserts a real connecting fact (the
-  // fact-anchored subtype) — the one part of an otherwise-fictional headline
-  // that's a genuine factual claim, so it's flagged for verification.
   const isFactAnchored = $derived(!!sourceNote);
   const isPublished = $derived(draft.status === 'published');
 
-  // Auto-classification display (read-only — the classify job writes these).
-  // safety_status colors: review = amber nudge, blocked = red (rare, since the
-  // job auto-discards blocked drafts; shown only in the race window).
   const safetyBadgeClass = $derived.by(() => {
     switch (draft.safety_status) {
       case 'review':
@@ -44,7 +38,7 @@
     try {
       const form = new FormData();
       form.set('headline', headline);
-      if (statBlock) form.set('stat_block', statBlock);
+      if (subtitle) form.set('subtitle', subtitle);
       if (photoRef) form.set('photo_ref', photoRef);
       if (sourcePostUrl) form.set('source_post_url', sourcePostUrl);
       if (sourceNote) form.set('source_note', sourceNote);
@@ -63,9 +57,6 @@
     }
   }
 
-  // Both reload the page rather than optimistically removing the card: the row
-  // moves between the server-rendered "Drafts" and "Recently published"
-  // sections, so an in-place removal would just make it vanish silently.
   async function publish() {
     publishing = true;
     error = null;
@@ -165,10 +156,10 @@
     </label>
 
     <label class="block text-sm font-medium text-ink">
-      Stat block
+      Subtitle
       <input
-        bind:value={statBlock}
-        class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink font-mono text-sm"
+        bind:value={subtitle}
+        class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-base text-ink italic font-display"
       />
     </label>
 

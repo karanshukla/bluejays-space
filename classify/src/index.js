@@ -40,7 +40,7 @@ export function applyVerdict(result) {
 
 async function getUnclassifiedDrafts(pool) {
   const { rows } = await pool.query(
-    `SELECT id, headline, stat_block, source_note, photo_ref
+    `SELECT id, headline, subtitle, source_note, photo_ref
      FROM headlines
      WHERE status = 'draft' AND classified_at IS NULL
      ORDER BY created_at`
@@ -95,7 +95,7 @@ async function runClassification(pool) {
     try {
       const result = await classify({
         headline: draft.headline,
-        statBlock: draft.stat_block,
+        subtitle: draft.subtitle,
         sourceNote: draft.source_note,
         image,
       });

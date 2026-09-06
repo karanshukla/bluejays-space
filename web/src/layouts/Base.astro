@@ -2,6 +2,7 @@
 import '../styles/global.css';
 import '@fontsource/fraunces/600.css';
 import '@fontsource/fraunces/400.css';
+import '@fontsource/fraunces/400-italic.css';
 import '@fontsource/space-mono/400.css';
 import '@fontsource/space-mono/700.css';
 import { getSiteUrl } from '../lib/site';
@@ -12,13 +13,10 @@ interface Props {
   title: string;
   description?: string;
   ogImage?: string;
-  // Alt text for the OG/Twitter image — both the static default and every
-  // dynamic per-headline render are 1200×630 PNGs, so width/height/type below
-  // are hardcoded rather than props; alt is the one dimension that varies.
   ogImageAlt?: string;
   ogType?: 'website' | 'article';
   canonicalPath?: string;
-  // ISO timestamp — only meaningful (and only rendered) alongside ogType="article".
+  // ISO timestamp
   articlePublishedTime?: string;
 }
 
@@ -38,9 +36,6 @@ const imageUrl = new URL(ogImage ?? '/og-default.png', site);
 const desc = description ?? DEFAULT_DESCRIPTION;
 const imageAlt = ogImageAlt ?? title;
 
-// Deliberately WebSite, not NewsArticle/Article — this is a parody site and
-// SPEC.md's whole labeling philosophy is about never reading as real news;
-// giving search engines an Article-typed schema would cut against that.
 const websiteJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'WebSite',
