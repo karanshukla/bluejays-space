@@ -6,7 +6,7 @@ What exists today, and what's still missing, across the two data-owning services
 
 | Route | Method | Does |
 |---|---|---|
-| `/admin/api/headlines/[id]/update` | POST (form) | Updates all editable fields on a draft or published row — no field-level diffing, always overwrites headline/register/stat_block/photo_ref/source_post_url/source_note. See `web/src/lib/db.ts` `updateHeadline`. |
+| `/admin/api/headlines/[id]/update` | POST (form) | Updates all editable fields on a draft or published row — no field-level diffing, always overwrites headline/register/subtitle/photo_ref/source_post_url/source_note. See `web/src/lib/db.ts` `updateHeadline`. |
 | `/admin/api/headlines/[id]/publish` | POST | Flips `status` to `published`, sets `published_at = now()`. From `draft` only. |
 | `/admin/api/headlines/[id]/unpublish` | POST | Flips `status` back to `draft`, clears `published_at`. From `published` only. |
 | `/admin/api/headlines/[id]/discard` | POST | Soft-deletes: sets `status = 'discarded'`. From any non-discarded status — works directly on a published row too, not just drafts. |

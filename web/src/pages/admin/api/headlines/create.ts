@@ -24,7 +24,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
 
   await createHeadline({
     headline,
-    stat_block: asNullableText(form.get('stat_block')),
+    subtitle: asNullableText(form.get('subtitle')),
     photo_ref: photoRef,
     source_post_url: asNullableText(form.get('source_post_url')),
     source_note: asNullableText(form.get('source_note')),

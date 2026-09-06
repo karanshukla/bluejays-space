@@ -17,7 +17,7 @@ export const GET: APIRoute = async () => {
       title: h.headline,
       pubDate: h.published_at ? new Date(h.published_at) : undefined,
       link: permalinkPath(h.id, h.headline),
-      description: h.stat_block ?? undefined,
+      description: h.subtitle ?? undefined,
     })),
   });
 };

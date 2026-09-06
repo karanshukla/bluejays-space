@@ -23,7 +23,7 @@ const {
   fitCardText,
   measureText,
   headlineStyle,
-  statStyle,
+  subtitleStyle,
   labelStyle,
   PARODY_LABEL,
   LABEL_MARGIN_TOP,
@@ -39,7 +39,7 @@ function makeHeadline(overrides: Partial<Headline> = {}): Headline {
   return {
     id: 1,
     headline: 'Vlad walks it off',
-    stat_block: '.382 AVG',
+    subtitle: 'Teammates say it had been quiet since the All-Star break',
     photo_ref: 'photos/vlad.jpg',
     source_post_url: null,
     source_note: null,
@@ -72,9 +72,9 @@ describe('ogCacheKey', () => {
     expect(a).not.toBe(b);
   });
 
-  it('changes when the stat block changes', () => {
-    const a = ogCacheKey(makeHeadline({ stat_block: '.300 AVG' }));
-    const b = ogCacheKey(makeHeadline({ stat_block: '.350 AVG' }));
+  it('changes when the subtitle changes', () => {
+    const a = ogCacheKey(makeHeadline({ subtitle: 'Quiet since the All-Star break' }));
+    const b = ogCacheKey(makeHeadline({ subtitle: 'Loud since the All-Star break' }));
     expect(a).not.toBe(b);
   });
 
@@ -90,8 +90,8 @@ describe('ogCacheKey', () => {
     expect(a).not.toBe(b);
   });
 
-  it('handles null stat_block and photo_ref without throwing', () => {
-    const key = ogCacheKey(makeHeadline({ stat_block: null, photo_ref: null }));
+  it('handles null subtitle and photo_ref without throwing', () => {
+    const key = ogCacheKey(makeHeadline({ subtitle: null, photo_ref: null }));
     expect(key).toMatch(/^og\/1-[0-9a-f]{12}\.png$/);
   });
 
@@ -106,7 +106,7 @@ describe('ogCacheKey', () => {
     // content fields on their own.
     const h = makeHeadline();
     const contentOnly = createHash('sha256')
-      .update(`${h.headline}|${h.stat_block}|${h.photo_ref}`)
+      .update(`${h.headline}|${h.subtitle}|${h.photo_ref}`)
       .digest('hex')
       .slice(0, 12);
     expect(ogCacheKey(h)).not.toBe(`og/${h.id}-${contentOnly}.png`);
@@ -174,8 +174,8 @@ const VERY_LONG =
 // reach a card without an admin hand-writing something longer.
 const MAX_HEADLINE =
   'Toronto Blue Jays front office confirms that the entire 2026 roster construction strategy was in fact decided by a single intern with a spreadsheet, a coin, and an unshakeable belief that every problem in professional baseball can be solved by simply acquiring more relief pitchers';
-const MAX_STAT =
-  '41 HR / 108 RBI / .382 AVG / 4.1 WAR / 112 consecutive games / 7 different relief pitchers acquired at the deadline / 0 explanations offered by the front office';
+const MAX_SUBTITLE =
+  'Teammates say the bat had been quiet since the All-Star break, the front office has offered no explanation, and the stretch remains under review by the managers';
 
 function fitHeadline(text: string, columnWidth: number, maxHeight: number, bounds = PHOTO_BOUNDS) {
   return fitText(text, (fontSize) => headlineStyle(columnWidth, fontSize), {
@@ -245,27 +245,29 @@ describe('fitCardText', () => {
   // the estimator sized a block to fill exactly N lines and word wrapping made
   // it N+1, pushing the parody label off the bottom of the canvas.
   const CASES: [string, string | null][] = [
-    [SHORT, '.382 AVG'],
-    [MEDIUM, '.382 AVG / 41 HR / 108 RBI'],
-    [LONG, '112 consecutive games / 4.1 WAR / 0 explanations offered by the front office'],
-    [VERY_LONG, MAX_STAT],
-    [MAX_HEADLINE, MAX_STAT],
+    [SHORT, 'Nobody saw it coming'],
+    [MEDIUM, 'The agent says the ball is weighing its options'],
+    [
+      LONG,
+      'No explanation was offered by the front office, and none is expected before the deadline',
+    ],
+    [VERY_LONG, MAX_SUBTITLE],
+    [MAX_HEADLINE, MAX_SUBTITLE],
     [MAX_HEADLINE, null],
     [LONG, null],
-    ['Jays sign Guerrero to an unfathomablyoverwhelminglyenormous extension', '$500,000,000'],
+    [
+      'Jays sign Guerrero to an unfathomablyoverwhelminglyenormous extension',
+      'Terms of the extension were not disclosed',
+    ],
   ];
 
   for (const [columnWidth, bounds, layout] of [
     [PHOTO_COLUMN, PHOTO_BOUNDS, 'beside a photo'],
     [FULL_COLUMN, FULL_BOUNDS, 'full width'],
   ] as const) {
-    it(`keeps the headline and stat block inside the card's text budget (${layout})`, async () => {
-      for (const [headline, stat_block] of CASES) {
-        const fitted = await fitCardText(
-          makeHeadline({ headline, stat_block }),
-          columnWidth,
-          bounds
-        );
+    it(`keeps the headline and subtitle inside the card's text budget (${layout})`, async () => {
+      for (const [headline, subtitle] of CASES) {
+        const fitted = await fitCardText(makeHeadline({ headline, subtitle }), columnWidth, bounds);
         // Re-measured from the text and size that will actually be rendered,
         // deliberately not trusting the heights fitCardText reported: a fitter
         // that scores its own work against its own estimate is how the previous
@@ -274,37 +276,40 @@ describe('fitCardText', () => {
           fitted.title.text,
           headlineStyle(columnWidth, fitted.title.fontSize)
         );
-        const stat = fitted.stat
-          ? await measureText(fitted.stat.text, statStyle(columnWidth, fitted.stat.fontSize))
+        const deck = fitted.subtitle
+          ? await measureText(
+              fitted.subtitle.text,
+              subtitleStyle(columnWidth, fitted.subtitle.fontSize)
+            )
           : { height: 0 };
-        expect(title.height + stat.height).toBeLessThanOrEqual(TEXT_BUDGET);
-        expect(textBlockHeight(fitted)).toBe(title.height + stat.height);
+        expect(title.height + deck.height).toBeLessThanOrEqual(TEXT_BUDGET);
+        expect(textBlockHeight(fitted)).toBe(title.height + deck.height);
       }
     });
   }
 
-  it('never lets the stat block starve the headline down to its floor', async () => {
+  it('never lets the subtitle starve the headline down to its floor', async () => {
     const fitted = await fitCardText(
-      makeHeadline({ headline: MEDIUM, stat_block: MAX_STAT }),
+      makeHeadline({ headline: MEDIUM, subtitle: MAX_SUBTITLE }),
       PHOTO_COLUMN,
       PHOTO_BOUNDS
     );
     expect(fitted.title.fontSize).toBeGreaterThan(PHOTO_BOUNDS.floor);
   });
 
-  it('gives a headline with no stat block the whole budget', async () => {
-    const withStat = await fitCardText(
-      makeHeadline({ headline: LONG, stat_block: MAX_STAT }),
+  it('gives a headline with no subtitle the whole budget', async () => {
+    const withSubtitle = await fitCardText(
+      makeHeadline({ headline: LONG, subtitle: MAX_SUBTITLE }),
       PHOTO_COLUMN,
       PHOTO_BOUNDS
     );
-    const withoutStat = await fitCardText(
-      makeHeadline({ headline: LONG, stat_block: null }),
+    const withoutSubtitle = await fitCardText(
+      makeHeadline({ headline: LONG, subtitle: null }),
       PHOTO_COLUMN,
       PHOTO_BOUNDS
     );
-    expect(withoutStat.stat).toBeNull();
-    expect(withoutStat.title.fontSize).toBeGreaterThan(withStat.title.fontSize);
+    expect(withoutSubtitle.subtitle).toBeNull();
+    expect(withoutSubtitle.title.fontSize).toBeGreaterThan(withSubtitle.title.fontSize);
   });
 });
 
@@ -319,14 +324,14 @@ describe("the card's vertical budget", () => {
     expect(TEXT_BUDGET).toBe(CONTENT_HEIGHT - LABEL_MARGIN_TOP - height);
   });
 
-  it('shrinks the headline/stat budget by the submitter credit reservation when one is passed', async () => {
+  it('shrinks the headline/subtitle budget by the submitter credit reservation when one is passed', async () => {
     // renderOgPng passes TEXT_BUDGET - (SUBMITTER_MARGIN_TOP + LABEL_TEXT_HEIGHT)
     // for a headline carrying a submitter credit — asserted here directly on
     // fitCardText's optional textBudget param, the same seam renderOgPng uses,
     // so a change to that reservation is caught without rendering a full PNG.
     const submitterBudget = SUBMITTER_MARGIN_TOP + LABEL_TEXT_HEIGHT;
     const fitted = await fitCardText(
-      makeHeadline({ headline: LONG, stat_block: MAX_STAT }),
+      makeHeadline({ headline: LONG, subtitle: MAX_SUBTITLE }),
       PHOTO_COLUMN,
       PHOTO_BOUNDS,
       TEXT_BUDGET - submitterBudget

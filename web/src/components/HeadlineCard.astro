@@ -3,53 +3,15 @@ import type { Headline } from '../lib/db';
 import { permalinkPath } from '../lib/slug';
 import { getSiteUrl } from '../lib/site';
 import { smallVariantKey } from '../lib/photoImport';
-import { variantFor } from '../lib/cardVariants';
+import { photoMountFor } from '../lib/cardVariants';
 
-// Keyed off the headline id, not list position, so a card's tape stays put as
-// other headlines publish/unpublish around it. Mirrored by tapeBackgroundFor()
-// in lib/ogImage.ts so a headline's share preview wears the tape its card does.
 export const TAPE_VARIANTS = ['tape-a', 'tape-b', 'tape-c', 'tape-d', 'tape-e', 'tape-f'];
-
-// Where the print sits inside its mount: each variant tilts it, nudges it off
-// centre, and leaves an uneven white border (see .mount-a..g in global.css) —
-// the way a photo actually ends up when it's taped into a scrapbook by hand.
-//
-// This is the only axis that varies, deliberately. Varying the cover-crop
-// (object-position) as well moved *which part of the photo you see*, which is
-// not a scrapbook effect but a different photo: on anything that isn't roughly
-// the mount's 4:3 it slid subjects out of frame and cut heads off. The crop is
-// now the same for every card (see .photo-mount img in global.css).
-export const PHOTO_MOUNT_VARIANTS = [
-  'mount-a',
-  'mount-b',
-  'mount-c',
-  'mount-d',
-  'mount-e',
-  'mount-f',
-  'mount-g',
-];
-
-const MOUNT_SEED = 1;
 
 interface Props {
   headline: Headline;
-  // On a permalink page, the focused card stays full-opacity; every other card
-  // is dimmed to draw the eye to the one being shared.
   dimmed?: boolean;
-  // First few cards render above the fold on most breakpoints — skip
-  // lazy-loading for those so the browser doesn't delay their LCP candidate.
   eager?: boolean;
-  // SEO: the headline's heading level. <h2> everywhere on the homepage feed
-  // (the site name is the <h1> there), but <h1> for the focused card on a
-  // permalink page — that card's headline is the page's actual topic, so it
-  // should be the page's only <h1>. Same classes either way, so it's a pure
-  // semantic change with no visual difference.
   headingLevel?: 'h1' | 'h2';
-  // Whole-card click target: the permalink icon's hit area is stretched over
-  // the card body, so clicking anywhere opens the headline and the whole card
-  // lights up the way the icon does. Off on permalink pages — the focused card
-  // would only link to itself, and the dimmed backdrop cards are that page's
-  // click-outside-to-dismiss surface.
   linkBody?: boolean;
 }
 
@@ -62,12 +24,9 @@ const {
 } = Astro.props;
 const HeadingTag = headingLevel;
 const tapeVariant = TAPE_VARIANTS[h.id % TAPE_VARIANTS.length];
-const mountVariant = variantFor(h.id, PHOTO_MOUNT_VARIANTS, MOUNT_SEED);
+const mountVariant = photoMountFor(h.id);
 const url = permalinkPath(h.id, h.headline);
 const siteHost = getSiteUrl().hostname;
-// Only the resize path in photoImport.ts stores a small variant alongside, and
-// it always writes .webp (animated sources included). A non-webp ref is one
-// sharp couldn't decode and stored as-is: a single file, no srcset.
 const hasSmallVariant = h.photo_ref?.endsWith('.webp') ?? false;
 ---
 
@@ -104,10 +63,8 @@ const hasSmallVariant = h.photo_ref?.endsWith('.webp') ?? false;
     </HeadingTag>
 
     {
-      h.stat_block && (
-        <p class="mt-3 border-t border-dashed border-blue/40 pt-3 font-mono text-xs text-ink-soft">
-          {h.stat_block}
-        </p>
+      h.subtitle && (
+        <p class="mt-2 text-base leading-snug text-ink-soft italic font-display">{h.subtitle}</p>
       )
     }
 

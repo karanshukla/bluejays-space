@@ -38,6 +38,7 @@ go.work.sum
 /classify/coverage
 
 # Agent workspaces
+.playwright-mcp/
 .zcode/
 .claude/*
 !.claude/settings.json

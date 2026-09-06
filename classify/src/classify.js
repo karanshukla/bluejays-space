@@ -84,9 +84,9 @@ One short sentence (max ~200 chars) explaining the verdict. For 'safe', a brief 
 Return ONLY the JSON object matching the schema.`;
 }
 
-export function buildUserMessage({ headline, statBlock, sourceNote }) {
+export function buildUserMessage({ headline, subtitle, sourceNote }) {
   const parts = [`HEADLINE: ${headline}`];
-  if (statBlock) parts.push(`STAT BLOCK: ${statBlock}`);
+  if (subtitle) parts.push(`SUBTITLE: ${subtitle}`);
   if (sourceNote) parts.push(`SOURCE NOTE: ${sourceNote}`);
   parts.push(
     'Classify this draft. If an image is attached, consider it alongside the text for both category and safety.'
@@ -166,14 +166,14 @@ function isTemperatureError(err) {
 
 /**
  * Classify one draft.
- * @param {{headline: string, statBlock?: string|null, sourceNote?: string|null,
+ * @param {{headline: string, subtitle?: string|null, sourceNote?: string|null,
  *          image?: {base64: string, mediaType?: string}|null}} input
  * @returns {Promise<{category: string, safety_status: string, safety_reason: string|null}>}
  */
-export async function classify({ headline, statBlock, sourceNote, image }) {
+export async function classify({ headline, subtitle, sourceNote, image }) {
   const model = process.env.CLASSIFIER_MODEL || 'claude-haiku-4-5';
   const systemPrompt = buildSystemPrompt();
-  const userMessage = buildUserMessage({ headline, statBlock, sourceNote });
+  const userMessage = buildUserMessage({ headline, subtitle, sourceNote });
 
   const content = image
     ? [buildImageBlock(image.base64, image.mediaType), { type: 'text', text: userMessage }]

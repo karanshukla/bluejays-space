@@ -39,21 +39,21 @@ test('buildSystemPrompt covers the taxonomy, the verdict tiers, and the parody c
   assert.ok(/blocked/i.test(prompt));
 });
 
-test('buildUserMessage includes headline, stat block, and source note when present', () => {
+test('buildUserMessage includes headline, subtitle, and source note when present', () => {
   const msg = buildUserMessage({
     headline: 'Vlad hits the moon',
-    statBlock: 'HR: 40',
+    subtitle: 'Nobody saw it coming',
     sourceNote: 'walk-off riff',
   });
   assert.ok(msg.includes('Vlad hits the moon'));
-  assert.ok(msg.includes('HR: 40'));
+  assert.ok(msg.includes('Nobody saw it coming'));
   assert.ok(msg.includes('walk-off riff'));
 });
 
 test('buildUserMessage omits empty optional fields', () => {
-  const msg = buildUserMessage({ headline: 'Solo headline', statBlock: null, sourceNote: null });
+  const msg = buildUserMessage({ headline: 'Solo headline', subtitle: null, sourceNote: null });
   assert.ok(msg.includes('Solo headline'));
-  assert.ok(!msg.includes('STAT BLOCK'));
+  assert.ok(!msg.includes('SUBTITLE'));
   assert.ok(!msg.includes('SOURCE NOTE'));
 });
 
