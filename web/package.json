@@ -37,7 +37,7 @@
     "satori": "^0.33.4",
     "sharp": "^0.35.4",
     "svelte": "^5.57.0",
-    "undici": "^8.10.0"
+    "undici": "^8.10.2"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
