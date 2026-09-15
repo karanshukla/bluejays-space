@@ -36,21 +36,17 @@ const errorMessage: Record<string, string> = {
         submissions are human reviewed, and may take some time to appear.
       </p>
 
-      {
-        sent && (
-          <p class="mt-8 rounded-lg border border-paper-edge bg-card p-4 text-center text-sm font-medium text-ink">
-            Thanks for submitting and contributing! It's in the queue for review.
-          </p>
-        )
-      }
+      {sent && (
+        <p class="mt-8 rounded-lg border border-paper-edge bg-card p-4 text-center text-sm font-medium text-ink">
+          Thanks for submitting and contributing! It's in the queue for review.
+        </p>
+      )}
 
-      {
-        error && errorMessage[error] && (
-          <p class="mt-8 rounded-lg border border-red/30 bg-red/5 p-4 text-center text-sm font-medium text-red">
-            {errorMessage[error]}
-          </p>
-        )
-      }
+      {error && errorMessage[error] && (
+        <p class="mt-8 rounded-lg border border-red/30 bg-red/5 p-4 text-center text-sm font-medium text-red">
+          {errorMessage[error]}
+        </p>
+      )}
 
       <form
         class="mt-8 space-y-4 rounded-lg border border-paper-edge bg-card p-6"

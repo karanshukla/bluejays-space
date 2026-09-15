@@ -70,14 +70,12 @@ const websiteJsonLd = {
     <meta property="og:image:alt" content={imageAlt} />
     <meta property="og:url" content={canonical.href} />
     <meta property="og:type" content={ogType} />
-    {
-      ogType === 'article' && articlePublishedTime && (
-        <meta
-          property="article:published_time"
-          content={new Date(articlePublishedTime).toISOString()}
-        />
-      )
-    }
+    {ogType === 'article' && articlePublishedTime && (
+      <meta
+        property="article:published_time"
+        content={new Date(articlePublishedTime).toISOString()}
+      />
+    )}
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
@@ -87,17 +85,19 @@ const websiteJsonLd = {
 
     <link rel="alternate" type="application/rss+xml" title="bluejays.space" href="/feed.xml" />
 
-    <script type="application/ld+json" is:inline set:html={JSON.stringify(websiteJsonLd)} />
+    <script type="application/ld+json" is:inline set:html={JSON.stringify(websiteJsonLd)}></script>
   </head>
   <body class="min-h-screen text-ink antialiased">
     <slot />
     <footer class="mt-16 px-6 py-6 text-center font-mono text-xs text-ink-soft">
       <p>
-        <strong>bluejays.space</strong> is a parody/satire site. Not affiliated with MLB or the Toronto
-        Blue Jays.
+        <strong>bluejays.space</strong> is a parody/satire site. Not affiliated with MLB or the
+        Toronto Blue Jays.
       </p>
       <p class="mt-2">
-        <a href="/submit" class="underline hover:text-blue">Got a headline idea? Submit one</a>
+        <a href="/submit" class="underline hover:text-blue">
+          Got a headline idea? Submit one
+        </a>
       </p>
     </footer>
   </body>
