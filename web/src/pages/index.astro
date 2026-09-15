@@ -19,16 +19,16 @@ const nextPage = nextPageAfter(1, totalPages);
   <main class="mx-auto max-w-[1600px] px-6 py-12 sm:px-10">
     <SiteHeader />
 
-    {
-      rows.length === 0 && (
-        <p class="mt-16 text-center font-mono text-sm text-ink-soft">
-          No headlines published yet. Check back soon.
-        </p>
-      )
-    }
+    {rows.length === 0 && (
+      <p class="mt-16 text-center font-mono text-sm text-ink-soft">
+        No headlines published yet. Check back soon.
+      </p>
+    )}
 
     <ul class="scrapbook-grid mt-14" id="feed" data-next-page={nextPage}>
-      {rows.map((h, i) => <HeadlineCard headline={h} eager={i < 4} />)}
+      {rows.map((h, i) => (
+        <HeadlineCard headline={h} eager={i < 4} />
+      ))}
     </ul>
 
     <!-- Sentinel the observer watches. data-next-page on #feed drives the next

@@ -22,5 +22,7 @@ const nextPage = nextPageAfter(current, totalPages);
 ---
 
 <ul class="scrapbook-grid feed-fragment" data-next-page={nextPage}>
-  {rows.map((h) => <HeadlineCard headline={h} />)}
+  {rows.map((h) => (
+    <HeadlineCard headline={h} />
+  ))}
 </ul>

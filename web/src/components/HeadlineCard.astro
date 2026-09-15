@@ -34,27 +34,25 @@ const hasSmallVariant = h.photo_ref?.endsWith('.webp') ?? false;
   <div
     class={`clipping ${tapeVariant} ${dimmed ? 'dimmed' : ''} border border-paper-edge bg-card p-5 pt-7 shadow-[3px_4px_0_rgba(20,33,61,0.12),0_10px_24px_-8px_rgba(20,33,61,0.28)]`}
   >
-    {
-      h.photo_ref && (
-        <div class={`photo-mount ${mountVariant} border border-paper-edge`}>
-          <img
-            src={`/api/images/${h.photo_ref}`}
-            srcset={
-              hasSmallVariant
-                ? `/api/images/${smallVariantKey(h.photo_ref)} 640w, /api/images/${h.photo_ref} 1024w`
-                : undefined
-            }
-            sizes={hasSmallVariant ? '(min-width: 640px) 460px, 100vw' : undefined}
-            alt={h.headline}
-            width="640"
-            height="480"
-            loading={eager ? 'eager' : 'lazy'}
-            decoding="async"
-            fetchpriority={eager ? 'high' : 'auto'}
-          />
-        </div>
-      )
-    }
+    {h.photo_ref && (
+      <div class={`photo-mount ${mountVariant} border border-paper-edge`}>
+        <img
+          src={`/api/images/${h.photo_ref}`}
+          srcset={
+            hasSmallVariant
+              ? `/api/images/${smallVariantKey(h.photo_ref)} 640w, /api/images/${h.photo_ref} 1024w`
+              : undefined
+          }
+          sizes={hasSmallVariant ? '(min-width: 640px) 460px, 100vw' : undefined}
+          alt={h.headline}
+          width="640"
+          height="480"
+          loading={eager ? 'eager' : 'lazy'}
+          decoding="async"
+          fetchpriority={eager ? 'high' : 'auto'}
+        />
+      </div>
+    )}
 
     <HeadingTag
       class={`text-xl leading-snug font-semibold text-ink font-display ${h.photo_ref ? 'mt-4' : ''}`}
@@ -62,26 +60,22 @@ const hasSmallVariant = h.photo_ref?.endsWith('.webp') ?? false;
       {h.headline}
     </HeadingTag>
 
-    {
-      h.subtitle && (
-        <p class="mt-2 text-base leading-snug text-ink-soft italic font-display">{h.subtitle}</p>
-      )
-    }
+    {h.subtitle && (
+      <p class="mt-2 text-base leading-snug text-ink-soft italic font-display">{h.subtitle}</p>
+    )}
 
-    {
-      h.source_note && (
-        <p class="mt-2 font-mono text-[0.65rem] text-ink-soft/70 italic">
-          Source:{' '}
-          {h.source_post_url ? (
-            <a href={h.source_post_url} class="card-control not-italic hover:underline">
-              {h.source_note}
-            </a>
-          ) : (
-            h.source_note
-          )}
-        </p>
-      )
-    }
+    {h.source_note && (
+      <p class="mt-2 font-mono text-[0.65rem] text-ink-soft/70 italic">
+        Source:{' '}
+        {h.source_post_url ? (
+          <a href={h.source_post_url} class="card-control not-italic hover:underline">
+            {h.source_note}
+          </a>
+        ) : (
+          h.source_note
+        )}
+      </p>
+    )}
 
     <div class="mt-4 flex items-center justify-between border-t border-dashed border-blue/20 pt-1">
       <a
@@ -99,21 +93,21 @@ const hasSmallVariant = h.photo_ref?.endsWith('.webp') ?? false;
           stroke-width="2"
           stroke-linecap="round"
           stroke-linejoin="round"
-          ><circle cx="12" cy="12" r="3"></circle><circle cx="12" cy="12" r="9"></circle></svg
         >
+          <circle cx="12" cy="12" r="3"></circle>
+          <circle cx="12" cy="12" r="9"></circle>
+        </svg>
       </a>
 
       <span class="flex flex-col items-center gap-0.5">
         <span class="font-mono text-[0.6rem] font-bold tracking-widest text-ink-soft/30 uppercase">
           {siteHost}
         </span>
-        {
-          h.submitter_name && (
-            <span class="font-mono text-[0.6rem] text-ink-soft/50">
-              submitted by {h.submitter_name}
-            </span>
-          )
-        }
+        {h.submitter_name && (
+          <span class="font-mono text-[0.6rem] text-ink-soft/50">
+            submitted by {h.submitter_name}
+          </span>
+        )}
       </span>
 
       <button
@@ -132,9 +126,10 @@ const hasSmallVariant = h.photo_ref?.endsWith('.webp') ?? false;
           stroke-width="2"
           stroke-linecap="round"
           stroke-linejoin="round"
-          ><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path
-            d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg
         >
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+        </svg>
       </button>
     </div>
   </div>

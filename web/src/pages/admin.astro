@@ -38,8 +38,8 @@ const olderHref = `/admin?tab=published&page=${Math.min(publishedTotalPages, pub
       </a>
       <h1 class="mt-2 text-3xl font-semibold text-ink font-display">Admin</h1>
       <p class="mt-1 text-sm text-ink-soft font-mono">
-        {drafts.length} draft{drafts.length === 1 ? '' : 's'} awaiting review. Only published rows appear
-        on the public feed.
+        {drafts.length} draft{drafts.length === 1 ? '' : 's'} awaiting review. Only published rows
+        appear on the public feed.
       </p>
     </header>
 
@@ -60,136 +60,129 @@ const olderHref = `/admin?tab=published&page=${Math.min(publishedTotalPages, pub
       </a>
     </nav>
 
-    {
-      tab === 'drafts' && (
-        <section class="space-y-6">
-          {drafts.length === 0 ? (
-            <div class="rounded-lg border border-dashed border-paper-edge bg-card p-8 text-center">
-              <p class="text-ink-soft font-mono text-sm">
-                No drafts right now. Open the{' '}
-                <a href={newHref} class="text-blue hover:underline">
-                  New
-                </a>{' '}
-                tab to write one.
-              </p>
-            </div>
-          ) : (
-            <ul class="space-y-6">
-              {drafts.map((draft) => (
-                <DraftCard client:load draft={draft} />
-              ))}
-            </ul>
-          )}
-        </section>
-      )
-    }
-
-    {
-      tab === 'published' && published && (
-        <section class="space-y-6">
-          <p class="text-sm text-ink-soft">
-            Unpublish to pull one back off the public feed for another edit.
-            {published.total > 0 && (
-              <>
-                {' '}
-                Showing {(published.page - 1) * published.pageSize + 1}–
-                {Math.min(published.total, published.page * published.pageSize)} of{' '}
-                {published.total}.
-              </>
-            )}
-          </p>
-
-          {published.rows.length === 0 ? (
-            <div class="rounded-lg border border-dashed border-paper-edge bg-card p-8 text-center">
-              <p class="text-ink-soft font-mono text-sm">Nothing published yet.</p>
-            </div>
-          ) : (
-            <ul class="space-y-6">
-              {published.rows.map((draft) => (
-                <DraftCard client:load draft={draft} />
-              ))}
-            </ul>
-          )}
-
-          {publishedTotalPages > 1 && (
-            <nav class="flex items-center justify-between pt-2" aria-label="Published pages">
-              <a
-                href={newerHref}
-                aria-disabled={publishedPage <= 1 ? 'true' : undefined}
-                class={`admin-page-link ${publishedPage <= 1 ? 'pointer-events-none opacity-40' : ''}`}
-              >
-                &larr; Newer
-              </a>
-              <span class="font-mono text-xs text-ink-soft">
-                {publishedPage} / {publishedTotalPages}
-              </span>
-              <a
-                href={olderHref}
-                aria-disabled={publishedPage >= publishedTotalPages ? 'true' : undefined}
-                class={`admin-page-link ${publishedPage >= publishedTotalPages ? 'pointer-events-none opacity-40' : ''}`}
-              >
-                Older &rarr;
-              </a>
-            </nav>
-          )}
-        </section>
-      )
-    }
-
-    {
-      tab === 'new' && (
-        <section>
-          <div class="rounded-lg border border-paper-edge bg-card p-6">
-            <h2 class="mb-1 text-lg font-semibold text-ink font-display">New headline</h2>
-            <p class="mb-4 text-sm text-ink-soft">Goes to draft first.</p>
-            <form class="space-y-3" method="POST" action="/admin/api/headlines/create">
-              <label class="block text-sm font-medium text-ink">
-                Headline
-                <textarea
-                  name="headline"
-                  required
-                  rows="2"
-                  class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-base text-ink"
-                />
-              </label>
-              <label class="block text-sm font-medium text-ink">
-                Subtitle
-                <input
-                  name="subtitle"
-                  class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-base text-ink italic font-display"
-                />
-              </label>
-              <label class="block text-sm font-medium text-ink">
-                Photo
-                <PhotoInput client:load name="photo_ref" />
-              </label>
-              <label class="block text-sm font-medium text-ink">
-                Source post URL{' '}
-                <span class="font-normal text-ink-soft/70">(if riffing a specific real post)</span>
-                <input
-                  name="source_post_url"
-                  class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
-                />
-              </label>
-              <label class="block text-sm font-medium text-ink">
-                Source note{' '}
-                <span class="font-normal text-ink-soft/70">(extra context for the classifier)</span>
-                <input
-                  name="source_note"
-                  class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
-                />
-              </label>
-              <button
-                type="submit"
-                class="rounded bg-blue px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
-              >
-                Add draft
-              </button>
-            </form>
+    {tab === 'drafts' && (
+      <section class="space-y-6">
+        {drafts.length === 0 ? (
+          <div class="rounded-lg border border-dashed border-paper-edge bg-card p-8 text-center">
+            <p class="text-ink-soft font-mono text-sm">
+              No drafts right now. Open the{' '}
+              <a href={newHref} class="text-blue hover:underline">
+                New
+              </a>{' '}
+              tab to write one.
+            </p>
           </div>
-        </section>
-      )
-    }
+        ) : (
+          <ul class="space-y-6">
+            {drafts.map((draft) => (
+              <DraftCard client:load draft={draft} />
+            ))}
+          </ul>
+        )}
+      </section>
+    )}
+
+    {tab === 'published' && published && (
+      <section class="space-y-6">
+        <p class="text-sm text-ink-soft">
+          Unpublish to pull one back off the public feed for another edit.
+          {published.total > 0 && (
+            <>
+              {' '}
+              Showing {(published.page - 1) * published.pageSize + 1}–
+              {Math.min(published.total, published.page * published.pageSize)} of {published.total}.
+            </>
+          )}
+        </p>
+
+        {published.rows.length === 0 ? (
+          <div class="rounded-lg border border-dashed border-paper-edge bg-card p-8 text-center">
+            <p class="text-ink-soft font-mono text-sm">Nothing published yet.</p>
+          </div>
+        ) : (
+          <ul class="space-y-6">
+            {published.rows.map((draft) => (
+              <DraftCard client:load draft={draft} />
+            ))}
+          </ul>
+        )}
+
+        {publishedTotalPages > 1 && (
+          <nav class="flex items-center justify-between pt-2" aria-label="Published pages">
+            <a
+              href={newerHref}
+              aria-disabled={publishedPage <= 1 ? 'true' : undefined}
+              class={`admin-page-link ${publishedPage <= 1 ? 'pointer-events-none opacity-40' : ''}`}
+            >
+              &larr; Newer
+            </a>
+            <span class="font-mono text-xs text-ink-soft">
+              {publishedPage} / {publishedTotalPages}
+            </span>
+            <a
+              href={olderHref}
+              aria-disabled={publishedPage >= publishedTotalPages ? 'true' : undefined}
+              class={`admin-page-link ${publishedPage >= publishedTotalPages ? 'pointer-events-none opacity-40' : ''}`}
+            >
+              Older &rarr;
+            </a>
+          </nav>
+        )}
+      </section>
+    )}
+
+    {tab === 'new' && (
+      <section>
+        <div class="rounded-lg border border-paper-edge bg-card p-6">
+          <h2 class="mb-1 text-lg font-semibold text-ink font-display">New headline</h2>
+          <p class="mb-4 text-sm text-ink-soft">Goes to draft first.</p>
+          <form class="space-y-3" method="POST" action="/admin/api/headlines/create">
+            <label class="block text-sm font-medium text-ink">
+              Headline
+              <textarea
+                name="headline"
+                required
+                rows="2"
+                class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-base text-ink"
+              ></textarea>
+            </label>
+            <label class="block text-sm font-medium text-ink">
+              Subtitle
+              <input
+                name="subtitle"
+                class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-base text-ink italic font-display"
+              />
+            </label>
+            <label class="block text-sm font-medium text-ink">
+              Photo
+              <PhotoInput client:load name="photo_ref" />
+            </label>
+            <label class="block text-sm font-medium text-ink">
+              Source post URL{' '}
+              <span class="font-normal text-ink-soft/70">(if riffing a specific real post)</span>
+              <input
+                name="source_post_url"
+                class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
+              />
+            </label>
+            <label class="block text-sm font-medium text-ink">
+              Source note{' '}
+              <span class="font-normal text-ink-soft/70">(extra context for the classifier)</span>
+              <input
+                name="source_note"
+                class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
+              />
+            </label>
+            <button
+              type="submit"
+              class="rounded bg-blue px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+            >
+              Add draft
+            </button>
+          </form>
+        </div>
+      </section>
+    )}
   </main>
 </Base>
 
