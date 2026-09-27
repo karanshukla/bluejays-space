@@ -69,8 +69,8 @@ for.
 
 Don't strip comments that already carry real information just to hit a
 quota. Most of the comments in this codebase already are rung-5 material —
-incident history (`web/src/pages/index.astro`'s CSS multi-column reflow
-note, issue #141), protocol requirements (`handles/main.go`'s
+incident history (`web/src/styles/global.css`'s grid-vs-multi-column
+note, issues #141 and #161), protocol requirements (`handles/main.go`'s
 `.well-known/atproto-did` note), or library quirks that would otherwise cost
 someone a debugging session (`classify/src/classify.js`'s
 `temperature`-rejection retry, `web/src/lib/ogImage.ts`'s webp/Satori crash
