@@ -13,6 +13,7 @@ export const GET: APIRoute = async () => {
     title: 'bluejays.space',
     description: 'Parody Blue Jays headlines. Not affiliated with MLB or the Toronto Blue Jays.',
     site: getSiteUrl(),
+    trailingSlash: false,
     items: headlines.map((h) => ({
       title: h.headline,
       pubDate: h.published_at ? new Date(h.published_at) : undefined,
