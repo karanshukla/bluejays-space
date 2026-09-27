@@ -81,14 +81,9 @@ body {
 }
 
 .scrapbook-grid > li {
-  break-inside: avoid;
   margin-bottom: 1.75rem;
   /* Room for the washi-tape pseudo-element (below) to overlap the card's top
-     edge without its box escaping *this* element's box — an element that
-     overflows its box inside a CSS multi-column container can get its
-     overflowing part mis-fragmented into a phantom next column with nothing
-     else in it. Keeping the tape's negative offset within this padding keeps
-     the whole visual inside one box. */
+     edge without escaping *this* element's box into the card above. */
   padding-top: 0.75rem;
 }
 
@@ -277,10 +272,8 @@ body {
    mounted the same way. This moves the print inside its mount; it never
    changes the crop, so every card shows the same part of its own photo.
    Kept at ≤2deg and ≤0.4rem: the card's own padding absorbs the overhang, so a
-   tilted mount never pushes ink outside its <li> box. That matters here because
-   the feed is a CSS multi-column container, where an overflowing child can get
-   mis-fragmented into a phantom column (same reason the tape's offset is capped
-   — see .scrapbook-grid > li above). */
+   tilted mount never pushes ink outside its <li> box into a neighbouring card
+   (same reason the tape's offset is capped — see .scrapbook-grid > li above). */
 .mount-a {
   transform: rotate(-1.7deg) translateX(-0.3rem);
   padding: 0.5rem 0.85rem 0 0.45rem;

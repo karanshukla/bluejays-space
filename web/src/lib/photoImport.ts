@@ -6,7 +6,7 @@ import type { Response as UndiciResponse } from 'undici';
 export const MAX_BYTES = 15 * 1024 * 1024;
 
 // Two sizes because the feed's widest single-card layout tops out around
-// 460px (CSS multi-column grid, see global.css .scrapbook-grid) — LARGE covers
+// 460px (see global.css .scrapbook-grid) — LARGE covers
 // that at ~2x DPR, SMALL covers the common single/two-column mobile width
 // (~350-460px at 1x-1.5x). Serving everyone the old flat 1280px original was
 // the single biggest Lighthouse "improve image delivery" offender (most
