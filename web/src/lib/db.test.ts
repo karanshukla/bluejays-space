@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import type { Headline } from './db';
 
 // db.ts does `import pg from 'pg'; const { Pool } = pg; new Pool(...)`. Mock the
 // default export so destructured Pool constructs an object with a controllable
@@ -12,8 +13,13 @@ vi.mock('pg', () => ({
   },
 }));
 
-const { getHeadlineById, createSubmittedHeadline, getPublishedHeadlinesPaged, PAGE_SIZE } =
-  await import('./db');
+const {
+  getHeadlineById,
+  createSubmittedHeadline,
+  getPublishedHeadlinesPaged,
+  getFeedPageOf,
+  PAGE_SIZE,
+} = await import('./db');
 
 beforeEach(() => {
   query.mockReset();
@@ -115,5 +121,20 @@ describe('getPublishedHeadlinesPaged', () => {
     await getPublishedHeadlinesPaged({ page: 1 });
 
     expect(query.mock.calls[0][1]).toEqual([PAGE_SIZE, 0]);
+  });
+});
+
+describe('getFeedPageOf', () => {
+  const headline = { id: 7, published_at: '2026-08-01T00:00:00Z' } as Headline;
+
+  it('puts the last card of a page on that page', async () => {
+    query.mockResolvedValue({ rows: [{ count: String(PAGE_SIZE - 1) }] });
+    expect(await getFeedPageOf(headline)).toBe(1);
+  });
+
+  it('moves to the next page once a full page of newer headlines sits above it', async () => {
+    query.mockResolvedValue({ rows: [{ count: String(PAGE_SIZE) }] });
+    expect(await getFeedPageOf(headline)).toBe(2);
+    expect(query).toHaveBeenCalledWith(expect.any(String), ['2026-08-01T00:00:00Z', 7]);
   });
 });

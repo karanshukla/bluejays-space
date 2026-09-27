@@ -126,6 +126,16 @@ export async function getPublishedHeadlinesPaged({
   };
 }
 
+export async function getFeedPageOf(headline: Headline): Promise<number> {
+  const { rows } = await getPool().query<{ count: string }>(
+    `SELECT COUNT(*)::text AS count FROM headlines
+     WHERE status = 'published' AND (published_at, id) > ($1, $2)`,
+    [headline.published_at, headline.id]
+  );
+  const newer = Number(rows[0]?.count ?? 0);
+  return Math.floor(newer / PAGE_SIZE) + 1;
+}
+
 export interface HeadlineEdit {
   headline: string;
   subtitle: string | null;

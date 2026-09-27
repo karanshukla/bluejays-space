@@ -2,7 +2,12 @@
 import Base, { DEFAULT_DESCRIPTION } from '../../layouts/Base.astro';
 import HeadlineCard from '../../components/HeadlineCard.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
-import { getHeadlineById, getPublishedHeadlinesPaged } from '../../lib/db';
+import {
+  getFeedPageOf,
+  getHeadlineById,
+  getPublishedHeadlinesPaged,
+  PAGE_SIZE,
+} from '../../lib/db';
 import { permalinkPath } from '../../lib/slug';
 import { permalinkDescription } from '../../lib/permalinkMeta';
 
@@ -26,15 +31,12 @@ if (Astro.url.pathname !== canonical) {
   return Astro.redirect(canonical, 301);
 }
 
-// Dimmed backdrop: previously loaded *all* published rows (issue #123). Now
-// capped to the first page — enough to fill the viewport as a backdrop, without
-// pulling the full history on every permalink view. The focused card is always
-// included: if it's older than the first page (rare, but possible for an old
-// permalink), prepend it so it still renders focused rather than vanishing.
-const { rows: backdrop } = await getPublishedHeadlinesPaged({ page: 1 });
-const headlines = backdrop.some((h) => h.id === id)
-  ? backdrop
-  : [headline, ...backdrop.filter((h) => h.id !== id)];
+// Dimmed backdrop: the feed up to and including the page this headline is on,
+// in feed order, so the card sits exactly where it was in the feed and the
+// scroll anchoring below can hold it in place. With only the first page, an
+// older card had to be prepended and jumped to the top-left slot (#174).
+const feedPage = await getFeedPageOf(headline);
+const { rows: headlines } = await getPublishedHeadlinesPaged({ pageSize: feedPage * PAGE_SIZE });
 
 // Always point at the per-headline dynamic image rather than gating on a
 // User-Agent allowlist — that list can never cover every unfurl bot (Pinterest,
