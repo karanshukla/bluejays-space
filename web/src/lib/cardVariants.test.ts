@@ -12,8 +12,8 @@ describe('photoMountFor', () => {
   });
 
   it('keeps every tilt inside the range the card CSS is capped at', () => {
-    // Above 2deg a mount pushes ink outside its <li>, which the feed's CSS
-    // multi-column layout mis-fragments — see .mount-a..g in global.css.
+    // Above 2deg a mount pushes ink outside its <li> into a neighbouring card
+    // — see .mount-a..g in global.css.
     for (const tilt of Object.values(PHOTO_MOUNT_TILTS)) {
       expect(Math.abs(tilt)).toBeLessThanOrEqual(2);
     }

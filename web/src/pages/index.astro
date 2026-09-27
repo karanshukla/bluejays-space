@@ -73,18 +73,10 @@ const nextPage = nextPageAfter(1, totalPages);
     // --- Infinite scroll (issue #123) -------------------------------------
     // Watch a sentinel at the bottom of the feed. When it intersects, fetch the
     // next page as an HTML fragment from /feed-fragment?page=N (same HeadlineCard
-    // as the first page, so there's one card template) and insert the whole
-    // returned <ul> as a sibling block before the sentinel.
-    //
-    // Why sibling blocks instead of splicing <li>s into #feed: the scrapbook is
-    // CSS multi-column (column-count), and multi-column rebalances its columns
-    // every time a child is appended — so splicing later pages' cards into #feed
-    // reflowed every earlier card between columns and made the feed visibly
-    // "shuffle" as you scrolled (issue #141), worst in landscape. Giving each
-    // page its own self-contained column box means earlier pages never
-    // recompute: cards stay exactly where they first painted. The tradeoff is a
-    // slight ragged seam between every page (≈12 cards), which reads as natural
-    // scrapbook spacing. Re-binds copy-link to injected cards.
+    // as the first page, so there's one card template) and append its cards to
+    // #feed. The feed is a row-major grid, so appended cards land after the last
+    // one without moving any card above them (see .scrapbook-grid in
+    // global.css). Re-binds copy-link to injected cards.
     const feed = document.getElementById('feed');
     const sentinel = document.getElementById('feed-sentinel');
     if (feed && sentinel && 'IntersectionObserver' in window) {
@@ -113,12 +105,10 @@ const nextPage = nextPageAfter(1, totalPages);
             done = true;
             return;
           }
-          // Insert the page as its own self-contained column block ahead of the
-          // sentinel. Earlier blocks never reflow → no shuffle (issue #141).
-          sentinel.before(list);
+          feed.append(...cards);
           feed.dataset.nextPage = list.dataset.nextPage ?? String(NO_NEXT_PAGE);
           if (Number(feed.dataset.nextPage) === NO_NEXT_PAGE) done = true;
-          bindCopyLinks(list);
+          bindCopyLinks(feed);
         } catch {
           // Network errors shouldn't kill the observer — just skip this round.
         } finally {

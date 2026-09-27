@@ -40,50 +40,50 @@ body {
   --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
 }
 
-/* --- Scrapbook grid: single-column feed on mobile, masonry columns on wider
-   viewports. CSS multi-column rather than JS-driven masonry — keeps the
-   public feed at zero client-side JS per SPEC.md. --- */
+/* --- Scrapbook grid: single-column feed on mobile, more columns on wider
+   viewports. A row-major grid, not CSS multi-column: multi-column rebalances
+   every column when infinite scroll appends a page, which either shuffled
+   earlier cards (#141) or, with one column box per page, left a ragged seam
+   after every page (#161). A grid appends each card after the last one and
+   never moves the cards above it. --- */
 .scrapbook-grid {
-  column-count: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
 }
 
 @media (min-width: 640px) {
   .scrapbook-grid {
-    column-count: 2;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     column-gap: 1.75rem;
   }
 }
 
 @media (min-width: 1024px) {
   .scrapbook-grid {
-    column-count: 3;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     column-gap: 2rem;
   }
 }
 
 @media (min-width: 1440px) {
   .scrapbook-grid {
-    column-count: 4;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     column-gap: 2rem;
   }
 }
 
 @media (min-width: 1920px) {
   .scrapbook-grid {
-    column-count: 5;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     column-gap: 2.25rem;
   }
 }
 
 .scrapbook-grid > li {
-  break-inside: avoid;
   margin-bottom: 1.75rem;
   /* Room for the washi-tape pseudo-element (below) to overlap the card's top
-     edge without its box escaping *this* element's box — an element that
-     overflows its box inside a CSS multi-column container can get its
-     overflowing part mis-fragmented into a phantom next column with nothing
-     else in it. Keeping the tape's negative offset within this padding keeps
-     the whole visual inside one box. */
+     edge without escaping *this* element's box into the card above. */
   padding-top: 0.75rem;
 }
 
@@ -272,10 +272,8 @@ body {
    mounted the same way. This moves the print inside its mount; it never
    changes the crop, so every card shows the same part of its own photo.
    Kept at ≤2deg and ≤0.4rem: the card's own padding absorbs the overhang, so a
-   tilted mount never pushes ink outside its <li> box. That matters here because
-   the feed is a CSS multi-column container, where an overflowing child can get
-   mis-fragmented into a phantom column (same reason the tape's offset is capped
-   — see .scrapbook-grid > li above). */
+   tilted mount never pushes ink outside its <li> box into a neighbouring card
+   (same reason the tape's offset is capped — see .scrapbook-grid > li above). */
 .mount-a {
   transform: rotate(-1.7deg) translateX(-0.3rem);
   padding: 0.5rem 0.85rem 0 0.45rem;
