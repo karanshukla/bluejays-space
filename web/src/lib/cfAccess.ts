@@ -19,6 +19,10 @@ export function isAuthEnforced(): boolean {
   return Boolean(process.env.CF_ACCESS_TEAM && process.env.CF_ACCESS_AUD);
 }
 
+export function isDevBypassEnabled(): boolean {
+  return process.env.CF_ACCESS_DEV_BYPASS === 'true';
+}
+
 function teamDomain(): string {
   const team = process.env.CF_ACCESS_TEAM;
   if (!team) throw new Error('CF_ACCESS_TEAM not set');

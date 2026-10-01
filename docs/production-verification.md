@@ -37,7 +37,7 @@ Not a full test suite — just enough to confirm the pieces are still wired corr
 
 ## Secrets checklist (confirm these stay set, not blank, across redeploys)
 
-`ANTHROPIC_API_KEY`, `REDDIT_CLIENT_ID`/`SECRET`, `BLUESKY_IDENTIFIER`/`APP_PASSWORD`, `GITHUB_TOKEN` (handles), MinIO credentials (non-default), `CF_ACCESS_TEAM`/`CF_ACCESS_AUD`. `.env.example` documents every one of these; treat a blank value in the Railway dashboard the same as a missing one — several of them (`GITHUB_TOKEN`, `CF_ACCESS_*`) fail *open* to a degraded-but-running state (handle requests silently disabled, admin auth silently skipped) rather than a startup crash, which makes them easy to forget.
+`ANTHROPIC_API_KEY`, `REDDIT_CLIENT_ID`/`SECRET`, `BLUESKY_IDENTIFIER`/`APP_PASSWORD`, `GITHUB_TOKEN` (handles), MinIO credentials (non-default), `CF_ACCESS_TEAM`/`CF_ACCESS_AUD`. `.env.example` documents every one of these; treat a blank value in the Railway dashboard the same as a missing one — `GITHUB_TOKEN` fails to a degraded-but-running state (handle requests silently disabled) rather than a startup crash, which makes it easy to forget. `CF_ACCESS_*` fails closed: `/admin` returns 403 for everyone until both are set.
 
 ## Out of scope here
 

@@ -60,10 +60,11 @@ services:
       # lets it derive handles.<site host>; locally that host resolves nowhere,
       # so point it at the compose `handles` service's published port.
       HANDLES_URL: ${HANDLES_URL:-http://localhost:8080}
-      # Cloudflare Access — middleware skips verification in dev (NODE_ENV unset
-      # in the builder stage), so these stay blank locally. Set in production.
+      # Cloudflare Access: blank locally, set in production. With them blank,
+      # /admin refuses every request unless the dev bypass below is on.
       CF_ACCESS_TEAM: ${CF_ACCESS_TEAM:-}
       CF_ACCESS_AUD: ${CF_ACCESS_AUD:-}
+      CF_ACCESS_DEV_BYPASS: ${CF_ACCESS_DEV_BYPASS:-true}
     depends_on:
       db:
         condition: service_healthy
