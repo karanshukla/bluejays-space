@@ -10,6 +10,8 @@ When Bluesky verifies a handle like `alice.bluejays.space`, it makes a GET reque
 
 Visit the homepage and fill in the form. You'll need your Bluesky DID — find it at **Settings → Change handle → I have my own domain**. Submitting the form opens a pull request automatically; once it's reviewed and merged your handle goes live.
 
+The form only adds new handles. A DID that already has one is refused, since the form can't confirm the submitter controls it; renames go through a manual PR (see below).
+
 ## Adding someone manually
 
 Edit `handles/handles.json` and open a PR. Once merged, Railway redeploys automatically.

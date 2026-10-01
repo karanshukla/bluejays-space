@@ -104,6 +104,16 @@ func TestWarnDuplicateDIDs_Duplicate(t *testing.T) {
 	}
 }
 
+func TestDIDHasHandle(t *testing.T) {
+	m := map[string]string{"alice": "did:plc:abc"}
+	if !didHasHandle(m, "did:plc:abc") {
+		t.Error("expected registered DID to be found")
+	}
+	if didHasHandle(m, "did:plc:xyz") {
+		t.Error("expected unregistered DID not to be found")
+	}
+}
+
 // --- isValidHandle() ---
 
 func TestIsValidHandle(t *testing.T) {

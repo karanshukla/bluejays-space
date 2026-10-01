@@ -57,6 +57,15 @@ func add(m map[string]string, handle, did string) (displaced string, err error) 
 	return displaced, nil
 }
 
+func didHasHandle(m map[string]string, did string) bool {
+	for _, d := range m {
+		if d == did {
+			return true
+		}
+	}
+	return false
+}
+
 // warnDuplicateDIDs logs a warning for every DID registered under more than one
 // handle. Returns the number of duplicates found.
 func warnDuplicateDIDs(m map[string]string, warn func(string, ...any)) int {
