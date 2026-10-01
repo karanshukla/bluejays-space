@@ -6,7 +6,10 @@ import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   output: 'server',
-  adapter: node({ mode: 'standalone' }),
+  // The adapter's default is 1 GB, which every public POST would otherwise
+  // buffer before a route sees it. The largest legitimate body is one photo
+  // upload (MAX_BYTES in src/lib/photoImport.ts) plus multipart overhead.
+  adapter: node({ mode: 'standalone', bodySizeLimit: 16 * 1024 * 1024 }),
   integrations: [svelte()],
   site: process.env.SITE_URL,
   server: { host: true },
