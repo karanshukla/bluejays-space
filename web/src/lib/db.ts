@@ -40,10 +40,13 @@ export async function getPublishedHeadlines(): Promise<Headline[]> {
   return rows;
 }
 
+const MAX_SERIAL_ID = 2 ** 31 - 1;
+
 // Single published headline for a permalink page. Returns null for a draft or
 // discarded row. A permalink to an unpublished headline must 404, never leak
 // the unreviewed row.
 export async function getHeadlineById(id: number): Promise<Headline | null> {
+  if (id > MAX_SERIAL_ID) return null;
   const { rows } = await getPool().query<Headline>(
     `SELECT * FROM headlines WHERE id = $1 AND status = 'published'`,
     [id]
