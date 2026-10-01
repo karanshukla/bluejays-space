@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
 import { exportJWK, generateKeyPair, SignJWT } from 'jose';
 
-import { verifyJwtWithLocalKeys, isAuthEnforced, type JWKS } from './cfAccess.js';
+import {
+  verifyJwtWithLocalKeys,
+  isAuthEnforced,
+  isDevBypassEnabled,
+  type JWKS,
+} from './cfAccess.js';
 
 const ISSUER = 'https://bluejays.cloudflareaccess.com';
 const AUDIENCE = 'test-aud-tag-1234';
@@ -140,5 +145,22 @@ describe('isAuthEnforced', () => {
     delete process.env.CF_ACCESS_TEAM;
     process.env.CF_ACCESS_AUD = 'aud-tag-1234';
     expect(isAuthEnforced()).toBe(false);
+  });
+});
+
+describe('isDevBypassEnabled', () => {
+  const original = process.env.CF_ACCESS_DEV_BYPASS;
+  afterEach(() => {
+    if (original === undefined) delete process.env.CF_ACCESS_DEV_BYPASS;
+    else process.env.CF_ACCESS_DEV_BYPASS = original;
+  });
+
+  it('is on only for the exact value "true"', () => {
+    delete process.env.CF_ACCESS_DEV_BYPASS;
+    expect(isDevBypassEnabled()).toBe(false);
+    process.env.CF_ACCESS_DEV_BYPASS = '1';
+    expect(isDevBypassEnabled()).toBe(false);
+    process.env.CF_ACCESS_DEV_BYPASS = 'true';
+    expect(isDevBypassEnabled()).toBe(true);
   });
 });

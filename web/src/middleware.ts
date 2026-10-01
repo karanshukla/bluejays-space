@@ -1,18 +1,16 @@
 import { defineMiddleware } from 'astro:middleware';
-import { isAuthEnforced, verifyCfAccessJwt } from './lib/cfAccess';
+import { isAuthEnforced, isDevBypassEnabled, verifyCfAccessJwt } from './lib/cfAccess';
 import { isSameSite } from './lib/sameSite';
 
 const PROTECTED = /^\/admin(?:\/|$)/;
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
-// Runs once at module load (server startup) so a partial CF_ACCESS_* config
-// fails loud instead of silently leaving /admin unauthenticated.
-const cfTeam = process.env.CF_ACCESS_TEAM;
-const cfAud = process.env.CF_ACCESS_AUD;
-if (Boolean(cfTeam) !== Boolean(cfAud)) {
+// Runs once at module load (server startup) so a missing CF_ACCESS_* config
+// is visible in the logs, not just as /admin returning 403.
+if (!isAuthEnforced() && !isDevBypassEnabled()) {
   console.error(
-    '[middleware] CF_ACCESS_TEAM and CF_ACCESS_AUD must both be set or both unset — ' +
-      'only one is set, so Cloudflare Access verification is DISABLED and /admin is unauthenticated.'
+    '[middleware] CF_ACCESS_TEAM and CF_ACCESS_AUD are not both set, so /admin refuses every request. ' +
+      'Set both, or set CF_ACCESS_DEV_BYPASS=true for local dev.'
   );
 }
 
@@ -25,7 +23,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   // Keys off CF_ACCESS_* env vars, not NODE_ENV: the local dev flow runs
   // `astro build` (which sets NODE_ENV=production), so NODE_ENV can't be trusted.
-  if (!isAuthEnforced()) return next();
+  if (!isAuthEnforced()) {
+    if (isDevBypassEnabled()) return next();
+    return new Response('Forbidden', { status: 403 });
+  }
 
   const token = context.request.headers.get('Cf-Access-Jwt-Assertion');
   if (!token) return new Response('Forbidden', { status: 403 });
