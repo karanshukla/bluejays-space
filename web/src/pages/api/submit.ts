@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { createSubmittedHeadline } from '../../lib/db';
 import { asNullableText } from '../../lib/formHelpers';
+import { isStoredPhotoKey } from '../../lib/photoImport';
 import { clientIp } from '../../lib/clientIp';
 import { PublicRouteLimiter } from '../../lib/rateLimit';
 import {
@@ -47,6 +48,9 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     (sourceNote?.length ?? 0) > SOURCE_NOTE_MAX
   ) {
     return redirect('/submit?error=too_long', 303);
+  }
+  if (photoRef && !isStoredPhotoKey(photoRef)) {
+    return redirect('/submit?error=server-error', 303);
   }
 
   // photo_ref, if present, already points at a stored MinIO object: the form

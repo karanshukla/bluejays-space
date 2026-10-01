@@ -63,6 +63,15 @@ export function keyForSlug(slug: string): string {
   return `admin/${stamp}-${cleaned}`;
 }
 
+// Matches what keyForSlug (and the .webp rename in storeImageBytes) can
+// produce, so a public submission can only attach a key this pipeline issued
+// rather than any string the client chooses.
+const STORED_PHOTO_KEY = /^admin\/\d+-[a-z0-9_.-]{1,45}$/i;
+
+export function isStoredPhotoKey(value: string): boolean {
+  return STORED_PHOTO_KEY.test(value);
+}
+
 // sharp reads only the first frame unless told otherwise, so an animated
 // source has to be opened with `animated: true` or it silently arrives as a
 // still — which is what a multi-frame upload used to become here.
