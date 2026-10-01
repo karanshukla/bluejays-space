@@ -132,7 +132,7 @@ describe('resolvePhotoRef', () => {
       ok: true,
       status: 200,
       headers: new Headers({ 'content-type': 'image/jpeg' }),
-      arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+      body: new Response(new Uint8Array([1, 2, 3])).body,
     });
 
     const key = await resolvePhotoRef('https://www.sportsnet.ca/wp-content/uploads/photo.jpg');

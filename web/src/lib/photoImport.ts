@@ -36,6 +36,19 @@ export function isAllowedImageType(contentType: string): boolean {
   return ALLOWED_IMAGE_TYPES.has(contentType.split(';')[0].trim().toLowerCase());
 }
 
+// Counts bytes as they arrive so an oversized or endless response is dropped
+// at the cap instead of being buffered whole before the size check.
+export async function readImageBody(res: UndiciResponse): Promise<Buffer> {
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for await (const chunk of res.body ?? []) {
+    size += chunk.byteLength;
+    if (size > MAX_BYTES) throw new Error('image is too large');
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
 function isHttpUrl(value: string): boolean {
   return /^https?:\/\/[^\s]+$/i.test(value);
 }
@@ -48,6 +61,15 @@ export function keyForSlug(slug: string): string {
       .slice(0, 40)
       .replace(/^\.+/, '') || 'photo';
   return `admin/${stamp}-${cleaned}`;
+}
+
+// Matches what keyForSlug (and the .webp rename in storeImageBytes) can
+// produce, so a public submission can only attach a key this pipeline issued
+// rather than any string the client chooses.
+const STORED_PHOTO_KEY = /^admin\/\d+-[a-z0-9_.-]{1,45}$/i;
+
+export function isStoredPhotoKey(value: string): boolean {
+  return STORED_PHOTO_KEY.test(value);
 }
 
 // sharp reads only the first frame unless told otherwise, so an animated
@@ -120,7 +142,7 @@ export async function resolvePhotoRef(value: string | null): Promise<string | nu
     throw new Error(`URL did not return a supported image type (got ${contentType || 'unknown'})`);
   }
 
-  const buf = Buffer.from(await res.arrayBuffer());
+  const buf = await readImageBody(res);
   const slug = value.split('/').pop() ?? '';
   return storeImageBytes(buf, contentType, slug);
 }

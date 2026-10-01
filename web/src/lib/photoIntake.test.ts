@@ -34,13 +34,35 @@ describe('importPhotoFromForm', () => {
       ok: true,
       status: 200,
       headers: new Headers({ 'content-type': 'image/png' }),
-      arrayBuffer: async () => new Uint8Array([9]).buffer,
+      body: new Response(new Uint8Array([9])).body,
     });
     const form = new FormData();
     form.append('url', 'https://example.com/x.png');
     storeImageBytes.mockResolvedValue('admin/456-x.webp');
 
     expect(await importPhotoFromForm(form)).toBe('admin/456-x.webp');
+  });
+
+  it('stops reading a URL response at the size cap instead of buffering all of it', async () => {
+    let pulled = 0;
+    const endless = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1;
+        controller.enqueue(new Uint8Array(1024 * 1024));
+      },
+    });
+    safeFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'image/png' }),
+      body: endless,
+    });
+    const form = new FormData();
+    form.append('url', 'https://example.com/huge.png');
+
+    await expect(importPhotoFromForm(form)).rejects.toThrow(/too large/);
+    expect(pulled).toBeLessThan(20);
+    expect(storeImageBytes).not.toHaveBeenCalled();
   });
 
   it('rejects a non-image file', async () => {

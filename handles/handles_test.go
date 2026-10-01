@@ -125,14 +125,18 @@ func TestIsValidHandle(t *testing.T) {
 // --- isValidDID() ---
 
 func TestIsValidDID(t *testing.T) {
-	valid := []string{"did:plc:abc123", "did:web:example.com"}
+	valid := []string{"did:plc:jsvtouhag7lgnq75f2ze5raf", "did:web:example.com"}
 	for _, d := range valid {
 		if !isValidDID(d) {
 			t.Errorf("expected %q to be valid", d)
 		}
 	}
 
-	invalid := []string{"", "notadid", "did:other:abc", "did:plc:has space"}
+	invalid := []string{
+		"", "notadid", "did:other:abc", "did:plc:has space", "did:plc:abc123",
+		"did:plc:jsvtouhag7lgnq75f2ze5raf`[x](https://evil.example)`",
+		"did:web:example.com/<img>", "did:web:localhost",
+	}
 	for _, d := range invalid {
 		if isValidDID(d) {
 			t.Errorf("expected %q to be invalid", d)

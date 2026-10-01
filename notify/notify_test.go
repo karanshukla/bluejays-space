@@ -2,6 +2,10 @@ package main
 
 import (
 	"database/sql"
+	"io"
+	"mime"
+	"mime/multipart"
+	"net/mail"
 	"os"
 	"strings"
 	"testing"
@@ -158,6 +162,42 @@ func TestBuildMessage_IsValidMultipartAndParseable(t *testing.T) {
 	trimmed := strings.TrimRight(s, " \r\n")
 	if !strings.HasSuffix(trimmed, "--"+mimeBoundary+"--") {
 		t.Errorf("message should end with closing boundary")
+	}
+}
+
+func TestBuildMessage_HeadlineCannotInjectAMimePart(t *testing.T) {
+	injected := "Vlad walks a dog\r\n--" + mimeBoundary + "\r\nContent-Type: text/html\r\n\r\n<a href=\"https://evil.example\">Review</a>\r\n--" + mimeBoundary + "--"
+	drafts := []draft{
+		{ID: 1, Headline: injected, Source: "submission",
+			CreatedAt: time.Date(2026, 7, 24, 12, 0, 0, 0, time.UTC)},
+	}
+	msg, err := buildMessage("noreply@bluejays.space", "rev@example.com",
+		subjectLine(1), "https://bluejays.space", drafts)
+	if err != nil {
+		t.Fatalf("buildMessage: %v", err)
+	}
+	parsed, err := mail.ReadMessage(strings.NewReader(string(msg)))
+	if err != nil {
+		t.Fatalf("ReadMessage: %v", err)
+	}
+	_, params, err := mime.ParseMediaType(parsed.Header.Get("Content-Type"))
+	if err != nil {
+		t.Fatalf("ParseMediaType: %v", err)
+	}
+	reader := multipart.NewReader(parsed.Body, params["boundary"])
+	var types []string
+	for {
+		part, err := reader.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("NextPart: %v", err)
+		}
+		types = append(types, part.Header.Get("Content-Type"))
+	}
+	if len(types) != 2 {
+		t.Errorf("expected exactly the text and html parts, got %d: %v", len(types), types)
 	}
 }
 

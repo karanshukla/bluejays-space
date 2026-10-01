@@ -69,6 +69,12 @@ describe('safeFetch', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('rejects a hostname that resolves to the unspecified IPv6 address', async () => {
+    lookup.mockResolvedValue([{ address: '::', family: 6 }]);
+    await expect(safeFetch('http://unspecified.example.com/')).rejects.toThrow('private address');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('rejects non-http(s) protocols', async () => {
     await expect(safeFetch('file:///etc/passwd')).rejects.toThrow('only http(s) URLs');
   });

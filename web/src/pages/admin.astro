@@ -6,6 +6,10 @@ import { getDraftHeadlines, getPublishedHeadlinesPaged, PAGE_SIZE } from '../lib
 
 export const prerender = false;
 
+// Publish is a single click with no confirm, so a page that framed /admin
+// could trick a signed-in operator into publishing a draft.
+Astro.response.headers.set('X-Frame-Options', 'DENY');
+
 type Tab = 'drafts' | 'published' | 'new';
 const VALID_TABS: Tab[] = ['drafts', 'published', 'new'];
 const tabParam = Astro.url.searchParams.get('tab') as Tab | null;

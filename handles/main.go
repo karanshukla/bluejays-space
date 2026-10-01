@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -318,21 +319,14 @@ func isValidHandle(s string) bool {
 	return s[0] != '-' && s[len(s)-1] != '-'
 }
 
-// isValidDID accepts did:plc: and did:web: DIDs. Restricted to printable non-space
-// ASCII to prevent injection into the PR body / commit message.
+// didPattern accepts the two DID methods Bluesky supports: did:plc with its
+// 24-character base32 identifier, and hostname-only did:web. The DID is pasted
+// into the PR body, so anything looser lets a submitter put Markdown of their
+// choosing into the PR.
+var didPattern = regexp.MustCompile(`^did:(plc:[a-z2-7]{24}|web:[a-z0-9-]+(\.[a-z0-9-]+)+)$`)
+
 func isValidDID(s string) bool {
-	if len(s) == 0 || len(s) > 512 {
-		return false
-	}
-	if !strings.HasPrefix(s, "did:plc:") && !strings.HasPrefix(s, "did:web:") {
-		return false
-	}
-	for _, c := range s {
-		if c < 33 || c > 126 {
-			return false
-		}
-	}
-	return true
+	return len(s) <= 253 && didPattern.MatchString(s)
 }
 
 // Cloudflare replaces any client-supplied CF-Connecting-IP, but the origin also

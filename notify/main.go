@@ -136,11 +136,19 @@ func subjectLine(n int) string {
 	return fmt.Sprintf("[bluejays.space] %d %s waiting for review", n, noun)
 }
 
+// oneLine collapses every run of whitespace, line breaks included, into a
+// single space. Headlines arrive from the public /submit form, and one carrying
+// a line break followed by the fixed mimeBoundary would otherwise start a MIME
+// part of the submitter's choosing in the admin's email.
+func oneLine(s string) string {
+	return strings.Join(strings.Fields(s), " ")
+}
+
 func buildTextBody(drafts []draft, adminURL string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%d draft(s) are waiting in the review queue:\n\n", len(drafts))
 	for _, d := range drafts {
-		fmt.Fprintf(&b, "• %s\n", d.Headline)
+		fmt.Fprintf(&b, "• %s\n", oneLine(d.Headline))
 		fmt.Fprintf(&b, "    #%d · %s · source: %s · safety: %s\n",
 			d.ID, formatTime(d.CreatedAt), d.Source, safetyLabel(d.SafetyStatus))
 	}
@@ -157,7 +165,7 @@ func buildHTMLBody(drafts []draft, adminURL string) string {
 		fmt.Fprintf(&b,
 			"<li style=\"margin:8px 0;\"><strong>%s</strong><br>"+
 				"<span style=\"color:#555;font-size:12px;\">#%d · %s · source: %s · safety: %s</span></li>",
-			html.EscapeString(d.Headline),
+			html.EscapeString(oneLine(d.Headline)),
 			d.ID,
 			html.EscapeString(formatTime(d.CreatedAt)),
 			html.EscapeString(d.Source),

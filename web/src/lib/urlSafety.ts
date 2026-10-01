@@ -35,6 +35,7 @@ function isBlockedV4(ip: string): boolean {
 function isBlockedV6(ip: string): boolean {
   const lower = ip.toLowerCase();
   return (
+    lower === '::' || // unspecified, which Linux connects to loopback
     lower === '::1' ||
     lower.startsWith('fe80:') || // link-local
     lower.startsWith('fc') ||
