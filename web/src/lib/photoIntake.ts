@@ -1,4 +1,4 @@
-import { storeImageBytes, isAllowedImageType, MAX_BYTES } from './photoImport';
+import { storeImageBytes, isAllowedImageType, MAX_BYTES, readImageBody } from './photoImport';
 import { safeFetch } from './urlSafety';
 import type { Response as UndiciResponse } from 'undici';
 
@@ -15,8 +15,7 @@ async function importFromUrl(url: string): Promise<string> {
   if (!isAllowedImageType(contentType)) {
     throw new Error(`URL did not return a supported image type (got ${contentType || 'unknown'})`);
   }
-  const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.byteLength > MAX_BYTES) throw new Error('image is too large');
+  const buf = await readImageBody(res);
   const slug = url.split('/').pop() ?? '';
   return storeImageBytes(buf, contentType, slug);
 }
