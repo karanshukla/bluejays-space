@@ -3,6 +3,7 @@ import Base from '../layouts/Base.astro';
 import DraftCard from '../components/DraftCard.svelte';
 import PhotoInput from '../components/PhotoInput.svelte';
 import { getDraftHeadlines, getPublishedHeadlinesPaged, PAGE_SIZE } from '../lib/db';
+import { parsePage } from '../lib/pagination';
 
 export const prerender = false;
 
@@ -15,14 +16,14 @@ const VALID_TABS: Tab[] = ['drafts', 'published', 'new'];
 const tabParam = Astro.url.searchParams.get('tab') as Tab | null;
 const tab: Tab = VALID_TABS.includes(tabParam!) ? tabParam! : 'drafts';
 
+const page = parsePage(Astro.url.searchParams.get('page'), PAGE_SIZE);
+if (page === null) {
+  return new Response('Bad Request', { status: 400 });
+}
+
 const drafts = await getDraftHeadlines();
 const published =
-  tab === 'published'
-    ? await getPublishedHeadlinesPaged({
-        page: Number(Astro.url.searchParams.get('page')) || 1,
-        pageSize: PAGE_SIZE,
-      })
-    : null;
+  tab === 'published' ? await getPublishedHeadlinesPaged({ page, pageSize: PAGE_SIZE }) : null;
 
 const draftsHref = '/admin?tab=drafts';
 const publishedHref = '/admin?tab=published';

@@ -10,12 +10,15 @@
 // The fragment echoes the next page number (or 0 when this is the last page) as
 // data-next-page so the observer knows whether to fetch again.
 import HeadlineCard from '../components/HeadlineCard.astro';
-import { getPublishedHeadlinesPaged } from '../lib/db';
-import { nextPageAfter } from '../lib/pagination';
+import { getPublishedHeadlinesPaged, PAGE_SIZE } from '../lib/db';
+import { nextPageAfter, parsePage } from '../lib/pagination';
 
 export const prerender = false;
 
-const page = Math.max(1, Number(Astro.url.searchParams.get('page')) || 1);
+const page = parsePage(Astro.url.searchParams.get('page'), PAGE_SIZE);
+if (page === null) {
+  return new Response('Bad Request', { status: 400 });
+}
 const { rows, page: current, totalPages } = await getPublishedHeadlinesPaged({ page });
 
 const nextPage = nextPageAfter(current, totalPages);

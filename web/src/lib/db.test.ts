@@ -39,6 +39,11 @@ describe('getHeadlineById', () => {
     expect(await getHeadlineById(999)).toBeNull();
   });
 
+  it('returns null without querying for an id past the serial column range', async () => {
+    expect(await getHeadlineById(2 ** 31)).toBeNull();
+    expect(query).not.toHaveBeenCalled();
+  });
+
   it('returns null for a draft (never leaks an unreviewed row)', async () => {
     // The DB would return no row because the WHERE clause filters on published;
     // the function must surface that as null, not the missing row.
