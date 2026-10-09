@@ -2,11 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { configSummary, applyVerdict } from './index.js';
 
-test('configSummary defaults CLASSIFIER_MODEL to claude-haiku-4-5 when unset', () => {
+test('configSummary defaults CLASSIFIER_MODEL to claude-haiku-5-5 when unset', () => {
   const previous = process.env.CLASSIFIER_MODEL;
   delete process.env.CLASSIFIER_MODEL;
   try {
-    assert.equal(configSummary().CLASSIFIER_MODEL, 'claude-haiku-4-5');
+    assert.equal(configSummary().CLASSIFIER_MODEL, 'claude-haiku-5-5');
   } finally {
     if (previous === undefined) delete process.env.CLASSIFIER_MODEL;
     else process.env.CLASSIFIER_MODEL = previous;
