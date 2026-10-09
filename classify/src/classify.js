@@ -180,11 +180,10 @@ export async function classify({ headline, subtitle, sourceNote, image }) {
     : userMessage;
 
   const anthropic = client();
-  const temperature = 0;
   const startedAt = Date.now();
   console.log(`[classify] classifying draft (${image ? 'text+image' : 'text only'}) via ${model}`);
 
-  const call = (body) => anthropic.messages.create({ ...body, temperature });
+  const call = (body) => anthropic.messages.create({ ...body });
 
   let response;
   try {
