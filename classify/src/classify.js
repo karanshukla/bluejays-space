@@ -171,7 +171,7 @@ function isTemperatureError(err) {
  * @returns {Promise<{category: string, safety_status: string, safety_reason: string|null}>}
  */
 export async function classify({ headline, subtitle, sourceNote, image }) {
-  const model = process.env.CLASSIFIER_MODEL || 'claude-haiku-4-5';
+  const model = process.env.CLASSIFIER_MODEL || 'claude-haiku-5-5';
   const systemPrompt = buildSystemPrompt();
   const userMessage = buildUserMessage({ headline, subtitle, sourceNote });
 
