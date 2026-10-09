@@ -120,7 +120,7 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-bluejays}:${POSTGRES_PASSWORD:-bluejays}@db:5432/${POSTGRES_DB:-bluejays}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      CLASSIFIER_MODEL: ${CLASSIFIER_MODEL:-claude-haiku-4-5}
+      CLASSIFIER_MODEL: ${CLASSIFIER_MODEL:-claude-haiku-5-5}
       S3_ENDPOINT: http://minio:9000
       S3_REGION: us-east-1
       S3_BUCKET: ${S3_BUCKET:-bluejays-images}

@@ -16,7 +16,7 @@ export function configSummary() {
   return {
     DATABASE_URL: present('DATABASE_URL'),
     ANTHROPIC_API_KEY: present('ANTHROPIC_API_KEY'),
-    CLASSIFIER_MODEL: process.env.CLASSIFIER_MODEL || 'claude-haiku-4-5',
+    CLASSIFIER_MODEL: process.env.CLASSIFIER_MODEL || 'claude-haiku-5-5',
     S3_ENDPOINT: present('S3_ENDPOINT'),
   };
 }
