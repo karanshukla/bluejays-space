@@ -36,7 +36,7 @@
     "pg": "^8.23.1",
     "satori": "^0.34.1",
     "sharp": "^0.35.4",
-    "svelte": "^5.57.1",
+    "svelte": "^5.57.2",
     "undici": "^8.10.2"
   },
   "devDependencies": {
