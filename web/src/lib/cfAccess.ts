@@ -39,11 +39,22 @@ export async function verifyJwtWithLocalKeys(
   return verifiedUser(payload);
 }
 
+const remoteJwksByIssuer = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
+
+function getRemoteJwks(issuer: string): ReturnType<typeof createRemoteJWKSet> {
+  let jwks = remoteJwksByIssuer.get(issuer);
+  if (!jwks) {
+    jwks = createRemoteJWKSet(new URL(`${issuer}/cdn-cgi/access/certs`));
+    remoteJwksByIssuer.set(issuer, jwks);
+  }
+  return jwks;
+}
+
 export async function verifyCfAccessJwt(token: string): Promise<VerifiedUser> {
   const audience = process.env.CF_ACCESS_AUD;
   if (!audience) throw new Error('CF_ACCESS_AUD not set');
   const issuer = teamDomain();
-  const jwks = createRemoteJWKSet(new URL(`${issuer}/cdn-cgi/access/certs`));
+  const jwks = getRemoteJwks(issuer);
   const { payload } = await jwtVerify(token, jwks, { issuer, audience });
   return verifiedUser(payload);
 }

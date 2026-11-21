@@ -23,7 +23,10 @@ export const POST: APIRoute = async ({ request }) => {
     const key = await importPhotoFromForm(await request.formData());
     return Response.json({ key });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'failed to import photo';
+    const raw = err instanceof Error ? err.message : 'failed to import photo';
+    const message = raw.includes('private address')
+      ? 'Could not import photo from that URL'
+      : raw;
     return new Response(message, { status: 400 });
   }
 };

@@ -103,6 +103,15 @@ describe('storeImageBytes', () => {
     );
     expect(uploadImage).not.toHaveBeenCalled();
   });
+
+  it('rejects corrupt or non-image bytes when sharp cannot decode them instead of storing raw bytes', async () => {
+    chain.metadata.mockRejectedValue(new Error('Input buffer contains unsupported image format'));
+    const buf = Buffer.from('<html><script>alert(1)</script></html>');
+    await expect(storeImageBytes(buf, 'image/jpeg', 'spoofed.jpg')).rejects.toThrow(
+      'invalid or unsupported image'
+    );
+    expect(uploadImage).not.toHaveBeenCalled();
+  });
 });
 
 describe('resolvePhotoRef', () => {

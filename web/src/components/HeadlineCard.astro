@@ -28,6 +28,15 @@ const mountVariant = photoMountFor(h.id);
 const url = permalinkPath(h.id, h.headline);
 const siteHost = getSiteUrl().hostname;
 const hasSmallVariant = h.photo_ref?.endsWith('.webp') ?? false;
+const safeSourceUrl = (() => {
+  if (!h.source_post_url) return null;
+  try {
+    const parsed = new URL(h.source_post_url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? h.source_post_url : null;
+  } catch {
+    return null;
+  }
+})();
 ---
 
 <li data-headline-id={h.id}>
@@ -67,8 +76,12 @@ const hasSmallVariant = h.photo_ref?.endsWith('.webp') ?? false;
     {h.source_note && (
       <p class="mt-2 font-mono text-[0.65rem] text-ink-soft/70 italic">
         Source:{' '}
-        {h.source_post_url ? (
-          <a href={h.source_post_url} class="card-control not-italic hover:underline">
+        {safeSourceUrl ? (
+          <a
+            href={safeSourceUrl}
+            rel="noopener noreferrer"
+            class="card-control not-italic hover:underline"
+          >
             {h.source_note}
           </a>
         ) : (

@@ -40,6 +40,16 @@ describe('POST /api/submit-photo', () => {
     expect(await res.text()).toMatch(/unsupported image type/i);
   });
 
+  it('returns a generic 400 message when the URL resolves to a private address (no DNS oracle)', async () => {
+    importPhotoFromForm.mockRejectedValue(new Error('that URL points to a private address'));
+
+    const res = await callPost(new FormData(), '203.0.113.14');
+    expect(res.status).toBe(400);
+    const text = await res.text();
+    expect(text).toBe('Could not import photo from that URL');
+    expect(text).not.toMatch(/private address/i);
+  });
+
   it('returns 400, not 500, when the body is not parseable form data', async () => {
     const request = new Request('http://localhost/api/submit-photo', {
       method: 'POST',

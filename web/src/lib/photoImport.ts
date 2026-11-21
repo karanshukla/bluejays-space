@@ -120,8 +120,7 @@ export async function storeImageBytes(
     ]);
     return webpKey;
   } catch {
-    await uploadImage(key, buf, contentType);
-    return key;
+    throw new Error('invalid or unsupported image');
   }
 }
 
