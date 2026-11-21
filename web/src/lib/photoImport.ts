@@ -94,14 +94,17 @@ export async function storeImageBytes(
 ): Promise<string> {
   if (!isAllowedImageType(contentType)) throw new Error(`unsupported image type: ${contentType}`);
   if (buf.byteLength > MAX_BYTES) throw new Error('image is too large');
-  const key = keyForSlug(slug);
 
+  // Animated GIFs go down the same path as everything else and come out as
+  // animated WebP: the format is dramatically cheaper over the wire, and the
+  // reader (HeadlineCard.astro) already keys its srcset off the .webp suffix.
+  // Bytes sharp can't decode are refused rather than stored as-is, or the
+  // public intake would host arbitrary files under an image content type.
+  let large: Buffer;
+  let small: Buffer;
   try {
-    // Animated GIFs go down the same path as everything else and come out as
-    // animated WebP: the format is dramatically cheaper over the wire, and the
-    // reader (HeadlineCard.astro) already keys its srcset off the .webp suffix.
     const oriented = readForResize(buf, await isAnimated(buf));
-    const [large, small] = await Promise.all([
+    [large, small] = await Promise.all([
       oriented
         .clone()
         .resize({ width: LARGE_WIDTH, withoutEnlargement: true })
@@ -113,16 +116,15 @@ export async function storeImageBytes(
         .webp({ quality: WEBP_QUALITY })
         .toBuffer(),
     ]);
-    const webpKey = key.replace(/\.[a-z0-9]+$/i, '') + '.webp';
-    await Promise.all([
-      uploadImage(webpKey, large, 'image/webp'),
-      uploadImage(smallVariantKey(webpKey), small, 'image/webp'),
-    ]);
-    return webpKey;
   } catch {
-    await uploadImage(key, buf, contentType);
-    return key;
+    throw new Error('invalid or unsupported image');
   }
+  const webpKey = keyForSlug(slug).replace(/\.[a-z0-9]+$/i, '') + '.webp';
+  await Promise.all([
+    uploadImage(webpKey, large, 'image/webp'),
+    uploadImage(smallVariantKey(webpKey), small, 'image/webp'),
+  ]);
+  return webpKey;
 }
 
 export async function resolvePhotoRef(value: string | null): Promise<string | null> {

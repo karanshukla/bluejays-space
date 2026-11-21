@@ -98,15 +98,21 @@ function release(dispatcher: Agent): void {
   void dispatcher.close().catch(() => {});
 }
 
+// undici's bodyTimeout resets on every chunk, so a server trickling a byte at a
+// time could hold a public /submit-photo request open indefinitely. This caps
+// the whole fetch, redirects and body read included.
+const FETCH_DEADLINE_MS = 30_000;
+
 // Drop-in replacement for fetch() that validates the target host (and every
 // redirect hop) isn't a private/internal address before connecting to it.
 export async function safeFetch(rawUrl: string, maxRedirects = 5): Promise<UndiciResponse> {
+  const signal = AbortSignal.timeout(FETCH_DEADLINE_MS);
   let current = rawUrl;
   for (let i = 0; i <= maxRedirects; i++) {
     const dispatcher = pinnedDispatcher(await resolvePublicHttpUrl(current));
     let res: UndiciResponse;
     try {
-      res = await undiciFetch(current, { redirect: 'manual', dispatcher });
+      res = await undiciFetch(current, { redirect: 'manual', dispatcher, signal });
     } catch (err) {
       release(dispatcher);
       throw err;
