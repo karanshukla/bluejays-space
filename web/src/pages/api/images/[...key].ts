@@ -1,4 +1,3 @@
-import { Readable } from 'node:stream';
 import type { APIRoute } from 'astro';
 import { getImage } from '../../../lib/storage';
 
@@ -11,12 +10,12 @@ export const GET: APIRoute = async ({ params }) => {
   const image = await getImage(key);
   if (!image) return new Response('Not found', { status: 404 });
 
-  const stream =
-    image.body instanceof Readable
-      ? (Readable.toWeb(image.body) as ReadableStream)
-      : (image.body as unknown as ReadableStream);
+  const chunks: Buffer[] = [];
+  for await (const chunk of image.body) {
+    chunks.push(chunk as Buffer);
+  }
 
-  return new Response(stream, {
+  return new Response(Buffer.concat(chunks), {
     headers: {
       'Content-Type': image.contentType ?? 'application/octet-stream',
       // Safe to cache for a year: every upload gets a fresh timestamped key

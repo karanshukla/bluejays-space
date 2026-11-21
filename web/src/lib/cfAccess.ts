@@ -39,23 +39,16 @@ export async function verifyJwtWithLocalKeys(
   return verifiedUser(payload);
 }
 
-const remoteJwksByIssuer = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
-
-function getRemoteJwks(issuer: string): ReturnType<typeof createRemoteJWKSet> {
-  let jwks = remoteJwksByIssuer.get(issuer);
-  if (!jwks) {
-    jwks = createRemoteJWKSet(new URL(`${issuer}/cdn-cgi/access/certs`));
-    remoteJwksByIssuer.set(issuer, jwks);
-  }
-  return jwks;
-}
+// Module-level because jose caches the fetched keys on this instance; one per
+// request would refetch Cloudflare's certs on every /admin hit.
+let remoteJwks: ReturnType<typeof createRemoteJWKSet> | undefined;
 
 export async function verifyCfAccessJwt(token: string): Promise<VerifiedUser> {
   const audience = process.env.CF_ACCESS_AUD;
   if (!audience) throw new Error('CF_ACCESS_AUD not set');
   const issuer = teamDomain();
-  const jwks = getRemoteJwks(issuer);
-  const { payload } = await jwtVerify(token, jwks, { issuer, audience });
+  remoteJwks ??= createRemoteJWKSet(new URL(`${issuer}/cdn-cgi/access/certs`));
+  const { payload } = await jwtVerify(token, remoteJwks, { issuer, audience });
   return verifiedUser(payload);
 }
 

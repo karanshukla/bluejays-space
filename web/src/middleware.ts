@@ -14,51 +14,28 @@ if (!isAuthEnforced() && !isDevBypassEnabled()) {
   );
 }
 
-function withSecurityHeaders(res: Response): Response {
-  const headers = new Headers(res.headers);
-  if (!headers.has('X-Content-Type-Options')) {
-    headers.set('X-Content-Type-Options', 'nosniff');
-  }
-  if (!headers.has('X-Frame-Options')) {
-    headers.set('X-Frame-Options', 'DENY');
-  }
-  if (!headers.has('Referrer-Policy')) {
-    headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  }
-  if (!headers.has('Permissions-Policy')) {
-    headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-  }
-  return new Response(res.body, {
-    status: res.status,
-    statusText: res.statusText,
-    headers,
-  });
-}
-
 export const onRequest = defineMiddleware(async (context, next) => {
-  if (!PROTECTED.test(context.url.pathname)) {
-    return withSecurityHeaders(await next());
-  }
+  if (!PROTECTED.test(context.url.pathname)) return next();
 
   if (MUTATING_METHODS.has(context.request.method) && !isSameSite(context.request, context.url)) {
-    return withSecurityHeaders(new Response('Forbidden', { status: 403 }));
+    return new Response('Forbidden', { status: 403 });
   }
 
   // Keys off CF_ACCESS_* env vars, not NODE_ENV: the local dev flow runs
   // `astro build` (which sets NODE_ENV=production), so NODE_ENV can't be trusted.
   if (!isAuthEnforced()) {
-    if (isDevBypassEnabled()) return withSecurityHeaders(await next());
-    return withSecurityHeaders(new Response('Forbidden', { status: 403 }));
+    if (isDevBypassEnabled()) return next();
+    return new Response('Forbidden', { status: 403 });
   }
 
   const token = context.request.headers.get('Cf-Access-Jwt-Assertion');
-  if (!token) return withSecurityHeaders(new Response('Forbidden', { status: 403 }));
+  if (!token) return new Response('Forbidden', { status: 403 });
 
   try {
     context.locals.cfUser = await verifyCfAccessJwt(token);
   } catch {
-    return withSecurityHeaders(new Response('Forbidden', { status: 403 }));
+    return new Response('Forbidden', { status: 403 });
   }
 
-  return withSecurityHeaders(await next());
+  return next();
 });

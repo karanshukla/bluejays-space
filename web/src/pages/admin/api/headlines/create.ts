@@ -12,18 +12,6 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     return new Response('Missing required fields', { status: 400 });
   }
 
-  const sourcePostUrl = asNullableText(form.get('source_post_url'));
-  if (sourcePostUrl !== null) {
-    try {
-      const parsed = new URL(sourcePostUrl);
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        return new Response('source_post_url must be an http(s) URL', { status: 400 });
-      }
-    } catch {
-      return new Response('source_post_url must be a valid http(s) URL', { status: 400 });
-    }
-  }
-
   let photoRef: string | null;
   try {
     photoRef = await resolvePhotoRef(asNullableText(form.get('photo_ref')));
@@ -38,7 +26,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     headline,
     subtitle: asNullableText(form.get('subtitle')),
     photo_ref: photoRef,
-    source_post_url: sourcePostUrl,
+    source_post_url: asNullableText(form.get('source_post_url')),
     source_note: asNullableText(form.get('source_note')),
   });
 
