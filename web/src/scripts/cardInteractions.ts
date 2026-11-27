@@ -1,7 +1,6 @@
 // Client behaviour shared by the feed (index.astro) and permalink pages
 // (h/[id].astro). Both render the same HeadlineCard, and the feed re-runs the
-// binding for every infinite-scroll batch, so this lived in three near-identical
-// copies before it moved here.
+// binding for every infinite-scroll batch.
 
 export const CARD_ANCHOR_KEY = 'cardAnchor';
 export const FEED_SCROLL_KEY = 'feedScrollY';
@@ -25,11 +24,19 @@ export function bindCopyLinks(root: ParentNode = document): void {
       if (!path) return;
       try {
         await navigator.clipboard.writeText(`${location.origin}${path}`);
-        const svg = btn.querySelector('svg');
-        if (svg) {
-          svg.style.color = 'var(--color-blue)';
-          setTimeout(() => (svg.style.color = ''), 1500);
+        const label = btn.querySelector<HTMLElement>('.copy-label');
+        btn.style.color = 'var(--color-blue)';
+        if (label) {
+          label.classList.remove('sr-only');
+          label.textContent = 'Copied';
         }
+        setTimeout(() => {
+          btn.style.color = '';
+          if (label) {
+            label.classList.add('sr-only');
+            label.textContent = 'Copy link';
+          }
+        }, 1500);
       } catch {
         window.open(path, '_blank');
       }

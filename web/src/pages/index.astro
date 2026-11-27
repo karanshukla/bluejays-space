@@ -16,16 +16,19 @@ const nextPage = nextPageAfter(1, totalPages);
 ---
 
 <Base title="bluejays.space">
-  <main class="mx-auto max-w-[1600px] px-6 py-12 sm:px-10">
+  <main class="mx-auto max-w-[1440px] px-5 pt-8 pb-6 sm:px-8 sm:pt-12 lg:px-10">
     <SiteHeader />
 
     {rows.length === 0 && (
-      <p class="mt-16 text-center font-mono text-sm text-ink-soft">
-        No headlines published yet. Check back soon.
-      </p>
+      <div class="mt-12 border border-paper-edge bg-card px-6 py-12 text-center">
+        <p class="font-mono text-xs tracking-[0.16em] text-blue uppercase">Press Box Quiet</p>
+        <p class="mt-2 font-display text-xl text-ink">
+          No dispatches published yet. Check back before first pitch.
+        </p>
+      </div>
     )}
 
-    <ul class="scrapbook-grid mt-14" id="feed" data-next-page={nextPage}>
+    <ul class="scrapbook-grid mt-8 sm:mt-10" id="feed" data-next-page={nextPage}>
       {rows.map((h, i) => (
         <HeadlineCard headline={h} eager={i < 4} />
       ))}
@@ -71,12 +74,6 @@ const nextPage = nextPageAfter(1, totalPages);
     }
 
     // --- Infinite scroll (issue #123) -------------------------------------
-    // Watch a sentinel at the bottom of the feed. When it intersects, fetch the
-    // next page as an HTML fragment from /feed-fragment?page=N (same HeadlineCard
-    // as the first page, so there's one card template) and append its cards to
-    // #feed. The feed is a row-major grid, so appended cards land after the last
-    // one without moving any card above them (see .scrapbook-grid in
-    // global.css). Re-binds copy-link to injected cards.
     const feed = document.getElementById('feed');
     const sentinel = document.getElementById('feed-sentinel');
     if (feed && sentinel && 'IntersectionObserver' in window) {

@@ -1,62 +1,112 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bluesky Handles &middot; {{.D}}</title>
-    <meta name="description"
-        content="Free @yourname.{{.D}} Bluesky handles for Toronto Blue Jays fans. Request one and it goes live once the pull request is merged.">
-    <link rel="canonical" href="https://handles.{{.D}}/">
-    <link rel="stylesheet" href="/static/styles.css">
-</head>
+    <meta
+      name="description"
+      content="Free @yourname.{{.D}} Bluesky handles for Toronto Blue Jays fans. Request one and it goes live once the pull request is merged."
+    />
+    <link rel="canonical" href="https://handles.{{.D}}/" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
 
-<body>
-    <div class="container">
-        <div class="site-header">
-            <h1>{{.D}}</h1>
-            <h2>Custom Bluesky handles for Toronto Blue Jays fans!</h2>
-            <h3>Made by Karan Shukla in Toronto Ontario <a
-                    href="https://bsky.app/profile/did:plc:jsvtouhag7lgnq75f2ze5raf" target="_blank"
-                    rel="noopener noreferrer">(@karanshukla.ca)</a></h3>
+  <body>
+    <main class="container">
+      <header class="masthead">
+        <p class="eyebrow">Toronto Baseball Dispatch</p>
+        <h1 class="wordmark">
+          <a href="https://{{.D}}/">{{.D}}</a>
+        </h1>
+        <div class="dateline-bar">
+          <span class="dateline-strong">Handle Bureau</span>
+          <span>Bluesky Custom Domains</span>
+          <a href="https://{{.D}}/" class="dateline-link">&larr; Front Page</a>
         </div>
-        {{.Flash}}
-        <div class="card">
-            <div class="card-title">Request a Handle</div>
-            <p>Fill in the form below. Once the Github pull request is reviewed and merged, your handle will be active
-                on the server.</p>
-            <form method="POST" action="/request-handle">
-                <div class="form-field">
-                    <label for="handle">New Handle <span class="hint">- lowercase letters, numbers,
-                            hyphens</span></label>
-                    <div class="input-group">
-                        <span class="input-prefix">@</span>
-                        <input type="text" id="handle" name="handle" placeholder="yourname" required autocomplete="off"
-                            spellcheck="false">
-                        <span class="input-suffix">.{{.D}}</span>
-                    </div>
-                </div>
-                <div class="form-field">
-                    <label for="did">Your DID <span class="hint">- Settings → Change handle → I have my own
-                            domain</span></label>
-                    <input type="text" id="did" name="did" placeholder="did:plc:..." required autocomplete="off"
-                        spellcheck="false">
-                </div>
-                <button type="submit">Submit Request</button>
-            </form>
-        </div>
-        <div class="card">
-            <div class="card-title">After Approval</div>
-            <ol>
-                <li>Visit <strong>Settings → Account → Handle → I have my own domain (TXT)</strong>.</li>
-                <li>Enter your new handle: <code>your.{{.D}}</code></li>
-                <li>Click <strong>Verify DNS Record</strong> - it should pass immediately.</li>
-            </ol>
-        </div>
-        <div class="logo-footer">
-            <img src="/static/beisbol.jpg" alt="Torrano Beisbol Birds" class="logo-img">
-        </div>
-    </div>
-</body>
+        <div class="dateline-subrule"></div>
+        <p class="deck">
+          Free <code>@yourname.{{.D}}</code> Bluesky handles for Toronto Blue Jays fans. Made by
+          Karan Shukla in Toronto, Ontario
+          <a
+            href="https://bsky.app/profile/did:plc:jsvtouhag7lgnq75f2ze5raf"
+            target="_blank"
+            rel="noopener noreferrer"
+            >(@karanshukla.ca)</a
+          >.
+        </p>
+      </header>
 
+      {{.Flash}}
+
+      <section class="sheet sheet-primary" aria-labelledby="request-heading">
+        <div class="sheet-kicker" id="request-heading">Claim a Handle</div>
+        <p class="sheet-intro">
+          Fill in the dispatch below. Once the GitHub pull request is reviewed and merged, your
+          handle goes live on the server.
+        </p>
+        <form method="POST" action="/request-handle">
+          <div class="form-field">
+            <label for="handle">
+              New Handle <span class="hint">(lowercase letters, numbers, hyphens)</span>
+            </label>
+            <div class="input-group">
+              <span class="input-prefix">@</span>
+              <input
+                type="text"
+                id="handle"
+                name="handle"
+                placeholder="yourname"
+                required
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <span class="input-suffix">.{{.D}}</span>
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label for="did">
+              Your DID
+              <span class="hint">(Settings &rarr; Change handle &rarr; I have my own domain)</span>
+            </label>
+            <input
+              type="text"
+              id="did"
+              name="did"
+              placeholder="did:plc:..."
+              required
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </div>
+
+          <button type="submit">Submit Request</button>
+        </form>
+      </section>
+
+      <section class="sheet" aria-labelledby="approval-heading">
+        <div class="sheet-kicker" id="approval-heading">After Approval</div>
+        <ol class="steps">
+          <li>
+            Visit <strong>Settings &rarr; Account &rarr; Handle &rarr; I have my own domain</strong>
+            (No DNS panel / HTTP).
+          </li>
+          <li>Enter your new handle: <code>your.{{.D}}</code></li>
+          <li>Click <strong>Verify Text File</strong> &mdash; it should pass immediately.</li>
+        </ol>
+      </section>
+
+      <footer class="colophon">
+        <div class="double-rule"></div>
+        <div class="logo-wrap">
+          <img src="/static/beisbol.jpg" alt="Torrano Beisbol Birds" class="logo-img" />
+        </div>
+        <p class="colophon-note">
+          <strong>{{.D}}</strong> is an independent fan project. Not affiliated with MLB or the
+          Toronto Blue Jays.
+        </p>
+      </footer>
+    </main>
+  </body>
 </html>

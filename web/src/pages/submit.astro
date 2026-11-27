@@ -19,41 +19,65 @@ const errorMessage: Record<string, string> = {
   rate_limited: 'Too many submissions from you recently. Try again in a bit.',
   'server-error': 'Something went wrong on our end. Try again.',
 };
+
+const LABEL_CLASS = 'block font-mono text-[0.7rem] font-bold tracking-[0.12em] text-ink uppercase';
+const INPUT_CLASS =
+  'mt-1.5 w-full border border-paper-edge bg-paper/70 px-3 py-2.5 text-ink transition-colors placeholder:text-ink-muted/70 focus:border-blue focus:bg-card focus:ring-2 focus:ring-blue/20 focus:outline-none';
 ---
 
 <Base
   title="Submit a headline · bluejays.space"
   description="Send in a Blue Jays headline idea for review."
 >
-  <main class="mx-auto max-w-[1600px] px-6 py-16 sm:px-10">
+  <main class="mx-auto max-w-[1440px] px-5 pt-8 pb-6 sm:px-8 sm:pt-12 lg:px-10">
     <SiteHeader />
-    <div class="mx-auto max-w-xl">
-      <h2 class="mt-6 text-center text-3xl font-semibold tracking-tight text-ink font-display">
-        Submit a headline
-      </h2>
-      <p class="mt-4 text-center text-sm text-ink-soft">
-        Got a bit? Feeling a little down on the Jays? Submit something you think is funny. All
-        submissions are human reviewed, and may take some time to appear.
-      </p>
+
+    <div class="mx-auto mt-10 max-w-2xl">
+      <div class="text-center">
+        <p class="font-mono text-[0.68rem] font-bold tracking-[0.2em] text-red uppercase">
+          The Tip Line
+        </p>
+        <h2 class="mt-1.5 font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
+          Submit a headline
+        </h2>
+        <p class="mx-auto mt-3 max-w-lg text-sm leading-relaxed text-ink-soft">
+          Got a bit? Feeling a little down on the Jays? File a dispatch with the desk. Every
+          submission is human reviewed and may take some time to appear.
+        </p>
+      </div>
 
       {sent && (
-        <p class="mt-8 rounded-lg border border-paper-edge bg-card p-4 text-center text-sm font-medium text-ink">
-          Thanks for submitting and contributing! It's in the queue for review.
-        </p>
+        <div
+          class="mt-8 border border-blue/30 border-l-4 border-l-blue bg-card px-5 py-4 text-sm text-ink shadow-[2px_2px_0_rgba(13,27,46,0.08)]"
+          role="status"
+        >
+          <p class="font-mono text-[0.68rem] font-bold tracking-[0.14em] text-blue uppercase">
+            Wire Received
+          </p>
+          <p class="mt-1">
+            Thanks for submitting and contributing! It's in the copy desk queue for review.
+          </p>
+        </div>
       )}
 
       {error && errorMessage[error] && (
-        <p class="mt-8 rounded-lg border border-red/30 bg-red/5 p-4 text-center text-sm font-medium text-red">
-          {errorMessage[error]}
-        </p>
+        <div
+          class="mt-8 border border-red/30 border-l-4 border-l-red bg-card px-5 py-4 text-sm text-red shadow-[2px_2px_0_rgba(13,27,46,0.08)]"
+          role="alert"
+        >
+          <p class="font-mono text-[0.68rem] font-bold tracking-[0.14em] uppercase">
+            Transmission Error
+          </p>
+          <p class="mt-1 text-ink">{errorMessage[error]}</p>
+        </div>
       )}
 
       <form
-        class="mt-8 space-y-4 rounded-lg border border-paper-edge bg-card p-6"
+        class="mt-8 space-y-5 border border-ink/25 border-t-[3px] border-t-blue bg-card p-6 shadow-[4px_4px_0_rgba(13,27,46,0.12)] sm:p-8"
         method="POST"
         action="/api/submit"
       >
-        <label class="block text-sm font-medium text-ink">
+        <label class={LABEL_CLASS}>
           Headline
           <textarea
             name="headline"
@@ -61,34 +85,35 @@ const errorMessage: Record<string, string> = {
             rows="3"
             maxlength={HEADLINE_MAX}
             placeholder={`e.g. "Vladimir Guerrero Jr.'s bat found unresponsive at scene"`}
-            class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-base text-ink font-display"
+            class={`${INPUT_CLASS} font-display text-lg leading-snug font-normal tracking-normal normal-case`}
           ></textarea>
         </label>
 
-        <label class="block text-sm font-medium text-ink">
-          Subtitle <span class="font-normal text-ink-soft/70">(optional)</span>
+        <label class={LABEL_CLASS}>
+          Subtitle <span class="font-normal text-ink-muted normal-case">(optional)</span>
           <input
             name="subtitle"
             maxlength={SUBTITLE_MAX}
             placeholder={`e.g. "Teammates say it had been quiet since the All-Star break"`}
-            class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-base text-ink italic font-display"
+            class={`${INPUT_CLASS} font-display text-base font-normal tracking-normal normal-case italic`}
           />
         </label>
 
-        <label class="block text-sm font-medium text-ink">
-          What's this riffing on? <span class="font-normal text-ink-soft/70">(optional)</span>
+        <label class={LABEL_CLASS}>
+          What's this riffing on?{' '}
+          <span class="font-normal text-ink-muted normal-case">(optional)</span>
           <input
             name="source_note"
             maxlength={SOURCE_NOTE_MAX}
-            class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
+            class={`${INPUT_CLASS} font-sans text-sm font-normal tracking-normal normal-case`}
           />
         </label>
 
         <div>
-          <span class="block text-sm font-medium text-ink">
-            Photo <span class="font-normal text-ink-soft/70">(optional)</span>
+          <span class={LABEL_CLASS}>
+            Press photo <span class="font-normal text-ink-muted normal-case">(optional)</span>
           </span>
-          <div class="mt-1">
+          <div class="mt-1.5">
             <PhotoInput
               client:load
               name="photo_ref"
@@ -98,21 +123,24 @@ const errorMessage: Record<string, string> = {
           </div>
         </div>
 
-        <label class="block text-sm font-medium text-ink">
-          Your name <span class="font-normal text-ink-soft/70">(optional, shown on the card)</span>
+        <label class={LABEL_CLASS}>
+          Your byline{' '}
+          <span class="font-normal text-ink-muted normal-case">(optional, shown on the card)</span>
           <input
             name="submitter_name"
             maxlength={SUBMITTER_NAME_MAX}
-            class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
+            class={`${INPUT_CLASS} font-sans text-sm font-normal tracking-normal normal-case`}
           />
         </label>
 
-        <button
-          type="submit"
-          class="w-full rounded bg-blue px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
-        >
-          Send it in
-        </button>
+        <div class="pt-2">
+          <button
+            type="submit"
+            class="w-full cursor-pointer border border-blue bg-blue px-5 py-3 font-mono text-xs font-bold tracking-[0.16em] text-white uppercase transition-colors hover:border-blue-deep hover:bg-blue-deep"
+          >
+            Send to the desk
+          </button>
+        </div>
       </form>
     </div>
   </main>

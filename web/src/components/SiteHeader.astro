@@ -1,14 +1,10 @@
 ---
 // The submit CTA is hidden on /submit itself (redundant next to the form),
-// shown everywhere else. Issue #142: the only other pointer to /submit was a
-// footer line, which most visitors never reach.
+// shown everywhere else.
 //
-// SEO heading hierarchy: the site name is the <h1> on the homepage (the site
-// name IS the page's topic there), but on a permalink page the focused
-// headline is the page's real topic, so it should be the only <h1> and the
-// site name drops to a styled <p> (visually identical). `siteNameLevel` lets
-// each page place the site name at the right outline level — default h1 keeps
-// the homepage/submit/etc. as-is, permalinks pass 'p'.
+// SEO heading hierarchy: the site name is the <h1> on the homepage, while on a
+// permalink page the focused headline is the page's sole <h1> and the site name
+// drops to a visually identical <p> via `siteNameLevel="p"`.
 import { getHandlesUrl } from '../lib/site';
 
 interface Props {
@@ -16,57 +12,40 @@ interface Props {
 }
 const { siteNameLevel = 'h1' } = Astro.props;
 const showSubmit = Astro.url.pathname !== '/submit';
-const SiteNameTag = siteNameLevel; // 'h1' or 'p' — same classes, just the tag differs
+const SiteNameTag = siteNameLevel;
 
-// Cross-origin, so it carries rel="noopener" — but deliberately *not* nofollow.
-// It points at our own subdomain, which is a page we want found; the reason
-// this link was a problem for Search Console before was the target, not the
-// link (every host under the *.bluejays.space wildcard served a byte-identical
-// copy of it). That's fixed on the service side — handles/main.go now redirects
-// every non-canonical host to this one URL — so a normal followed link is the
-// correct signal now. It stays out of sitemap.xml, which is same-origin only.
 const handlesUrl = getHandlesUrl().href;
 
-// One definition for both header chips so they can't drift apart again — they
-// sit at opposite corners of the same header and read as a pair, so identical
-// shape, weight, colour, and hover. Only the corner they pin to differs.
-const HEADER_CHIP =
-  'inline-flex items-center gap-1.5 rounded-full border border-blue/30 bg-card px-3.5 py-2 font-mono text-xs font-bold tracking-widest text-blue uppercase shadow-[2px_2px_0_rgba(20,33,61,0.12)] transition-colors hover:bg-blue hover:text-white hover:shadow-none lg:absolute lg:top-0 lg:text-[0.8rem]';
+const torontoDate = new Intl.DateTimeFormat('en-CA', {
+  weekday: 'long',
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  timeZone: 'America/Toronto',
+})
+  .format(new Date())
+  .toUpperCase();
+
+const EAR_BASE =
+  'inline-flex items-center justify-center gap-1.5 border px-3 py-1.5 font-mono text-[0.7rem] font-bold tracking-[0.12em] uppercase transition-colors';
+const WORDMARK_CLASS =
+  'font-display text-5xl leading-none font-semibold tracking-[-0.035em] text-ink sm:text-6xl lg:text-[4.25rem]';
+const DATELINE_CLASS =
+  'flex flex-wrap items-center justify-between gap-x-4 gap-y-1 font-mono text-[0.68rem] tracking-[0.14em] text-ink-soft uppercase';
 ---
 
-<header class="relative text-center">
-  <a href="/" class="inline-block transition-opacity hover:opacity-80">
-    <SiteNameTag class="text-5xl font-semibold tracking-tight text-ink font-display sm:text-6xl">
-      bluejays.space
-    </SiteNameTag>
-  </a>
-  <!-- One centred row under the wordmark by default; pinned to opposite top
-       corners from lg up. Not sm: two chips either side of a text-6xl wordmark
-       collide around tablet width, and "Bluesky Handles" is wide enough that
-       the overlap lands on the wordmark itself. -->
-  <div class="mt-4 flex flex-wrap items-center justify-center gap-2 lg:mt-0 lg:block">
-    <a href={handlesUrl} rel="noopener" class={`${HEADER_CHIP} lg:start-0`}>
-      <svg
-        width="13"
-        height="13"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
+<header class="text-center">
+  <!-- Masthead row: flanking newspaper "ears" on desktop, stacked cleanly on mobile -->
+  <div class="grid grid-cols-1 items-center gap-4 pb-5 lg:grid-cols-[1fr_auto_1fr] lg:gap-6">
+    <div class="order-2 flex items-center justify-center gap-2.5 lg:order-1 lg:justify-start">
+      <a
+        href={handlesUrl}
+        rel="noopener"
+        class={`${EAR_BASE} border-ink/25 bg-card text-ink hover:border-blue hover:bg-blue hover:text-white`}
       >
-        <path d="M7 17 17 7M9 7h8v8"></path>
-      </svg>
-      Bluesky Handles
-    </a>
-
-    {showSubmit && (
-      <a href="/submit" class={`${HEADER_CHIP} lg:end-0`}>
         <svg
-          width="13"
-          height="13"
+          width="12"
+          height="12"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -75,10 +54,82 @@ const HEADER_CHIP =
           stroke-linejoin="round"
           aria-hidden="true"
         >
-          <path d="M12 5v14M5 12h14" />
+          <path d="M7 17 17 7M9 7h8v8"></path>
         </svg>
-        Submit
+        Bluesky Handles
       </a>
-    )}
+      {showSubmit && (
+        <a
+          href="/submit"
+          class={`${EAR_BASE} border-blue bg-blue text-white hover:border-blue-deep hover:bg-blue-deep lg:hidden`}
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M12 5v14M5 12h14"></path>
+          </svg>
+          Submit a Tip
+        </a>
+      )}
+    </div>
+
+    <div class="order-1 lg:order-2">
+      <p class="font-mono text-[0.65rem] font-bold tracking-[0.26em] text-blue uppercase">
+        Toronto Baseball Dispatch
+      </p>
+      <a href="/" class="mt-1 inline-block transition-opacity hover:opacity-85">
+        <SiteNameTag class={WORDMARK_CLASS}>bluejays.space</SiteNameTag>
+      </a>
+    </div>
+
+    <div class="order-3 hidden items-center justify-end lg:flex">
+      {showSubmit && (
+        <a
+          href="/submit"
+          class={`${EAR_BASE} border-blue bg-blue text-white hover:border-blue-deep hover:bg-blue-deep`}
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M12 5v14M5 12h14"></path>
+          </svg>
+          Submit a Tip
+        </a>
+      )}
+    </div>
   </div>
+
+  <!-- Broadsheet double-rule dateline bar -->
+  <div class="border-t-[3px] border-b border-rule py-2">
+    <div class={DATELINE_CLASS}>
+      <span class="font-bold text-ink">Toronto Edition</span>
+      <span class="hidden sm:inline">{torontoDate}</span>
+      <span class="flex items-center gap-2">
+        <span>Sports Desk</span>
+        <span class="text-paper-edge" aria-hidden="true">
+          &middot;
+        </span>
+        <a href="/feed.xml" class="font-bold text-blue transition-colors hover:text-ink">
+          RSS
+        </a>
+      </span>
+    </div>
+  </div>
+  <div class="mt-[3px] border-t border-rule"></div>
 </header>
