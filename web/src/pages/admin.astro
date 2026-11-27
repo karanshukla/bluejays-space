@@ -37,6 +37,8 @@ const olderHref = `/admin?tab=published&page=${Math.min(publishedTotalPages, pub
 const LABEL_CLASS = 'block font-mono text-[0.7rem] font-bold tracking-[0.12em] text-ink uppercase';
 const INPUT_CLASS =
   'mt-1.5 w-full border border-paper-edge bg-paper/70 px-3 py-2 text-ink transition-colors focus:border-blue focus:bg-card focus:ring-2 focus:ring-blue/20 focus:outline-none';
+const NEW_SHEET =
+  'border border-ink/25 border-t-[3px] border-t-blue bg-card p-6 shadow-[4px_4px_0_rgba(13,27,46,0.1)] sm:p-8';
 ---
 
 <Base title="Copy Desk · bluejays.space">
@@ -162,7 +164,7 @@ const INPUT_CLASS =
 
     {tab === 'new' && (
       <section>
-        <div class="border border-ink/25 border-t-[3px] border-t-blue bg-card p-6 shadow-[4px_4px_0_rgba(13,27,46,0.1)] sm:p-8">
+        <div class={NEW_SHEET}>
           <p class="font-mono text-[0.65rem] font-bold tracking-[0.16em] text-blue uppercase">
             File Copy
           </p>

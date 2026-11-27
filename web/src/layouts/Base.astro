@@ -44,6 +44,11 @@ const websiteJsonLd = {
   url: site.href,
   description: DEFAULT_DESCRIPTION,
 };
+
+const FOOTER_ROW =
+  'flex flex-col items-center justify-between gap-4 text-center font-mono text-xs text-ink-soft sm:flex-row sm:text-left';
+const FOOTER_LINK =
+  'text-ink underline decoration-paper-edge underline-offset-4 transition-colors hover:text-blue hover:decoration-blue';
 ---
 
 <!doctype html>
@@ -94,7 +99,7 @@ const websiteJsonLd = {
     </div>
     <footer class="mx-auto mt-20 w-full max-w-[1440px] px-5 pb-12 sm:px-8 lg:px-10">
       <div class="broadsheet-double-rule mb-6"></div>
-      <div class="flex flex-col items-center justify-between gap-4 text-center font-mono text-xs text-ink-soft sm:flex-row sm:text-left">
+      <div class={FOOTER_ROW}>
         <p class="leading-relaxed">
           <strong class="font-bold text-ink">bluejays.space</strong> is a parody/satire site. Not
           affiliated with MLB or the Toronto Blue Jays.
@@ -103,27 +108,11 @@ const websiteJsonLd = {
           class="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-[0.7rem] tracking-wider uppercase"
           aria-label="Footer"
         >
-          <a
-            href="/submit"
-            class="text-ink underline decoration-paper-edge underline-offset-4 transition-colors hover:text-blue hover:decoration-blue"
-          >
-            Submit a headline
-          </a>
+          <a href="/submit" class={FOOTER_LINK}>Submit a headline</a>
           <span class="text-paper-edge" aria-hidden="true">/</span>
-          <a
-            href={handlesUrl}
-            rel="noopener"
-            class="text-ink underline decoration-paper-edge underline-offset-4 transition-colors hover:text-blue hover:decoration-blue"
-          >
-            Bluesky Handles
-          </a>
+          <a href={handlesUrl} rel="noopener" class={FOOTER_LINK}>Bluesky Handles</a>
           <span class="text-paper-edge" aria-hidden="true">/</span>
-          <a
-            href="/feed.xml"
-            class="text-ink underline decoration-paper-edge underline-offset-4 transition-colors hover:text-blue hover:decoration-blue"
-          >
-            RSS
-          </a>
+          <a href="/feed.xml" class={FOOTER_LINK}>RSS</a>
         </nav>
       </div>
     </footer>

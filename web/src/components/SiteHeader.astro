@@ -28,6 +28,10 @@ const torontoDate = new Intl.DateTimeFormat('en-CA', {
 
 const EAR_BASE =
   'inline-flex items-center justify-center gap-1.5 border px-3 py-1.5 font-mono text-[0.7rem] font-bold tracking-[0.12em] uppercase transition-colors';
+const WORDMARK_CLASS =
+  'font-display text-5xl leading-none font-semibold tracking-[-0.035em] text-ink sm:text-6xl lg:text-[4.25rem]';
+const DATELINE_CLASS =
+  'flex flex-wrap items-center justify-between gap-x-4 gap-y-1 font-mono text-[0.68rem] tracking-[0.14em] text-ink-soft uppercase';
 ---
 
 <header class="text-center">
@@ -82,9 +86,7 @@ const EAR_BASE =
         Toronto Baseball Dispatch
       </p>
       <a href="/" class="mt-1 inline-block transition-opacity hover:opacity-85">
-        <SiteNameTag class="font-display text-5xl leading-none font-semibold tracking-[-0.035em] text-ink sm:text-6xl lg:text-[4.25rem]">
-          bluejays.space
-        </SiteNameTag>
+        <SiteNameTag class={WORDMARK_CLASS}>bluejays.space</SiteNameTag>
       </a>
     </div>
 
@@ -115,7 +117,7 @@ const EAR_BASE =
 
   <!-- Broadsheet double-rule dateline bar -->
   <div class="border-t-[3px] border-b border-rule py-2">
-    <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 font-mono text-[0.68rem] tracking-[0.14em] text-ink-soft uppercase">
+    <div class={DATELINE_CLASS}>
       <span class="font-bold text-ink">Toronto Edition</span>
       <span class="hidden sm:inline">{torontoDate}</span>
       <span class="flex items-center gap-2">

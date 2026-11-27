@@ -39,6 +39,8 @@ const { rows: headlines } = await getPublishedHeadlinesPaged({ pageSize: feedPag
 
 const ogImage = `/api/og/${id}.png`;
 const description = permalinkDescription(headline, DEFAULT_DESCRIPTION);
+const RETURN_BAR =
+  'mt-6 flex items-center justify-between font-mono text-[0.7rem] tracking-[0.12em] text-ink-soft uppercase';
 ---
 
 <Base
@@ -56,7 +58,7 @@ const description = permalinkDescription(headline, DEFAULT_DESCRIPTION);
   >
     <SiteHeader siteNameLevel="p" />
 
-    <div class="mt-6 flex items-center justify-between font-mono text-[0.7rem] tracking-[0.12em] text-ink-soft uppercase">
+    <div class={RETURN_BAR}>
       <a
         href="/"
         class="inline-flex items-center gap-1.5 font-bold text-blue transition-colors hover:text-ink"
