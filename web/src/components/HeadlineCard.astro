@@ -59,9 +59,7 @@ const dateline = formatDispatchDate(h.published_at, h.id);
 ---
 
 <li data-headline-id={h.id}>
-  <article
-    class={`clipping ${dimmed ? 'dimmed' : ''} ${focused ? 'focused' : ''}`}
-  >
+  <article class={`clipping ${dimmed ? 'dimmed' : ''} ${focused ? 'focused' : ''}`}>
     <div
       class="flex items-center justify-between gap-2 border-b border-paper-edge/80 px-5 py-2.5 font-mono text-[0.65rem] tracking-[0.13em] uppercase"
     >

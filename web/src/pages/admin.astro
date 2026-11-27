@@ -59,8 +59,9 @@ const INPUT_CLASS =
           Editorial Desk
         </h1>
         <p class="font-mono text-xs text-ink-soft">
-          <strong class="text-ink">{drafts.length}</strong> draft{drafts.length === 1 ? '' : 's'}{' '}
-          awaiting review &middot; only published rows appear live
+          <strong class="text-ink">{drafts.length}</strong>{' '}
+          draft{drafts.length === 1 ? '' : 's'} awaiting review &middot; only published rows appear
+          live
         </p>
       </div>
 
@@ -134,7 +135,10 @@ const INPUT_CLASS =
         )}
 
         {publishedTotalPages > 1 && (
-          <nav class="flex items-center justify-between border-t border-paper-edge pt-4" aria-label="Published pages">
+          <nav
+            class="flex items-center justify-between border-t border-paper-edge pt-4"
+            aria-label="Published pages"
+          >
             <a
               href={newerHref}
               aria-disabled={publishedPage <= 1 ? 'true' : undefined}
@@ -159,12 +163,16 @@ const INPUT_CLASS =
 
     {tab === 'new' && (
       <section>
-        <div class="border border-ink/25 border-t-[3px] border-t-blue bg-card p-6 shadow-[4px_4px_0_rgba(13,27,46,0.1)] sm:p-8">
+        <div
+          class="border border-ink/25 border-t-[3px] border-t-blue bg-card p-6 shadow-[4px_4px_0_rgba(13,27,46,0.1)] sm:p-8"
+        >
           <p class="font-mono text-[0.65rem] font-bold tracking-[0.16em] text-blue uppercase">
             File Copy
           </p>
           <h2 class="mt-1 font-display text-2xl font-semibold text-ink">New headline</h2>
-          <p class="mb-5 text-sm text-ink-soft">Saved to drafts first for classification and review.</p>
+          <p class="mb-5 text-sm text-ink-soft">
+            Saved to drafts first for classification and review.
+          </p>
           <form class="space-y-4" method="POST" action="/admin/api/headlines/create">
             <label class={LABEL_CLASS}>
               Headline

@@ -191,7 +191,9 @@
           {/each}
         </div>
         {#if naturalWidth > 0}
-          <span class="font-mono text-[0.68rem] text-ink-muted">{naturalWidth}×{naturalHeight}</span>
+          <span class="font-mono text-[0.68rem] text-ink-muted">
+            {naturalWidth}×{naturalHeight}
+          </span>
         {/if}
         {#if looksSoft}
           <span
