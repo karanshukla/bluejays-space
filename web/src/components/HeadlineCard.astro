@@ -60,9 +60,7 @@ const dateline = formatDispatchDate(h.published_at, h.id);
 
 <li data-headline-id={h.id}>
   <article class={`clipping ${dimmed ? 'dimmed' : ''} ${focused ? 'focused' : ''}`}>
-    <div
-      class="flex items-center justify-between gap-2 border-b border-paper-edge/80 px-5 py-2.5 font-mono text-[0.65rem] tracking-[0.13em] uppercase"
-    >
+    <div class="flex items-center justify-between gap-2 border-b border-paper-edge/80 px-5 py-2.5 font-mono text-[0.65rem] tracking-[0.13em] uppercase">
       <span class={`font-bold ${isUrgent ? 'text-red' : 'text-blue'}`}>{kicker}</span>
       <span class="text-ink-muted">{dateline}</span>
     </div>
@@ -90,9 +88,7 @@ const dateline = formatDispatchDate(h.published_at, h.id);
     )}
 
     <div class="flex flex-1 flex-col px-5 pt-4 pb-5">
-      <HeadingTag
-        class="card-headline font-display text-[1.35rem] leading-[1.2] font-semibold tracking-[-0.015em] text-ink transition-colors"
-      >
+      <HeadingTag class="card-headline font-display text-[1.35rem] leading-[1.2] font-semibold tracking-[-0.015em] text-ink transition-colors">
         {h.headline}
       </HeadingTag>
 
@@ -119,9 +115,7 @@ const dateline = formatDispatchDate(h.published_at, h.id);
       )}
     </div>
 
-    <div
-      class="mt-auto flex items-center justify-between gap-2 border-t border-paper-edge/80 bg-paper-tint/45 px-4 py-2"
-    >
+    <div class="mt-auto flex items-center justify-between gap-2 border-t border-paper-edge/80 bg-paper-tint/45 px-4 py-2">
       <a
         href={url}
         class={`card-open ${linkBody ? 'card-link' : ''} -ml-1.5 inline-flex items-center gap-1.5 px-2 py-1.5 font-mono text-[0.65rem] tracking-wider text-ink-muted uppercase transition-colors hover:text-blue`}
@@ -146,9 +140,7 @@ const dateline = formatDispatchDate(h.published_at, h.id);
       </a>
 
       <span class="flex min-w-0 flex-col items-center text-center">
-        <span
-          class="font-mono text-[0.6rem] font-bold tracking-[0.16em] text-ink-muted/75 uppercase"
-        >
+        <span class="font-mono text-[0.6rem] font-bold tracking-[0.16em] text-ink-muted/75 uppercase">
           {siteHost}
         </span>
         {h.submitter_name && (
