@@ -138,18 +138,18 @@
   let dropzone = $state<HTMLDivElement | null>(null);
 </script>
 
-<div bind:this={root} onpaste={onPaste} class="space-y-2">
+<div bind:this={root} onpaste={onPaste} class="space-y-2.5">
   {#if name}
     <input type="hidden" {name} value={key ?? ''} />
   {/if}
 
   {#if key}
-    <div class="space-y-2">
+    <div class="space-y-2 border border-paper-edge bg-paper/50 p-3">
       <div class="relative mx-auto w-full max-w-sm">
         <button
           type="button"
           onclick={() => (expanded = true)}
-          class="group block w-full cursor-zoom-in overflow-hidden rounded border border-paper-edge bg-paper focus-visible:ring-2 focus-visible:ring-blue/40 focus-visible:outline-none"
+          class="group block w-full cursor-zoom-in overflow-hidden border border-paper-edge bg-paper-tint focus-visible:ring-2 focus-visible:ring-blue/40 focus-visible:outline-none"
           title="View full size"
         >
           <!-- svelte-ignore a11y_img_redundant_alt -->
@@ -167,23 +167,23 @@
           type="button"
           onclick={() => setKey(null)}
           disabled={uploading}
-          class="absolute top-1 right-1 rounded bg-ink/70 px-2 py-0.5 text-xs font-semibold text-white hover:bg-ink/90 disabled:opacity-50"
+          class="absolute top-1.5 right-1.5 cursor-pointer bg-ink/85 px-2 py-0.5 font-mono text-[0.65rem] font-bold tracking-wider text-white uppercase hover:bg-red disabled:opacity-50"
         >
           Remove
         </button>
       </div>
 
       <div class="mx-auto flex w-full max-w-sm flex-wrap items-center gap-2 text-xs">
-        <div class="inline-flex overflow-hidden rounded border border-paper-edge">
+        <div class="inline-flex overflow-hidden border border-paper-edge">
           {#each VIEWS as option (option.value)}
             <button
               type="button"
               onclick={() => (view = option.value)}
               aria-pressed={view === option.value}
-              class={`px-2 py-1 font-medium transition-colors ${
+              class={`cursor-pointer px-2.5 py-1 font-mono text-[0.65rem] font-bold tracking-wider uppercase transition-colors ${
                 view === option.value
                   ? 'bg-blue text-white'
-                  : 'bg-paper text-ink-soft hover:text-blue'
+                  : 'bg-card text-ink-soft hover:text-blue'
               }`}
             >
               {option.label}
@@ -191,19 +191,21 @@
           {/each}
         </div>
         {#if naturalWidth > 0}
-          <span class="text-ink-soft/70 font-mono">{naturalWidth}×{naturalHeight}</span>
+          <span class="font-mono text-[0.68rem] text-ink-muted">{naturalWidth}×{naturalHeight}</span>
         {/if}
         {#if looksSoft}
-          <span class="text-red font-mono" title="Below the 640px variant the feed serves">
-            low resolution
+          <span
+            class="font-mono text-[0.68rem] font-bold text-red uppercase"
+            title="Below the 640px variant the feed serves"
+          >
+            Low res
           </span>
         {/if}
       </div>
 
       {#if view === 'published'}
-        <p class="mx-auto max-w-sm text-xs text-ink-soft/70">
-          This is the exact crop the published card uses. Switch to “Full image” to see what's
-          outside it.
+        <p class="mx-auto max-w-sm text-xs text-ink-muted">
+          Exact 4:3 crop used on the live card. Switch to “Full image” to see what sits outside it.
         </p>
       {/if}
     </div>
@@ -221,18 +223,18 @@
       onkeydown={(e) => {
         if (e.key === 'Escape') expanded = false;
       }}
-      class="fixed inset-0 z-50 flex items-center justify-center bg-ink/80 p-6"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-ink/85 p-6"
     >
       <!-- svelte-ignore a11y_img_redundant_alt -->
       <img
         src={previewSrc}
         alt="Attached photo at full size"
-        class="max-h-full max-w-full rounded shadow-lg"
+        class="max-h-full max-w-full border border-card/30 shadow-2xl"
       />
       <button
         type="button"
         onclick={() => (expanded = false)}
-        class="absolute top-4 right-4 rounded bg-card px-3 py-1 text-sm font-semibold text-ink hover:opacity-90"
+        class="absolute top-4 right-4 cursor-pointer border border-paper-edge bg-card px-3.5 py-1.5 font-mono text-xs font-bold tracking-wider text-ink uppercase hover:bg-blue hover:text-white"
       >
         Close
       </button>
@@ -257,9 +259,9 @@
         fileInput?.click();
       }
     }}
-    class={`flex cursor-pointer items-center justify-center rounded border-2 border-dashed px-3 py-4 text-sm outline-none transition-colors focus-visible:border-blue focus-visible:ring-2 focus-visible:ring-blue/30 ${dragging ? 'border-blue bg-blue/5' : 'border-paper-edge bg-paper hover:border-blue/50'}`}
+    class={`flex cursor-pointer items-center justify-center border border-dashed px-4 py-5 text-sm outline-none transition-colors focus-visible:border-blue focus-visible:ring-2 focus-visible:ring-blue/30 ${dragging ? 'border-blue bg-blue/5' : 'border-paper-edge bg-paper/70 hover:border-blue/60 hover:bg-card'}`}
   >
-    <span class="text-center text-ink-soft">
+    <span class="text-center font-mono text-xs text-ink-soft">
       {uploading
         ? 'Uploading…'
         : dragging
@@ -279,10 +281,8 @@
     />
   </div>
 
-  <label class="block text-sm font-medium text-ink">
-    <span class="text-ink-soft/70"
-      >{allowRawKey ? '…or paste a URL / existing key' : '…or paste an image URL'}</span
-    >
+  <label class="block text-xs font-normal tracking-normal text-ink-muted normal-case">
+    <span>{allowRawKey ? 'Or paste a URL / existing key' : 'Or paste an image URL'}</span>
     <input
       bind:value={urlInput}
       onblur={importUrl}
@@ -293,11 +293,11 @@
         }
       }}
       placeholder={allowRawKey ? 'https://… or admin/1234-photo.webp' : 'https://…'}
-      class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
+      class="mt-1 w-full border border-paper-edge bg-paper/70 px-3 py-2 font-sans text-sm text-ink transition-colors focus:border-blue focus:bg-card focus:ring-2 focus:ring-blue/20 focus:outline-none"
     />
   </label>
 
   {#if error}
-    <p class="text-xs text-red font-mono">{error}</p>
+    <p class="font-mono text-xs text-red">{error}</p>
   {/if}
 </div>

@@ -5,7 +5,7 @@ import '@fontsource/fraunces/400.css';
 import '@fontsource/fraunces/400-italic.css';
 import '@fontsource/space-mono/400.css';
 import '@fontsource/space-mono/700.css';
-import { getSiteUrl } from '../lib/site';
+import { getHandlesUrl, getSiteUrl } from '../lib/site';
 
 export const DEFAULT_DESCRIPTION = 'The best Blue Jays misinformation on the web';
 
@@ -31,6 +31,7 @@ const {
 } = Astro.props;
 
 const site = getSiteUrl();
+const handlesUrl = getHandlesUrl().href;
 const canonical = new URL(canonicalPath ?? Astro.url.pathname, site);
 const imageUrl = new URL(ogImage ?? '/og-default.png', site);
 const desc = description ?? DEFAULT_DESCRIPTION;
@@ -87,18 +88,31 @@ const websiteJsonLd = {
 
     <script type="application/ld+json" is:inline set:html={JSON.stringify(websiteJsonLd)}></script>
   </head>
-  <body class="min-h-screen text-ink antialiased">
-    <slot />
-    <footer class="mt-16 px-6 py-6 text-center font-mono text-xs text-ink-soft">
-      <p>
-        <strong>bluejays.space</strong> is a parody/satire site. Not affiliated with MLB or the
-        Toronto Blue Jays.
-      </p>
-      <p class="mt-2">
-        <a href="/submit" class="underline hover:text-blue">
-          Got a headline idea? Submit one
-        </a>
-      </p>
+  <body class="flex min-h-screen flex-col text-ink antialiased">
+    <div class="flex-1">
+      <slot />
+    </div>
+    <footer class="mx-auto mt-20 w-full max-w-[1440px] px-5 pb-12 sm:px-8 lg:px-10">
+      <div class="broadsheet-double-rule mb-6"></div>
+      <div class="flex flex-col items-center justify-between gap-4 text-center font-mono text-xs text-ink-soft sm:flex-row sm:text-left">
+        <p class="leading-relaxed">
+          <strong class="font-bold text-ink">bluejays.space</strong> is a parody/satire site. Not
+          affiliated with MLB or the Toronto Blue Jays.
+        </p>
+        <nav class="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-[0.7rem] tracking-wider uppercase" aria-label="Footer">
+          <a href="/submit" class="text-ink underline decoration-paper-edge underline-offset-4 transition-colors hover:text-blue hover:decoration-blue">
+            Submit a headline
+          </a>
+          <span class="text-paper-edge" aria-hidden="true">/</span>
+          <a href={handlesUrl} rel="noopener" class="text-ink underline decoration-paper-edge underline-offset-4 transition-colors hover:text-blue hover:decoration-blue">
+            Bluesky Handles
+          </a>
+          <span class="text-paper-edge" aria-hidden="true">/</span>
+          <a href="/feed.xml" class="text-ink underline decoration-paper-edge underline-offset-4 transition-colors hover:text-blue hover:decoration-blue">
+            RSS
+          </a>
+        </nav>
+      </div>
     </footer>
   </body>
 </html>

@@ -24,11 +24,11 @@
   const safetyBadgeClass = $derived.by(() => {
     switch (draft.safety_status) {
       case 'review':
-        return 'bg-amber-100 text-amber-800';
+        return 'border-amber-700/30 bg-amber-50 text-amber-900';
       case 'blocked':
-        return 'bg-red/10 text-red';
+        return 'border-red/30 bg-red/10 text-red';
       default:
-        return 'bg-emerald-100 text-emerald-700';
+        return 'border-emerald-700/30 bg-emerald-50 text-emerald-800';
     }
   });
 
@@ -100,88 +100,101 @@
   let root: HTMLLIElement | undefined = $state();
 </script>
 
-<li bind:this={root} class="rounded-lg border border-paper-edge bg-card p-5 shadow-sm">
-  <div class="mb-3 flex flex-wrap items-center gap-2">
+<li
+  bind:this={root}
+  class="border border-paper-edge border-t-[3px] border-t-ink bg-card p-5 shadow-[0_1px_2px_rgba(13,27,46,0.06)] sm:p-6"
+>
+  <div class="mb-4 flex flex-wrap items-center gap-2 border-b border-paper-edge/80 pb-3">
     {#if draft.source === 'submission'}
       <span
-        class="rounded bg-blue/10 px-2 py-0.5 text-xs font-semibold text-blue"
+        class="border border-blue/30 bg-blue/10 px-2 py-0.5 font-mono text-[0.65rem] font-bold tracking-wider text-blue uppercase"
         title="Came in through the public /submit form. Unverified provenance, review with extra care"
       >
-        Submitted{draft.submitter_name ? ` · ${draft.submitter_name}` : ' · anonymous'}
+        Tip{draft.submitter_name ? ` · ${draft.submitter_name}` : ' · anonymous'}
       </span>
     {/if}
     {#if draft.category}
-      <span class="rounded bg-ink/5 px-2 py-0.5 text-xs font-medium text-ink-soft">
+      <span
+        class="border border-paper-edge bg-paper-tint/70 px-2 py-0.5 font-mono text-[0.65rem] font-bold tracking-wider text-ink-soft uppercase"
+      >
         {draft.category}
       </span>
     {/if}
     {#if draft.safety_status}
       <span
-        class={`rounded px-2 py-0.5 text-xs font-semibold ${safetyBadgeClass}`}
+        class={`border px-2 py-0.5 font-mono text-[0.65rem] font-bold tracking-wider uppercase ${safetyBadgeClass}`}
         title={draft.safety_reason ?? ''}
       >
         {draft.safety_status}{draft.safety_reason ? ` · ${draft.safety_reason}` : ''}
       </span>
     {/if}
     {#if isFactAnchored}
-      <span class="rounded bg-red/10 px-2 py-0.5 text-xs font-semibold text-red">
-        fact-anchored · verify before publish
+      <span
+        class="border border-red/30 bg-red/10 px-2 py-0.5 font-mono text-[0.65rem] font-bold tracking-wider text-red uppercase"
+      >
+        Fact-anchored · verify
       </span>
     {/if}
     {#if isPublished}
-      <span class="rounded bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+      <span
+        class="border border-emerald-700/30 bg-emerald-50 px-2 py-0.5 font-mono text-[0.65rem] font-bold tracking-wider text-emerald-800 uppercase"
+      >
         Published
       </span>
     {/if}
-    <span class="ml-auto text-xs text-ink-soft/70 font-mono">
-      #{draft.id} · {new Date(draft.created_at).toLocaleDateString()}
+    <span class="ml-auto font-mono text-[0.68rem] tracking-wider text-ink-muted uppercase">
+      № {draft.id} &middot; {new Date(draft.created_at).toLocaleDateString()}
     </span>
   </div>
 
   <form
-    class="space-y-3"
+    class="space-y-4"
     onsubmit={(e) => {
       e.preventDefault();
       save();
     }}
   >
-    <label class="block text-sm font-medium text-ink">
+    <label class="block font-mono text-[0.68rem] font-bold tracking-[0.12em] text-ink uppercase">
       <span class="sr-only">Headline</span>
       <textarea
         bind:value={headline}
         required
         rows="2"
-        class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-base text-ink font-display"
+        class="mt-1 w-full border border-paper-edge bg-paper/70 px-3 py-2 font-display text-lg leading-snug font-normal tracking-normal text-ink normal-case transition-colors focus:border-blue focus:bg-card focus:ring-2 focus:ring-blue/20 focus:outline-none"
       ></textarea>
     </label>
 
-    <label class="block text-sm font-medium text-ink">
+    <label class="block font-mono text-[0.68rem] font-bold tracking-[0.12em] text-ink uppercase">
       Subtitle
       <input
         bind:value={subtitle}
-        class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-base text-ink italic font-display"
+        class="mt-1.5 w-full border border-paper-edge bg-paper/70 px-3 py-2 font-display text-base font-normal tracking-normal text-ink normal-case italic transition-colors focus:border-blue focus:bg-card focus:ring-2 focus:ring-blue/20 focus:outline-none"
       />
     </label>
 
     <div>
-      <span class="block text-sm font-medium text-ink">Photo</span>
-      <PhotoInput currentRef={photoRef || null} onchange={(k) => (photoRef = k ?? '')} />
+      <span class="block font-mono text-[0.68rem] font-bold tracking-[0.12em] text-ink uppercase">
+        Photo
+      </span>
+      <div class="mt-1.5">
+        <PhotoInput currentRef={photoRef || null} onchange={(k) => (photoRef = k ?? '')} />
+      </div>
     </div>
 
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <label class="block text-sm font-medium text-ink">
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <label class="block font-mono text-[0.68rem] font-bold tracking-[0.12em] text-ink uppercase">
         Source post URL
         <input
           bind:value={sourcePostUrl}
-          class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
+          class="mt-1.5 w-full border border-paper-edge bg-paper/70 px-3 py-2 font-sans text-sm font-normal tracking-normal text-ink normal-case transition-colors focus:border-blue focus:bg-card focus:ring-2 focus:ring-blue/20 focus:outline-none"
         />
       </label>
 
-      <label class="block text-sm font-medium text-ink">
+      <label class="block font-mono text-[0.68rem] font-bold tracking-[0.12em] text-ink uppercase">
         Source note
         <input
           bind:value={sourceNote}
-          class="mt-1 w-full rounded border border-paper-edge bg-paper p-2 text-ink"
+          class="mt-1.5 w-full border border-paper-edge bg-paper/70 px-3 py-2 font-sans text-sm font-normal tracking-normal text-ink normal-case transition-colors focus:border-blue focus:bg-card focus:ring-2 focus:ring-blue/20 focus:outline-none"
         />
       </label>
     </div>
@@ -190,25 +203,25 @@
       <button
         type="submit"
         disabled={saving}
-        class="rounded bg-ink px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+        class="cursor-pointer border border-ink bg-ink px-4 py-2 font-mono text-xs font-bold tracking-[0.12em] text-white uppercase transition-colors hover:border-blue hover:bg-blue disabled:opacity-50"
       >
         {saving ? 'Saving…' : 'Save changes'}
       </button>
       {#if savedAt && !error}
-        <span class="text-xs text-emerald-600 font-mono">Saved at {savedAt}</span>
+        <span class="font-mono text-xs text-emerald-700">Saved at {savedAt}</span>
       {/if}
       {#if error}
-        <span class="text-xs text-red font-mono">{error}</span>
+        <span class="font-mono text-xs text-red">{error}</span>
       {/if}
     </div>
   </form>
 
-  <div class="mt-3 flex flex-wrap items-center gap-3 border-t border-paper-edge pt-3">
+  <div class="mt-4 flex flex-wrap items-center gap-3 border-t border-paper-edge pt-4">
     {#if isPublished}
       <button
         onclick={unpublish}
         disabled={publishing}
-        class="rounded bg-amber-700 px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+        class="cursor-pointer border border-amber-800 bg-amber-800 px-4 py-2 font-mono text-xs font-bold tracking-[0.12em] text-white uppercase transition-opacity hover:opacity-90 disabled:opacity-50"
       >
         {publishing ? 'Unpublishing…' : 'Unpublish'}
       </button>
@@ -216,7 +229,7 @@
       <button
         onclick={publish}
         disabled={publishing}
-        class="rounded bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+        class="cursor-pointer border border-emerald-800 bg-emerald-800 px-4 py-2 font-mono text-xs font-bold tracking-[0.12em] text-white uppercase transition-opacity hover:opacity-90 disabled:opacity-50"
       >
         {publishing ? 'Publishing…' : 'Publish'}
       </button>
@@ -224,7 +237,7 @@
     <button
       onclick={discard}
       disabled={discarding}
-      class="ml-auto rounded border border-red/40 px-4 py-2 text-sm font-semibold text-red hover:bg-red/5 disabled:opacity-50"
+      class="ml-auto cursor-pointer border border-red/40 px-4 py-2 font-mono text-xs font-bold tracking-[0.12em] text-red uppercase transition-colors hover:bg-red hover:text-white disabled:opacity-50"
     >
       {discarding ? 'Discarding…' : 'Discard'}
     </button>
