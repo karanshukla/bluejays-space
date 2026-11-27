@@ -20,7 +20,8 @@ const errorMessage: Record<string, string> = {
   'server-error': 'Something went wrong on our end. Try again.',
 };
 
-const LABEL_CLASS = 'block font-mono text-[0.7rem] font-bold tracking-[0.12em] text-ink uppercase';
+const LABEL_CLASS =
+  'block font-mono text-[0.7rem] font-semibold tracking-[0.12em] text-ink uppercase';
 const INPUT_CLASS =
   'mt-1.5 w-full border border-paper-edge bg-paper/70 px-3 py-2.5 text-ink transition-colors placeholder:text-ink-muted/70 focus:border-blue focus:bg-card focus:ring-2 focus:ring-blue/20 focus:outline-none';
 ---
@@ -34,15 +35,12 @@ const INPUT_CLASS =
 
     <div class="mx-auto mt-10 max-w-2xl">
       <div class="text-center">
-        <p class="font-mono text-[0.68rem] font-bold tracking-[0.2em] text-red uppercase">
-          The Tip Line
-        </p>
-        <h2 class="mt-1.5 font-display text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
+        <h2 class="font-display text-3xl font-bold tracking-tight text-ink sm:text-4xl">
           Submit a headline
         </h2>
         <p class="mx-auto mt-3 max-w-lg text-sm leading-relaxed text-ink-soft">
-          Got a bit? Feeling a little down on the Jays? File a dispatch with the desk. Every
-          submission is human reviewed and may take some time to appear.
+          Got a bit? Feeling a little down on the Jays? Submit something you think is funny. All
+          submissions are human reviewed, and may take some time to appear.
         </p>
       </div>
 
@@ -51,12 +49,7 @@ const INPUT_CLASS =
           class="mt-8 border border-blue/30 border-l-4 border-l-blue bg-card px-5 py-4 text-sm text-ink shadow-[2px_2px_0_rgba(13,27,46,0.08)]"
           role="status"
         >
-          <p class="font-mono text-[0.68rem] font-bold tracking-[0.14em] text-blue uppercase">
-            Wire Received
-          </p>
-          <p class="mt-1">
-            Thanks for submitting and contributing! It's in the copy desk queue for review.
-          </p>
+          Thanks for submitting and contributing! It's in the queue for review.
         </div>
       )}
 
@@ -65,15 +58,12 @@ const INPUT_CLASS =
           class="mt-8 border border-red/30 border-l-4 border-l-red bg-card px-5 py-4 text-sm text-red shadow-[2px_2px_0_rgba(13,27,46,0.08)]"
           role="alert"
         >
-          <p class="font-mono text-[0.68rem] font-bold tracking-[0.14em] uppercase">
-            Transmission Error
-          </p>
-          <p class="mt-1 text-ink">{errorMessage[error]}</p>
+          {errorMessage[error]}
         </div>
       )}
 
       <form
-        class="mt-8 space-y-5 border border-ink/25 border-t-[3px] border-t-blue bg-card p-6 shadow-[4px_4px_0_rgba(13,27,46,0.12)] sm:p-8"
+        class="mt-8 space-y-5 border border-ink/25 border-t-[4px] border-t-blue bg-card p-6 shadow-[4px_4px_0_rgba(13,27,46,0.12)] sm:p-8"
         method="POST"
         action="/api/submit"
       >
@@ -111,7 +101,7 @@ const INPUT_CLASS =
 
         <div>
           <span class={LABEL_CLASS}>
-            Press photo <span class="font-normal text-ink-muted normal-case">(optional)</span>
+            Photo <span class="font-normal text-ink-muted normal-case">(optional)</span>
           </span>
           <div class="mt-1.5">
             <PhotoInput
@@ -124,7 +114,7 @@ const INPUT_CLASS =
         </div>
 
         <label class={LABEL_CLASS}>
-          Your byline{' '}
+          Your name{' '}
           <span class="font-normal text-ink-muted normal-case">(optional, shown on the card)</span>
           <input
             name="submitter_name"
@@ -136,9 +126,9 @@ const INPUT_CLASS =
         <div class="pt-2">
           <button
             type="submit"
-            class="w-full cursor-pointer border border-blue bg-blue px-5 py-3 font-mono text-xs font-bold tracking-[0.16em] text-white uppercase transition-colors hover:border-blue-deep hover:bg-blue-deep"
+            class="w-full cursor-pointer border border-blue bg-blue px-5 py-3 font-mono text-xs font-semibold tracking-[0.16em] text-white uppercase transition-colors hover:border-blue-deep hover:bg-blue-deep"
           >
-            Send to the desk
+            Send it in
           </button>
         </div>
       </form>

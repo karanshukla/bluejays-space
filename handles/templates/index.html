@@ -15,19 +15,17 @@
   <body>
     <main class="container">
       <header class="masthead">
-        <p class="eyebrow">Toronto Baseball Dispatch</p>
         <h1 class="wordmark">
           <a href="https://{{.D}}/">{{.D}}</a>
         </h1>
         <div class="dateline-bar">
-          <span class="dateline-strong">Handle Bureau</span>
-          <span>Bluesky Custom Domains</span>
-          <a href="https://{{.D}}/" class="dateline-link">&larr; Front Page</a>
+          <span class="dateline-strong">Bluesky Handles</span>
+          <a href="https://{{.D}}/" class="dateline-link">&larr; {{.D}}</a>
         </div>
         <div class="dateline-subrule"></div>
         <p class="deck">
-          Free <code>@yourname.{{.D}}</code> Bluesky handles for Toronto Blue Jays fans. Made by
-          Karan Shukla in Toronto, Ontario
+          Free <code>@yourname.{{.D}}</code> handles for Toronto Blue Jays fans. Made by Karan
+          Shukla in Toronto
           <a
             href="https://bsky.app/profile/did:plc:jsvtouhag7lgnq75f2ze5raf"
             target="_blank"
@@ -40,10 +38,9 @@
       {{.Flash}}
 
       <section class="sheet sheet-primary" aria-labelledby="request-heading">
-        <div class="sheet-kicker" id="request-heading">Claim a Handle</div>
+        <h2 class="sheet-kicker" id="request-heading">Request a Handle</h2>
         <p class="sheet-intro">
-          Fill in the dispatch below. Once the GitHub pull request is reviewed and merged, your
-          handle goes live on the server.
+          Once the GitHub pull request is reviewed and merged, your handle goes live.
         </p>
         <form method="POST" action="/request-handle">
           <div class="form-field">
@@ -86,7 +83,7 @@
       </section>
 
       <section class="sheet" aria-labelledby="approval-heading">
-        <div class="sheet-kicker" id="approval-heading">After Approval</div>
+        <h2 class="sheet-kicker" id="approval-heading">After Approval</h2>
         <ol class="steps">
           <li>
             Visit <strong>Settings &rarr; Account &rarr; Handle &rarr; I have my own domain</strong>
@@ -103,8 +100,7 @@
           <img src="/static/beisbol.jpg" alt="Torrano Beisbol Birds" class="logo-img" />
         </div>
         <p class="colophon-note">
-          <strong>{{.D}}</strong> is an independent fan project. Not affiliated with MLB or the
-          Toronto Blue Jays.
+          <strong>{{.D}}</strong> &mdash; not affiliated with MLB or the Toronto Blue Jays.
         </p>
       </footer>
     </main>

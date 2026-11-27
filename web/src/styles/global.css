@@ -2,18 +2,16 @@
 
 @theme {
   /*
-   * Headlines use Fraunces (self-hosted WOFF2 bundled by Vite in Base.astro),
-   * wire datelines, kickers, and metadata use Space Mono. No external font CDN
-   * requests — preserves the zero-external-call posture on public pages.
+   * Headlines use Newsreader (self-hosted WOFF2 bundled by Vite in Base.astro),
+   * datelines, category tags, and metadata use IBM Plex Mono. Zero external
+   * font CDN requests — preserves the self-contained posture on public pages.
    */
-  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
-  --font-mono: 'Space Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --font-display: 'Newsreader', Georgia, 'Times New Roman', serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
 
-  /* Deadpan Sports Desk / Broadsheet palette:
+  /* Broadsheet palette:
    * Warm newsprint stock, deep press-box navy ink, official Toronto Blue Jays
-   * royal blue, and maple-leaf red used sparingly for breaking-desk kickers
-   * and alerts. Institutional sports-section authority so the parody hits
-   * completely straight-faced. */
+   * royal blue, and maple-leaf red used sparingly for urgent tags and alerts. */
   --color-paper: #f4f1ea;
   --color-paper-tint: #ebe6dc;
   --color-paper-edge: #d1c9ba;
@@ -43,24 +41,20 @@ body {
   background-repeat: repeat;
 }
 
-/* --- Broadsheet rules & masthead dividers --- */
+/* --- Broadsheet rules --- */
 .broadsheet-double-rule {
   border-top: 3px solid var(--color-rule);
   border-bottom: 1px solid var(--color-rule);
   height: 7px;
 }
 
-.broadsheet-rule-bottom {
-  border-bottom: 3px double var(--color-rule);
-}
-
-/* --- Row-major editorial dispatch grid --------------------------------------
+/* --- Row-major editorial grid -----------------------------------------------
    Row-major CSS grid (not multi-column) so infinite scroll appends each batch
    after the last card without rebalancing or shifting cards already on screen. */
 .scrapbook-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 1.5rem;
+  gap: 1.75rem;
   align-items: stretch;
 }
 
@@ -90,7 +84,7 @@ body {
   flex-direction: column;
 }
 
-/* --- Editorial dispatch card (.clipping) ------------------------------------
+/* --- Broadsheet card (.clipping) --------------------------------------------
    Class name kept as `.clipping` so permalink click-outside detection in
    h/[id].astro continues to match. `dimmed` lives on this same element rather
    than an ancestor so hover transforms stay on a cheap compositor layer. */
@@ -101,20 +95,19 @@ body {
   flex-direction: column;
   background-color: var(--color-card);
   border: 1px solid var(--color-paper-edge);
-  border-top: 3px solid var(--color-ink);
-  box-shadow: 0 1px 2px rgba(13, 27, 46, 0.06);
+  border-top: 4px solid var(--color-ink);
+  box-shadow: 0 1px 2px rgba(13, 27, 46, 0.05);
   transition:
     transform 0.14s ease-out,
     opacity 0.16s ease-out,
     filter 0.16s ease-out,
     border-color 0.14s ease-out,
-    background-color 0.14s ease-out,
     box-shadow 0.14s ease-out;
   will-change: transform;
 }
 
 .clipping.dimmed {
-  opacity: 0.22;
+  opacity: 0.2;
   filter: grayscale(0.95);
 }
 
@@ -123,7 +116,7 @@ body {
   border-top-color: var(--color-blue);
   box-shadow:
     6px 6px 0 var(--color-ink),
-    0 20px 44px -16px rgba(13, 27, 46, 0.32);
+    0 24px 48px -16px rgba(13, 27, 46, 0.34);
 }
 
 /* --- Whole-card click target ------------------------------------------------
@@ -144,10 +137,10 @@ body {
 
 .clipping:has(.card-link:hover),
 .clipping:has(.card-link:focus-visible) {
-  transform: translateY(-2px);
+  transform: translateY(-3px);
   border-color: var(--color-ink);
   border-top-color: var(--color-blue);
-  box-shadow: 4px 4px 0 var(--color-ink);
+  box-shadow: 5px 5px 0 var(--color-ink);
 }
 
 .clipping:has(.card-link:hover) .card-headline,
@@ -157,15 +150,15 @@ body {
 
 .clipping:has(.card-link:hover) .photo-mount img,
 .clipping:has(.card-link:focus-visible) .photo-mount img {
-  transform: scale(1.025);
+  transform: scale(1.03);
 }
 
 .clipping:has(.card-link:active) {
-  transform: translateY(0);
+  transform: translateY(-1px);
   box-shadow: 2px 2px 0 var(--color-ink);
 }
 
-/* --- Editorial press photo frame -------------------------------------------
+/* --- Full-bleed press photo -------------------------------------------------
    One crop for every card, biased slightly above centre so portraits keep
    heads in frame. `.published-crop` shares this exact rule with PhotoInput so
    the /admin preview never drifts from what ships on the live feed. */
@@ -173,7 +166,7 @@ body {
   position: relative;
   overflow: hidden;
   background-color: var(--color-paper-tint);
-  border: 1px solid var(--color-paper-edge);
+  border-bottom: 1px solid var(--color-paper-edge);
 }
 
 .photo-mount img,
@@ -181,13 +174,13 @@ body {
   aspect-ratio: 4 / 3;
   object-fit: cover;
   object-position: 50% 35%;
-  filter: contrast(1.03) saturate(1.04);
+  filter: contrast(1.04) saturate(1.04);
 }
 
 .photo-mount img {
   display: block;
   width: 100%;
-  transition: transform 0.28s ease-out;
+  transition: transform 0.3s ease-out;
 }
 
 /* --- Page transitions ------------------------------------------------------- */

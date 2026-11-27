@@ -8,19 +8,18 @@ const KICKER_LABELS: Record<string, string> = {
   'game-recap': 'Game Recap',
   'trade-rumor': 'Trade Rumor',
   'stat-line': 'Stat Line',
-  injury: 'Injury Report',
+  injury: 'Injury',
   'roster-move': 'Roster Move',
-  fabrication: 'Special Report',
+  fabrication: 'Report',
   'off-field': 'Off-Field',
-  other: 'Sports Desk',
 };
 
 const URGENT_CATEGORIES = new Set(['trade-rumor', 'injury', 'roster-move']);
 
-function formatDispatchDate(iso: string | null, id: number): string {
-  if (!iso) return `WIRE № ${id}`;
+function formatDispatchDate(iso: string | null): string | null {
+  if (!iso) return null;
   const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return `WIRE № ${id}`;
+  if (Number.isNaN(date.getTime())) return null;
   return new Intl.DateTimeFormat('en-CA', {
     month: 'short',
     day: 'numeric',
@@ -53,61 +52,61 @@ const HeadingTag = headingLevel;
 const url = permalinkPath(h.id, h.headline);
 const siteHost = getSiteUrl().hostname;
 const hasSmallVariant = h.photo_ref?.endsWith('.webp') ?? false;
-const kicker = (h.category && KICKER_LABELS[h.category]) || 'Sports Desk';
+const kicker = (h.category && KICKER_LABELS[h.category]) || null;
 const isUrgent = Boolean(h.category && URGENT_CATEGORIES.has(h.category));
-const dateline = formatDispatchDate(h.published_at, h.id);
+const dateline = formatDispatchDate(h.published_at);
 
-const CARD_TOP =
-  'flex items-center justify-between gap-2 border-b border-paper-edge/80 px-5 py-2.5 font-mono text-[0.65rem] tracking-[0.13em] uppercase';
 const CARD_HEADLINE =
-  'card-headline font-display text-[1.35rem] leading-[1.2] font-semibold tracking-[-0.015em] text-ink transition-colors';
+  'card-headline font-display text-[1.45rem] leading-[1.16] font-bold tracking-[-0.02em] text-ink transition-colors';
 const CARD_FOOTER =
-  'mt-auto flex items-center justify-between gap-2 border-t border-paper-edge/80 bg-paper-tint/45 px-4 py-2';
+  'mt-auto flex items-center justify-between gap-2 border-t border-paper-edge/80 px-4 py-2';
 const HOST_LABEL =
-  'font-mono text-[0.6rem] font-bold tracking-[0.16em] text-ink-muted/75 uppercase';
+  'font-mono text-[0.6rem] font-semibold tracking-[0.16em] text-ink-muted/70 uppercase';
 ---
 
 <li data-headline-id={h.id}>
   <article class={`clipping ${dimmed ? 'dimmed' : ''} ${focused ? 'focused' : ''}`}>
-    <div class={CARD_TOP}>
-      <span class={`font-bold ${isUrgent ? 'text-red' : 'text-blue'}`}>{kicker}</span>
-      <span class="text-ink-muted">{dateline}</span>
-    </div>
-
     {h.photo_ref && (
-      <div class="px-5 pt-4">
-        <div class="photo-mount">
-          <img
-            src={`/api/images/${h.photo_ref}`}
-            srcset={
-              hasSmallVariant
-                ? `/api/images/${smallVariantKey(h.photo_ref)} 640w, /api/images/${h.photo_ref} 1024w`
-                : undefined
-            }
-            sizes={hasSmallVariant ? '(min-width: 640px) 460px, 100vw' : undefined}
-            alt={h.headline}
-            width="640"
-            height="480"
-            loading={eager ? 'eager' : 'lazy'}
-            decoding="async"
-            fetchpriority={eager ? 'high' : 'auto'}
-          />
-        </div>
+      <div class="photo-mount">
+        <img
+          src={`/api/images/${h.photo_ref}`}
+          srcset={
+            hasSmallVariant
+              ? `/api/images/${smallVariantKey(h.photo_ref)} 640w, /api/images/${h.photo_ref} 1024w`
+              : undefined
+          }
+          sizes={hasSmallVariant ? '(min-width: 640px) 460px, 100vw' : undefined}
+          alt={h.headline}
+          width="640"
+          height="480"
+          loading={eager ? 'eager' : 'lazy'}
+          decoding="async"
+          fetchpriority={eager ? 'high' : 'auto'}
+        />
       </div>
     )}
 
     <div class="flex flex-1 flex-col px-5 pt-4 pb-5">
+      {(kicker || dateline) && (
+        <div class="mb-2 flex items-center justify-between gap-2 font-mono text-[0.65rem] tracking-[0.12em] uppercase">
+          {kicker && (
+            <span class={`font-semibold ${isUrgent ? 'text-red' : 'text-blue'}`}>{kicker}</span>
+          )}
+          {dateline && <span class="ml-auto text-ink-muted">{dateline}</span>}
+        </div>
+      )}
+
       <HeadingTag class={CARD_HEADLINE}>{h.headline}</HeadingTag>
 
       {h.subtitle && (
-        <p class="mt-2.5 font-display text-[0.98rem] leading-snug text-ink-soft italic">
+        <p class="mt-2.5 font-display text-[1.02rem] leading-snug text-ink-soft italic">
           {h.subtitle}
         </p>
       )}
 
       {h.source_note && (
         <p class="mt-3 font-mono text-[0.65rem] tracking-wide text-ink-muted">
-          <span class="uppercase">Via</span>{' '}
+          Source:{' '}
           {h.source_post_url ? (
             <a
               href={h.source_post_url}

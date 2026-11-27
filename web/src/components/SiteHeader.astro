@@ -18,7 +18,7 @@ const handlesUrl = getHandlesUrl().href;
 
 const torontoDate = new Intl.DateTimeFormat('en-CA', {
   weekday: 'long',
-  month: 'short',
+  month: 'long',
   day: 'numeric',
   year: 'numeric',
   timeZone: 'America/Toronto',
@@ -27,15 +27,14 @@ const torontoDate = new Intl.DateTimeFormat('en-CA', {
   .toUpperCase();
 
 const EAR_BASE =
-  'inline-flex items-center justify-center gap-1.5 border px-3 py-1.5 font-mono text-[0.7rem] font-bold tracking-[0.12em] uppercase transition-colors';
+  'inline-flex items-center justify-center gap-1.5 border px-3.5 py-1.5 font-mono text-[0.7rem] font-semibold tracking-[0.12em] uppercase transition-colors';
 const WORDMARK_CLASS =
-  'font-display text-5xl leading-none font-semibold tracking-[-0.035em] text-ink sm:text-6xl lg:text-[4.25rem]';
+  'font-display text-5xl leading-[0.95] font-bold tracking-[-0.04em] text-ink sm:text-7xl lg:text-[4.75rem]';
 const DATELINE_CLASS =
-  'flex flex-wrap items-center justify-between gap-x-4 gap-y-1 font-mono text-[0.68rem] tracking-[0.14em] text-ink-soft uppercase';
+  'flex items-center justify-between gap-4 font-mono text-[0.68rem] tracking-[0.14em] text-ink-soft uppercase';
 ---
 
 <header class="text-center">
-  <!-- Masthead row: flanking newspaper "ears" on desktop, stacked cleanly on mobile -->
   <div class="grid grid-cols-1 items-center gap-4 pb-5 lg:grid-cols-[1fr_auto_1fr] lg:gap-6">
     <div class="order-2 flex items-center justify-center gap-2.5 lg:order-1 lg:justify-start">
       <a
@@ -76,16 +75,13 @@ const DATELINE_CLASS =
           >
             <path d="M12 5v14M5 12h14"></path>
           </svg>
-          Submit a Tip
+          Submit
         </a>
       )}
     </div>
 
     <div class="order-1 lg:order-2">
-      <p class="font-mono text-[0.65rem] font-bold tracking-[0.26em] text-blue uppercase">
-        Toronto Baseball Dispatch
-      </p>
-      <a href="/" class="mt-1 inline-block transition-opacity hover:opacity-85">
+      <a href="/" class="inline-block transition-opacity hover:opacity-85">
         <SiteNameTag class={WORDMARK_CLASS}>bluejays.space</SiteNameTag>
       </a>
     </div>
@@ -109,26 +105,18 @@ const DATELINE_CLASS =
           >
             <path d="M12 5v14M5 12h14"></path>
           </svg>
-          Submit a Tip
+          Submit
         </a>
       )}
     </div>
   </div>
 
-  <!-- Broadsheet double-rule dateline bar -->
   <div class="border-t-[3px] border-b border-rule py-2">
     <div class={DATELINE_CLASS}>
-      <span class="font-bold text-ink">Toronto Edition</span>
-      <span class="hidden sm:inline">{torontoDate}</span>
-      <span class="flex items-center gap-2">
-        <span>Sports Desk</span>
-        <span class="text-paper-edge" aria-hidden="true">
-          &middot;
-        </span>
-        <a href="/feed.xml" class="font-bold text-blue transition-colors hover:text-ink">
-          RSS
-        </a>
-      </span>
+      <span>{torontoDate}</span>
+      <a href="/feed.xml" class="font-semibold text-blue transition-colors hover:text-ink">
+        RSS
+      </a>
     </div>
   </div>
   <div class="mt-[3px] border-t border-rule"></div>
